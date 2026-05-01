@@ -1,5 +1,6 @@
 using Macros.Engine;
 using Macros.Engine.Storage;
+using Macros.Lifecycle;
 using Macros.Mvvm;
 
 using Microsoft.VisualStudio.Shell;
@@ -52,6 +53,7 @@ public sealed class MacrosToolWindowViewModel : INotifyPropertyChanged, IDisposa
 {
     private readonly IMacroStore _storage;
     private readonly IMacroService? _service;
+    private readonly SolutionContextTracker? _solutionTracker;
     private readonly SynchronizationContext? _uiSync;
     private readonly TimeSpan _debounceInterval;
     private readonly object _gate = new();
@@ -122,6 +124,15 @@ public sealed class MacrosToolWindowViewModel : INotifyPropertyChanged, IDisposa
         RecordCommand = _recordCommand;
 
         _storage.LibraryChanged += OnLibraryChanged;
+
+        // Repo-scope availability depends on whether a solution is currently open. Storage
+        // doesn't emit LibraryChanged when the active solution switches, so listen to the
+        // tracker and trigger a reload explicitly on open/close/switch.
+        _solutionTracker = SolutionContextTracker.Current;
+        if (_solutionTracker is not null)
+        {
+            _solutionTracker.SolutionChanged += OnSolutionChanged;
+        }
 
         if (_service is not null)
         {
@@ -393,6 +404,11 @@ public sealed class MacrosToolWindowViewModel : INotifyPropertyChanged, IDisposa
         _disposed = true;
 
         _storage.LibraryChanged -= OnLibraryChanged;
+        if (_solutionTracker is not null)
+        {
+            _solutionTracker.SolutionChanged -= OnSolutionChanged;
+        }
+
         if (_service is not null)
         {
             _service.StateChanged -= OnServiceStateChanged;
@@ -409,6 +425,9 @@ public sealed class MacrosToolWindowViewModel : INotifyPropertyChanged, IDisposa
     }
 
     private void OnLibraryChanged(object sender, MacroLibraryChangedEventArgs e)
+        => ScheduleReload();
+
+    private void OnSolutionChanged(object? sender, EventArgs e)
         => ScheduleReload();
 
     private void OnServiceStateChanged(object sender, MacroStateChangedEventArgs e)

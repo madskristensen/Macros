@@ -583,6 +583,8 @@ public sealed class MacrosPackage : ToolkitPackage
         await OpenFolderContextCommand.InitializeAsync(this);
         await MoveToRepoCommand.InitializeAsync(this);
         await MoveToGlobalCommand.InitializeAsync(this);
+        await CopyToRepoCommand.InitializeAsync(this);
+        await CopyToGlobalCommand.InitializeAsync(this);
         await ManageTriggersContextCommand.InitializeAsync(this);
     }
 }

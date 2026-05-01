@@ -37,6 +37,84 @@
         <!-- Built-in WPF converter is sufficient for the simple bool→Visibility mappings the
              empty-state, error banner, and group headers need. No inversion required. -->
         <BooleanToVisibilityConverter x:Key="BoolToVis" />
+
+        <Style x:Key="GroupExpanderToggleButtonStyle" TargetType="ToggleButton">
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Foreground" Value="{DynamicResource {x:Static vsui:EnvironmentColors.ToolWindowTextBrushKey}}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Grid Background="{TemplateBinding Background}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock x:Name="Chevron"
+                                       Text="▶"
+                                       Margin="6,0,6,0"
+                                       FontSize="10"
+                                       VerticalAlignment="Center"
+                                       Foreground="{TemplateBinding Foreground}" />
+
+                            <ContentPresenter Grid.Column="1"
+                                              VerticalAlignment="Center"
+                                              RecognizesAccessKey="True" />
+                        </Grid>
+
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Chevron" Property="Text" Value="▼" />
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Opacity" Value="0.9" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.56" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="GroupExpanderStyle" TargetType="Expander">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Expander">
+                        <StackPanel>
+                            <ToggleButton x:Name="HeaderSite"
+                                          IsChecked="{Binding IsExpanded, RelativeSource={RelativeSource TemplatedParent}}"
+                                          Style="{StaticResource GroupExpanderToggleButtonStyle}"
+                                          Content="{TemplateBinding Header}" />
+
+                            <ContentPresenter x:Name="ExpandSite"
+                                              Margin="16,2,0,0"
+                                              Visibility="Collapsed" />
+                        </StackPanel>
+
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsExpanded" Value="True">
+                                <Setter TargetName="ExpandSite" Property="Visibility" Value="Visible" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="MacroGridViewHeaderStyle" TargetType="{x:Type GridViewColumnHeader}">
+            <Setter Property="Foreground" Value="{DynamicResource {x:Static vsui:EnvironmentColors.ToolWindowTextBrushKey}}" />
+            <Setter Property="Background" Value="{DynamicResource {x:Static vsui:EnvironmentColors.ToolWindowBackgroundBrushKey}}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource {x:Static vsui:EnvironmentColors.ToolWindowBorderBrushKey}}" />
+            <Setter Property="BorderThickness" Value="0,0,0,1" />
+            <Setter Property="Padding" Value="6,2" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
     </UserControl.Resources>
 
     <Grid>
@@ -55,7 +133,7 @@
                       ScrollViewer.HorizontalScrollBarVisibility="Auto"
                       ScrollViewer.VerticalScrollBarVisibility="Auto">
                 <ListView.View>
-                    <GridView>
+                    <GridView ColumnHeaderContainerStyle="{StaticResource MacroGridViewHeaderStyle}">
                         <GridViewColumn Header="Name"
                                         Width="160">
                             <GridViewColumn.CellTemplate>
@@ -79,14 +157,6 @@
                         <GridViewColumn Header="Steps"
                                         Width="60"
                                         DisplayMemberBinding="{Binding StepCount}" />
-                        <GridViewColumn Header="Modified"
-                                        Width="100">
-                            <GridViewColumn.CellTemplate>
-                                <DataTemplate DataType="{x:Type local:MacroItemViewModel}">
-                                    <TextBlock Text="{Binding ModifiedRelative}" />
-                                </DataTemplate>
-                            </GridViewColumn.CellTemplate>
-                        </GridViewColumn>
                         <GridViewColumn Header="" Width="32">
                             <GridViewColumn.CellTemplate>
                                 <DataTemplate DataType="{x:Type local:MacroItemViewModel}">
@@ -179,6 +249,7 @@
                                     <Setter.Value>
                                         <ControlTemplate TargetType="GroupItem">
                                             <Expander IsExpanded="True"
+                                                      Style="{StaticResource GroupExpanderStyle}"
                                                       Margin="0,2,0,0"
                                                       Foreground="{DynamicResource {x:Static vsui:EnvironmentColors.ToolWindowTextBrushKey}}">
                                                 <Expander.Header>

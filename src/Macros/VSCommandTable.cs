@@ -58,6 +58,7 @@ namespace Macros
         public const int MacrosToolWindowContextMenu = 0x2000;
         public const int MacrosContextMenuGroup1 = 0x2100;
         public const int MacrosContextMenuGroup2 = 0x2200;
+        public const int MacrosContextMenuGroup3 = 0x2300;
         public const int cmdidMacrosCtxPlay = 0x2110;
         public const int cmdidMacrosCtxEdit = 0x2111;
         public const int cmdidMacrosCtxRename = 0x2112;
@@ -65,6 +66,8 @@ namespace Macros
         public const int cmdidMacrosCtxMoveToRepo = 0x2114;
         public const int cmdidMacrosCtxMoveToGlobal = 0x2115;
         public const int cmdidMacrosCtxManageTriggers = 0x2116;
+        public const int cmdidMacrosCtxCopyToRepo = 0x2117;
+        public const int cmdidMacrosCtxCopyToGlobal = 0x2118;
         public const int cmdidMacrosCtxOpenFolder = 0x2210;
     }
 }

@@ -79,6 +79,11 @@
       <Group guid="guidMacrosPackageCmdSet" id="MacrosContextMenuGroup2" priority="0x0200">
         <Parent guid="guidMacrosPackageCmdSet" id="MacrosToolWindowContextMenu" />
       </Group>
+
+      <!-- Group 3: file-system navigation actions. -->
+      <Group guid="guidMacrosPackageCmdSet" id="MacrosContextMenuGroup3" priority="0x0300">
+        <Parent guid="guidMacrosPackageCmdSet" id="MacrosToolWindowContextMenu" />
+      </Group>
     </Groups>
 
     <Buttons>
@@ -177,8 +182,8 @@
         </Strings>
       </Button>
 
-      <Button guid="guidMacrosPackageCmdSet" id="cmdidMacrosCtxMoveToRepo" priority="0x0150" type="Button">
-        <Parent guid="guidMacrosPackageCmdSet" id="MacrosContextMenuGroup1" />
+      <Button guid="guidMacrosPackageCmdSet" id="cmdidMacrosCtxMoveToRepo" priority="0x0100" type="Button">
+        <Parent guid="guidMacrosPackageCmdSet" id="MacrosContextMenuGroup2" />
         <Icon guid="ImageCatalogGuid" id="MoveToFolder" />
         <CommandFlag>IconIsMoniker</CommandFlag>
         <CommandFlag>DynamicVisibility</CommandFlag>
@@ -188,14 +193,36 @@
         </Strings>
       </Button>
 
-      <Button guid="guidMacrosPackageCmdSet" id="cmdidMacrosCtxMoveToGlobal" priority="0x0151" type="Button">
-        <Parent guid="guidMacrosPackageCmdSet" id="MacrosContextMenuGroup1" />
+      <Button guid="guidMacrosPackageCmdSet" id="cmdidMacrosCtxMoveToGlobal" priority="0x0110" type="Button">
+        <Parent guid="guidMacrosPackageCmdSet" id="MacrosContextMenuGroup2" />
         <Icon guid="ImageCatalogGuid" id="MoveToFolder" />
         <CommandFlag>IconIsMoniker</CommandFlag>
         <CommandFlag>DynamicVisibility</CommandFlag>
         <Strings>
           <ButtonText>Move to &amp;Global</ButtonText>
           <CommandName>Macros.Context.MoveToGlobal</CommandName>
+        </Strings>
+      </Button>
+
+      <Button guid="guidMacrosPackageCmdSet" id="cmdidMacrosCtxCopyToRepo" priority="0x0120" type="Button">
+        <Parent guid="guidMacrosPackageCmdSet" id="MacrosContextMenuGroup2" />
+        <Icon guid="ImageCatalogGuid" id="Copy" />
+        <CommandFlag>IconIsMoniker</CommandFlag>
+        <CommandFlag>DynamicVisibility</CommandFlag>
+        <Strings>
+          <ButtonText>Copy to R&amp;epo</ButtonText>
+          <CommandName>Macros.Context.CopyToRepo</CommandName>
+        </Strings>
+      </Button>
+
+      <Button guid="guidMacrosPackageCmdSet" id="cmdidMacrosCtxCopyToGlobal" priority="0x0130" type="Button">
+        <Parent guid="guidMacrosPackageCmdSet" id="MacrosContextMenuGroup2" />
+        <Icon guid="ImageCatalogGuid" id="Copy" />
+        <CommandFlag>IconIsMoniker</CommandFlag>
+        <CommandFlag>DynamicVisibility</CommandFlag>
+        <Strings>
+          <ButtonText>Copy to G&amp;lobal</ButtonText>
+          <CommandName>Macros.Context.CopyToGlobal</CommandName>
         </Strings>
       </Button>
 
@@ -210,7 +237,7 @@
       </Button>
 
       <Button guid="guidMacrosPackageCmdSet" id="cmdidMacrosCtxOpenFolder" priority="0x0100" type="Button">
-        <Parent guid="guidMacrosPackageCmdSet" id="MacrosContextMenuGroup2" />
+        <Parent guid="guidMacrosPackageCmdSet" id="MacrosContextMenuGroup3" />
         <Icon guid="ImageCatalogGuid" id="FolderOpened" />
         <CommandFlag>IconIsMoniker</CommandFlag>
         <Strings>
@@ -307,6 +334,7 @@
       <IDSymbol name="MacrosToolWindowContextMenu"   value="0x2000" />
       <IDSymbol name="MacrosContextMenuGroup1"       value="0x2100" />
       <IDSymbol name="MacrosContextMenuGroup2"       value="0x2200" />
+      <IDSymbol name="MacrosContextMenuGroup3"       value="0x2300" />
       <IDSymbol name="cmdidMacrosCtxPlay"            value="0x2110" />
       <IDSymbol name="cmdidMacrosCtxEdit"            value="0x2111" />
       <IDSymbol name="cmdidMacrosCtxRename"          value="0x2112" />
@@ -314,6 +342,8 @@
       <IDSymbol name="cmdidMacrosCtxMoveToRepo"      value="0x2114" />
       <IDSymbol name="cmdidMacrosCtxMoveToGlobal"    value="0x2115" />
       <IDSymbol name="cmdidMacrosCtxManageTriggers"  value="0x2116" />
+      <IDSymbol name="cmdidMacrosCtxCopyToRepo"      value="0x2117" />
+      <IDSymbol name="cmdidMacrosCtxCopyToGlobal"    value="0x2118" />
       <IDSymbol name="cmdidMacrosCtxOpenFolder"      value="0x2210" />
 
     </GuidSymbol>

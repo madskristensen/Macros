@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using Macros.Engine;
 using Macros.Engine.Recording;
 using Macros.Engine.Storage;
+using Macros.Lifecycle;
 using Macros.ToolWindows;
 using Xunit;
 
@@ -139,6 +140,44 @@ public sealed class MacrosToolWindowViewModelTests
     }
 
     [Fact]
+    public async Task SolutionChanged_TriggersReload_AndShowsRepoGroup()
+    {
+        var previousTracker = SolutionContextTracker.Current;
+        var tracker = SolutionContextTracker.CreateForTests();
+        SolutionContextTracker.Current = tracker;
+
+        try
+        {
+            var storage = new FakeStorage(repoAvailable: false);
+            storage.Add(MacroScope.Global, "Global-Only");
+            storage.Add(MacroScope.Repo, "Repo-Macro");
+
+            using var vm = new MacrosToolWindowViewModel(storage, debounceInterval: TimeSpan.Zero);
+            await vm.LoadAsync();
+
+            var repoGroupBefore = vm.Groups.Single(g => g.Scope == MacroScope.Repo);
+            Assert.False(repoGroupBefore.IsAvailable);
+
+            int initial = vm.LoadCount;
+            var nextLoad = vm.NextLoadAsync();
+
+            storage.SetRepoAvailable(true);
+            tracker.ApplySolutionFullPath(@"X:\repo\Sample.sln");
+
+            await Task.WhenAny(nextLoad, Task.Delay(TimeSpan.FromSeconds(2)));
+
+            Assert.True(vm.LoadCount > initial);
+            var repoGroupAfter = vm.Groups.Single(g => g.Scope == MacroScope.Repo);
+            Assert.True(repoGroupAfter.IsAvailable);
+            Assert.Equal(new[] { "Repo-Macro" }, repoGroupAfter.Items.Select(i => i.Name));
+        }
+        finally
+        {
+            SolutionContextTracker.Current = previousTracker;
+        }
+    }
+
+    [Fact]
     public async Task Dispose_UnsubscribesLibraryChanged()
     {
         var storage = new FakeStorage(repoAvailable: false);
@@ -262,12 +301,14 @@ public sealed class MacrosToolWindowViewModelTests
     private sealed class FakeStorage : IMacroStore
     {
         private readonly Dictionary<(MacroScope, string), MacroEntry> _files = new();
-        private readonly bool _repoAvailable;
+        private bool _repoAvailable;
 
         public FakeStorage(bool repoAvailable)
         {
             _repoAvailable = repoAvailable;
         }
+
+        public void SetRepoAvailable(bool value) => _repoAvailable = value;
 
         public string CurrentPath => $"{FakeRoot}\\current.csx";
         internal event EventHandler<MacroLibraryChangedEventArgs>? LibraryChanged;
