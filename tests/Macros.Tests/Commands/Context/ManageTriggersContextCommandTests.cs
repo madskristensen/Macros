@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using Macros.Tests.TestUtilities;
 using Xunit;
 
 namespace Macros.Tests.Commands.Context;
@@ -51,17 +52,7 @@ public sealed class ManageTriggersContextCommandTests
 
     private static MetadataLoadContext CreateMetadataContext(out Assembly macrosAssembly)
     {
-        string testBin = AppContext.BaseDirectory;
-        string config = new DirectoryInfo(testBin).Parent!.Name;
-        string repoRoot = Path.GetFullPath(Path.Combine(testBin, "..", "..", "..", "..", ".."));
-        string macrosDll = Path.Combine(repoRoot, "src", "Macros", "bin", config, "net48", "Macros.dll");
-        if (!File.Exists(macrosDll))
-        {
-            throw new FileNotFoundException(
-                $"Could not locate built Macros.dll at expected path '{macrosDll}'. " +
-                "Ensure the Macros VSIX project has been built before running these tests.",
-                macrosDll);
-        }
+        string macrosDll = MacrosAssemblyLocator.Locate();
 
         string macrosBinDir = Path.GetDirectoryName(macrosDll)!;
         string runtimeDir = System.Runtime.InteropServices.RuntimeEnvironment.GetRuntimeDirectory();

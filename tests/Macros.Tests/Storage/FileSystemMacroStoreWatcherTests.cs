@@ -182,7 +182,17 @@ public sealed class FileSystemMacroStoreWatcherTests : IDisposable
             File.WriteAllText(path, $"// v{i}");
         }
 
-        Thread.Sleep(500); // longer than debounce window
+        // Wait for the debounced event to actually arrive. CI runners (especially Windows)
+        // can take far longer than the 200 ms debounce window to deliver FileSystemWatcher
+        // notifications under load — using a fixed Thread.Sleep here was flaky and would
+        // fall through with events.Count == 0.
+        Assert.True(
+            WaitFor(() => { lock (events) return events.Count >= 1; }, timeoutMs: 3000),
+            "Expected at least one debounced event within timeout.");
+
+        // Allow any additional (non-coalesced) events one more debounce window to fire,
+        // then assert the final count.
+        Thread.Sleep(400);
 
         lock (events)
         {

@@ -1,7 +1,9 @@
 // Wired in MacrosPackage.InitializeAsync.
 
 using System;
+using System.Globalization;
 using System.IO;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Community.VisualStudio.Toolkit;
@@ -193,18 +195,19 @@ public sealed class MacroService : IMacroService
         // channel; the in-memory _currentMacroSource above already makes the just-recorded
         // macro playable in this session even if the write fails.
         //
-        // We also save to the named library (overwriting any previous "RecordedMacro" entry).
-        // SaveAsAsync raises IMacroStore.LibraryChanged, which is what the Macros tool window
-        // subscribes to — without this call the tool window never learns that a new macro
-        // arrived and the list stays stale after every Stop Recording.
+        // We also save to the named library under a unique auto-incremented name so every
+        // recording lands in its own slot.  SaveAsAsync raises IMacroStore.LibraryChanged,
+        // which is what the Macros tool window subscribes to — without this call the tool
+        // window never learns that a new macro arrived and the list stays stale after every
+        // Stop Recording.
         if (_storage is not null)
         {
             var storage = _storage;
-            var name = generatedName;
             _jtf.RunAsync(async () =>
             {
                 await storage.SaveCurrentAsync(source).ConfigureAwait(false);
-                await storage.SaveAsAsync(name, source, MacroScope.Global, overwrite: true).ConfigureAwait(false);
+                var name = await GenerateUniqueRecordingNameAsync(storage).ConfigureAwait(false);
+                await storage.SaveAsAsync(name, source, MacroScope.Global, overwrite: false).ConfigureAwait(false);
             }).FileAndForget("Macros/Storage/SaveCurrent");
         }
 
@@ -494,5 +497,26 @@ public sealed class MacroService : IMacroService
     private void OnSessionStepCountChanged(object? sender, int count)
     {
         RecordingStepCountChanged?.Invoke(this, count);
+    }
+
+    /// <summary>
+    /// Scans the global library for names matching <c>RecordedMacro</c> or
+    /// <c>RecordedMacro&lt;N&gt;</c> and returns <c>RecordedMacro{max+1}</c>, ensuring
+    /// each recording session lands in a unique slot (highest+1 rule — no gap-filling).
+    /// </summary>
+    private static async Task<string> GenerateUniqueRecordingNameAsync(IMacroStore store)
+    {
+        var existing = await store.ListAsync(MacroScope.Global).ConfigureAwait(false);
+        var rx = new Regex(@"^RecordedMacro(?<n>\d*)$");
+        var maxN = -1;
+        foreach (var item in existing)
+        {
+            var m = rx.Match(item.Name);
+            if (!m.Success) continue;
+            var nStr = m.Groups["n"].Value;
+            var n = string.IsNullOrEmpty(nStr) ? 0 : int.Parse(nStr, CultureInfo.InvariantCulture);
+            if (n > maxN) maxN = n;
+        }
+        return maxN < 0 ? "RecordedMacro1" : $"RecordedMacro{maxN + 1}";
     }
 }

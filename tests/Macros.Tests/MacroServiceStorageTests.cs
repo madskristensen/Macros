@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Macros.Engine;
@@ -58,7 +59,7 @@ public sealed class MacroServiceStorageTests
 
         await fake.WaitForNamedSaveAsync(TimeSpan.FromSeconds(5));
 
-        Assert.Equal("RecordedMacro", fake.LastSavedName);
+        Assert.Equal("RecordedMacro1", fake.LastSavedName);
         Assert.Equal(MacroScope.Global, fake.LastSavedScope);
         Assert.Equal(source, fake.LastSavedNamedSource);
     }
@@ -167,6 +168,88 @@ public sealed class MacroServiceStorageTests
         Assert.Equal(source, svc.CurrentMacroSource);
     }
 
+    // ─── GenerateUniqueRecordingName tests ──────────────────────────────────────────────
+
+    [Fact]
+    public async Task StopRecordingAsync_EmptyLibrary_SavesAsRecordedMacro1()
+    {
+        var fake = new FakeMacroStorage(libraryNames: Array.Empty<string>());
+        var svc = new MacroService(CreateJtf(), storage: fake);
+
+        await svc.StartRecordingAsync();
+        await svc.StopRecordingAsync();
+        await fake.WaitForNamedSaveAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Equal("RecordedMacro1", fake.LastSavedName);
+    }
+
+    [Fact]
+    public async Task StopRecordingAsync_LibraryHasRecordedMacroNoNumber_SavesAsRecordedMacro1()
+    {
+        // "RecordedMacro" (no suffix) is treated as N=0; highest+1 → 1.
+        var fake = new FakeMacroStorage(libraryNames: new[] { "RecordedMacro" });
+        var svc = new MacroService(CreateJtf(), storage: fake);
+
+        await svc.StartRecordingAsync();
+        await svc.StopRecordingAsync();
+        await fake.WaitForNamedSaveAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Equal("RecordedMacro1", fake.LastSavedName);
+    }
+
+    [Fact]
+    public async Task StopRecordingAsync_LibraryHasRecordedMacro1_SavesAsRecordedMacro2()
+    {
+        var fake = new FakeMacroStorage(libraryNames: new[] { "RecordedMacro1" });
+        var svc = new MacroService(CreateJtf(), storage: fake);
+
+        await svc.StartRecordingAsync();
+        await svc.StopRecordingAsync();
+        await fake.WaitForNamedSaveAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Equal("RecordedMacro2", fake.LastSavedName);
+    }
+
+    [Fact]
+    public async Task StopRecordingAsync_LibraryHasGap_SavesAsHighestPlusOne()
+    {
+        // Has RecordedMacro1 and RecordedMacro3 (gap at 2); highest+1 rule → 4, not 2.
+        var fake = new FakeMacroStorage(libraryNames: new[] { "RecordedMacro1", "RecordedMacro3" });
+        var svc = new MacroService(CreateJtf(), storage: fake);
+
+        await svc.StartRecordingAsync();
+        await svc.StopRecordingAsync();
+        await fake.WaitForNamedSaveAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Equal("RecordedMacro4", fake.LastSavedName);
+    }
+
+    [Fact]
+    public async Task StopRecordingAsync_LibraryHasRecordedMacro7_SavesAsRecordedMacro8()
+    {
+        var fake = new FakeMacroStorage(libraryNames: new[] { "RecordedMacro7" });
+        var svc = new MacroService(CreateJtf(), storage: fake);
+
+        await svc.StartRecordingAsync();
+        await svc.StopRecordingAsync();
+        await fake.WaitForNamedSaveAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Equal("RecordedMacro8", fake.LastSavedName);
+    }
+
+    [Fact]
+    public async Task StopRecordingAsync_LibraryHasOnlyUnrelatedMacros_SavesAsRecordedMacro1()
+    {
+        var fake = new FakeMacroStorage(libraryNames: new[] { "MyMacro", "Build" });
+        var svc = new MacroService(CreateJtf(), storage: fake);
+
+        await svc.StartRecordingAsync();
+        await svc.StopRecordingAsync();
+        await fake.WaitForNamedSaveAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Equal("RecordedMacro1", fake.LastSavedName);
+    }
+
     /// <summary>In-memory <see cref="IMacroStore"/> double for engine wiring tests.</summary>
     private sealed class FakeMacroStorage : IMacroStore
     {
@@ -174,10 +257,12 @@ public sealed class MacroServiceStorageTests
         private readonly TaskCompletionSource<string> _saveTcs = new();
         private readonly TaskCompletionSource<string> _namedSaveTcs = new();
         private string? _content;
+        private readonly List<string> _libraryNames;
 
-        public FakeMacroStorage(bool throwOnSave = false)
+        public FakeMacroStorage(bool throwOnSave = false, IEnumerable<string>? libraryNames = null)
         {
             _throwOnSave = throwOnSave;
+            _libraryNames = libraryNames is not null ? new List<string>(libraryNames) : new List<string>();
         }
 
         public string CurrentPath => @"X:\fake\current.csx";
@@ -224,10 +309,15 @@ public sealed class MacroServiceStorageTests
         }
 
         public Task<IReadOnlyList<MacroEntry>> ListAsync(MacroScope scope, CancellationToken cancellation = default)
-            => Task.FromResult<IReadOnlyList<MacroEntry>>(Array.Empty<MacroEntry>());
+        {
+            var entries = _libraryNames
+                .Select(n => new MacroEntry(n, scope, $@"X:\fake\{n}.csx", 0, DateTimeOffset.UtcNow, 0, Array.Empty<Macros.Engine.Triggers.TriggerBinding>()))
+                .ToArray();
+            return Task.FromResult<IReadOnlyList<MacroEntry>>(entries);
+        }
 
         public Task<IReadOnlyList<MacroEntry>> ListAllAsync(CancellationToken cancellation = default)
-            => Task.FromResult<IReadOnlyList<MacroEntry>>(Array.Empty<MacroEntry>());
+            => ListAsync(MacroScope.Global, cancellation);
 
         public Task<string?> LoadByNameAsync(string name, MacroScope scope, CancellationToken cancellation = default)
             => Task.FromResult<string?>(null);
@@ -237,6 +327,7 @@ public sealed class MacroServiceStorageTests
             LastSavedName = name;
             LastSavedScope = scope;
             LastSavedNamedSource = source;
+            _libraryNames.Add(name);
             _namedSaveTcs.TrySetResult(name);
             return Task.CompletedTask;
         }

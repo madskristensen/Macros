@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using Macros.Tests.TestUtilities;
 using Xunit;
 
 namespace Macros.Tests.Commands;
@@ -55,7 +56,7 @@ public sealed class ToggleTriggersCommandSmokeTests
 
     private static MetadataLoadContext CreateMetadataContext(out Assembly macrosAssembly)
     {
-        string macrosDll = LocateMacrosAssembly();
+        string macrosDll = MacrosAssemblyLocator.Locate();
         string macrosBinDir = Path.GetDirectoryName(macrosDll)!;
         string runtimeDir = System.Runtime.InteropServices.RuntimeEnvironment.GetRuntimeDirectory();
 
@@ -68,34 +69,5 @@ public sealed class ToggleTriggersCommandSmokeTests
         var ctx = new MetadataLoadContext(resolver);
         macrosAssembly = ctx.LoadFromAssemblyPath(macrosDll);
         return ctx;
-    }
-
-    private static string LocateMacrosAssembly()
-    {
-        // Probe alongside the test assembly first. This handles flat-output CI layouts
-        // (e.g. msbuild /p:OutDir=\_built where every project's outputs land in one dir)
-        // and any local layout where the VSIX assembly is copied into the test bin via
-        // <ProjectReference>.
-        string testBin = AppContext.BaseDirectory;
-        string siblingCandidate = Path.Combine(testBin, "Macros.dll");
-        if (File.Exists(siblingCandidate))
-        {
-            return siblingCandidate;
-        }
-
-        // Fallback: standard per-project layout — tests\Macros.Tests\bin\<Config>\net48
-        // -> ..\..\..\..\..\src\Macros\bin\<Config>\net48\Macros.dll.
-        string config = new DirectoryInfo(testBin).Parent!.Name;
-        string repoRoot = Path.GetFullPath(Path.Combine(testBin, "..", "..", "..", "..", ".."));
-        string candidate = Path.Combine(repoRoot, "src", "Macros", "bin", config, "net48", "Macros.dll");
-        if (!File.Exists(candidate))
-        {
-            throw new FileNotFoundException(
-                $"Could not locate built Macros.dll next to the test assembly ('{siblingCandidate}') " +
-                $"or at the per-project path ('{candidate}'). " +
-                "Ensure the Macros VSIX project has been built before running these tests.",
-                candidate);
-        }
-        return candidate;
     }
 }

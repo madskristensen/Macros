@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using Macros.Engine;
 using Macros.Engine.Player;
 using Macros.Engine.Recording;
+using Macros.Tests.TestUtilities;
 using Microsoft.VisualStudio.Threading;
 using Xunit;
 
@@ -57,33 +58,7 @@ public sealed class UIContextActivatorTests
         return ctx;
     }
 
-    private static string LocateMacrosAssembly()
-    {
-        // Probe alongside the test assembly first. This handles flat-output CI layouts
-        // (e.g. msbuild /p:OutDir=\_built where every project's outputs land in one dir)
-        // and any local layout where the VSIX assembly is copied into the test bin via
-        // <ProjectReference>.
-        string testBin = AppContext.BaseDirectory;
-        string siblingCandidate = Path.Combine(testBin, "Macros.dll");
-        if (File.Exists(siblingCandidate))
-        {
-            return siblingCandidate;
-        }
-
-        // Fallback: standard per-project layout — tests\Macros.Tests\bin\<Config>\net48
-        // -> ..\..\..\..\..\src\Macros\bin\<Config>\net48\Macros.dll.
-        string config = new DirectoryInfo(testBin).Parent!.Name; // "Debug" or "Release"
-        string repoRoot = Path.GetFullPath(Path.Combine(testBin, "..", "..", "..", "..", ".."));
-        string candidate = Path.Combine(repoRoot, "src", "Macros", "bin", config, "net48", "Macros.dll");
-        if (!File.Exists(candidate))
-        {
-            throw new FileNotFoundException(
-                $"Could not locate built Macros.dll next to the test assembly ('{siblingCandidate}') " +
-                $"or at the per-project path ('{candidate}'). Build the VSIX project first.",
-                candidate);
-        }
-        return candidate;
-    }
+    private static string LocateMacrosAssembly() => MacrosAssemblyLocator.Locate();
 
     /// <summary>
     /// Creates a <see cref="UIContextActivator"/> via the <c>CreateForTests</c> reflective
