@@ -44,7 +44,7 @@ namespace Macros.Engine.Storage;
 /// surfaces should hide repo-scoped commands while no solution is open.
 /// </para>
 /// </remarks>
-public sealed class FileSystemMacroStorage : IMacroStorage
+public sealed class FileSystemMacroStorage : IMacroStorage, IDisposable
 {
     private const string CurrentFileName = "current.csx";
     private const string CurrentReservedName = "current";
@@ -78,6 +78,26 @@ public sealed class FileSystemMacroStorage : IMacroStorage
     // parallelize.
     private readonly ConcurrentDictionary<string, SemaphoreSlim> _namedLocks =
         new(StringComparer.OrdinalIgnoreCase);
+
+    // ─── FileSystemWatcher fields ──────────────────────────────────────────────────────
+
+    private FileSystemWatcher? _globalWatcher;
+    private FileSystemWatcher? _repoWatcher;
+    private readonly object _watcherSync = new();
+
+    // Paths written by this storage instance's own Save/Delete/Rename — used to suppress
+    // the corresponding watcher event so we don't double-fire LibraryChanged.
+    private readonly ConcurrentDictionary<string, byte> _recentSelfWrites =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    // Debouncer: coalesces rapid FS events on the same path within a 200ms window.
+    private System.Timers.Timer? _debounceTimer;
+    private readonly ConcurrentDictionary<string, PendingChange> _pending =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    private EventHandler<MacroLibraryChangedEventArgs>? _libraryChanged;
+
+    private sealed record PendingChange(MacroLibraryChangeKind Kind, MacroScope Scope, string Name, string? OldName);
 
     /// <summary>
     /// Initializes a new <see cref="FileSystemMacroStorage"/> rooted at
@@ -116,7 +136,15 @@ public sealed class FileSystemMacroStorage : IMacroStorage
     public string CurrentPath => _currentPath;
 
     /// <inheritdoc />
-    public event EventHandler<MacroLibraryChangedEventArgs>? LibraryChanged;
+    public event EventHandler<MacroLibraryChangedEventArgs>? LibraryChanged
+    {
+        add
+        {
+            _libraryChanged += value;
+            EnsureWatchersStarted();
+        }
+        remove { _libraryChanged -= value; }
+    }
 
     // ─── M2 single-file API ────────────────────────────────────────────────────────────
 
@@ -337,6 +365,7 @@ public sealed class FileSystemMacroStorage : IMacroStorage
                 cancellation.ThrowIfCancellationRequested();
 
                 Directory.CreateDirectory(folder);
+                EnsureWatchersStarted();
                 cancellation.ThrowIfCancellationRequested();
 
                 var existed = File.Exists(destination);
@@ -351,6 +380,7 @@ public sealed class FileSystemMacroStorage : IMacroStorage
                     File.WriteAllText(tempPath, source, Utf8WithBom);
 
                     cancellation.ThrowIfCancellationRequested();
+                    RegisterSelfWrite(destination);
                     SwapIntoPlace(tempPath, destination);
                 }
                 catch
@@ -392,6 +422,7 @@ public sealed class FileSystemMacroStorage : IMacroStorage
                     return false;
                 }
 
+                RegisterSelfWrite(path);
                 File.Delete(path);
                 RaiseLibraryChanged(new MacroLibraryChangedEventArgs(
                     MacroLibraryChangeKind.Removed, scope, name));
@@ -448,6 +479,8 @@ public sealed class FileSystemMacroStorage : IMacroStorage
                         throw new InvalidOperationException($"Macro already exists: {newName}");
                     }
 
+                    RegisterSelfWrite(sourcePath);
+                    RegisterSelfWrite(destinationPath);
                     File.Move(sourcePath, destinationPath);
 
                     RaiseLibraryChanged(new MacroLibraryChangedEventArgs(
@@ -604,7 +637,7 @@ public sealed class FileSystemMacroStorage : IMacroStorage
 
     private void RaiseLibraryChanged(MacroLibraryChangedEventArgs args)
     {
-        LibraryChanged?.Invoke(this, args);
+        _libraryChanged?.Invoke(this, args);
     }
 
     private static void SwapIntoPlace(string tempPath, string destinationPath)
@@ -675,5 +708,182 @@ public sealed class FileSystemMacroStorage : IMacroStorage
             return Enumerable.Empty<string>();
         }
         return Directory.EnumerateFiles(folder, "*" + MacroExtension, SearchOption.TopDirectoryOnly);
+    }
+
+    // ─── IDisposable ───────────────────────────────────────────────────────────────────
+
+    /// <inheritdoc />
+    public void Dispose()
+    {
+        lock (_watcherSync)
+        {
+            _globalWatcher?.Dispose();
+            _globalWatcher = null;
+            _repoWatcher?.Dispose();
+            _repoWatcher = null;
+        }
+
+        var t = Interlocked.Exchange(ref _debounceTimer, null);
+        t?.Dispose();
+    }
+
+    // ─── FileSystemWatcher helpers ─────────────────────────────────────────────────────
+
+    private void EnsureWatchersStarted()
+    {
+        lock (_watcherSync)
+        {
+            if (_globalWatcher == null && Directory.Exists(_globalNamedFolder))
+            {
+                _globalWatcher = StartWatcher(_globalNamedFolder, MacroScope.Global);
+            }
+
+            var repoFolder = _repoFolderProvider?.Invoke();
+            if (_repoWatcher == null && !string.IsNullOrEmpty(repoFolder) && Directory.Exists(repoFolder!))
+            {
+                _repoWatcher = StartWatcher(repoFolder!, MacroScope.Repo);
+            }
+        }
+    }
+
+    private FileSystemWatcher StartWatcher(string folder, MacroScope scope)
+    {
+        var w = new FileSystemWatcher(folder, "*.csx")
+        {
+            IncludeSubdirectories = false,
+            NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite | NotifyFilters.Size,
+        };
+        w.Created += (_, e) => OnFsEvent(scope, e.FullPath, MacroLibraryChangeKind.Added);
+        w.Deleted += (_, e) => OnFsEvent(scope, e.FullPath, MacroLibraryChangeKind.Removed);
+        w.Changed += (_, e) => OnFsEvent(scope, e.FullPath, MacroLibraryChangeKind.Modified);
+        w.Renamed += (_, e) =>
+        {
+            // Old path may be a .tmp file (temp+swap pattern) — only raise Removed for
+            // actual .csx files so we don't enqueue events for internal temp names.
+            if (e.OldFullPath.EndsWith(MacroExtension, StringComparison.OrdinalIgnoreCase))
+            {
+                OnFsEvent(scope, e.OldFullPath, MacroLibraryChangeKind.Removed);
+            }
+            if (e.FullPath.EndsWith(MacroExtension, StringComparison.OrdinalIgnoreCase))
+            {
+                OnFsEvent(scope, e.FullPath, MacroLibraryChangeKind.Added);
+            }
+        };
+        w.Error += OnWatcherError;
+        w.EnableRaisingEvents = true;
+        return w;
+    }
+
+    private void OnFsEvent(MacroScope scope, string fullPath, MacroLibraryChangeKind kind)
+    {
+        if (_recentSelfWrites.ContainsKey(fullPath))
+        {
+            // Storage already raised LibraryChanged synchronously for this write — skip.
+            return;
+        }
+
+        var name = Path.GetFileNameWithoutExtension(fullPath);
+        if (string.IsNullOrEmpty(name))
+        {
+            return;
+        }
+
+        // Skip current.csx — it lives outside the named-macro scope folders and is not
+        // part of the macro library. Guard here for safety even though the watcher is
+        // pointed at the named subfolder.
+        if (string.Equals(name, CurrentReservedName, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        // Coalesce events on the same path: Added + Modified → keep Added (a newly created
+        // file that received extra write events is still a net-new file from the observer's
+        // perspective). Removed always supersedes everything.
+        if (kind != MacroLibraryChangeKind.Removed &&
+            _pending.TryGetValue(fullPath, out var existing) &&
+            existing.Kind == MacroLibraryChangeKind.Added)
+        {
+            // Keep Added, ignore the subsequent Modified.
+            return;
+        }
+
+        _pending[fullPath] = new PendingChange(kind, scope, name, null);
+        EnsureDebounceTimerRunning();
+    }
+
+    private void EnsureDebounceTimerRunning()
+    {
+        if (_debounceTimer != null)
+        {
+            return;
+        }
+
+        var t = new System.Timers.Timer(200) { AutoReset = false };
+        t.Elapsed += (_, _) => FlushPending();
+
+        // CAS: only one thread wins; the loser disposes its extra timer.
+        if (Interlocked.CompareExchange(ref _debounceTimer, t, null) != null)
+        {
+            t.Dispose();
+            return;
+        }
+
+        t.Start();
+    }
+
+    private void FlushPending()
+    {
+        foreach (var kvp in _pending)
+        {
+            if (_pending.TryRemove(kvp.Key, out var p))
+            {
+                try
+                {
+                    _libraryChanged?.Invoke(this, new MacroLibraryChangedEventArgs(p.Kind, p.Scope, p.Name, p.OldName));
+                }
+                catch
+                {
+                    // Don't let a subscriber exception kill the watcher thread.
+                }
+            }
+        }
+
+        var t = Interlocked.Exchange(ref _debounceTimer, null);
+        t?.Dispose();
+
+        // Re-arm if more events arrived while we were flushing.
+        if (!_pending.IsEmpty)
+        {
+            EnsureDebounceTimerRunning();
+        }
+    }
+
+    private void OnWatcherError(object sender, ErrorEventArgs e)
+    {
+        // Watcher buffer overflow or directory deleted — restart after a short delay.
+        _ = Task.Delay(1000).ContinueWith(_ => RestartWatchers(), TaskScheduler.Default);
+    }
+
+    private void RestartWatchers()
+    {
+        lock (_watcherSync)
+        {
+            var old = _globalWatcher;
+            _globalWatcher = null;
+            old?.Dispose();
+
+            old = _repoWatcher;
+            _repoWatcher = null;
+            old?.Dispose();
+        }
+
+        EnsureWatchersStarted();
+    }
+
+    private void RegisterSelfWrite(string fullPath)
+    {
+        _recentSelfWrites.TryAdd(fullPath, 0);
+        // Use a named parameter to avoid the lambda `_` shadowing the `out _` discard.
+        _ = Task.Delay(500).ContinueWith(tsk => _recentSelfWrites.TryRemove(fullPath, out _), TaskScheduler.Default);
     }
 }
