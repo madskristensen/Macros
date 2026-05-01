@@ -47,6 +47,16 @@ namespace Macros;
     productId: "1.0")]
 [ProvideAutoLoad(VSConstants.UICONTEXT.NoSolution_string, PackageAutoLoadFlags.BackgroundLoad)]
 [ProvideAutoLoad(VSConstants.UICONTEXT.SolutionExists_string, PackageAutoLoadFlags.BackgroundLoad)]
+// IsAsyncQueryable = true makes the promoted services discoverable through the global
+// AsyncServiceProvider (the path Community.VisualStudio.Toolkit's VS.GetRequiredServiceAsync
+// uses). Without these declarations, AddService(..., promote: true) succeeds against the
+// package's own container but the service is not visible to out-of-package consumers
+// resolving through the global provider — Assumes.Present then throws
+// "Cannot find an instance of the ... service." at the first global lookup.
+[ProvideService(typeof(IMacroService), IsAsyncQueryable = true)]
+[ProvideService(typeof(IMacroStore), IsAsyncQueryable = true)]
+[ProvideService(typeof(IMacroEventBus), IsAsyncQueryable = true)]
+[ProvideService(typeof(IMacroPlayer), IsAsyncQueryable = true)]
 [ProvideMenuResource("Menus.ctmenu", 1)]
 [ProvideToolWindow(typeof(MacrosToolWindow.Pane),
     Style = VsDockStyle.Tabbed,

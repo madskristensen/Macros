@@ -6,7 +6,9 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Input;
 using Macros.Engine;
+using Macros.Engine.Player;
 using Macros.Engine.Storage;
+using Macros.Errors;
 using Macros.Mvvm;
 
 namespace Macros.ToolWindows;
@@ -25,6 +27,7 @@ namespace Macros.ToolWindows;
 public sealed class MacroItemViewModel : INotifyPropertyChanged
 {
     private readonly IMacroService? _service;
+    private readonly Func<MacroPlayResult, string, Task> _errorRenderer;
     private bool _canInvoke = true;
     private bool _isShadowed;
 
@@ -36,11 +39,19 @@ public sealed class MacroItemViewModel : INotifyPropertyChanged
     /// The macro engine. May be <see langword="null"/> in pure design-time scenarios; when
     /// <see langword="null"/>, <see cref="PlayCommand"/> becomes a no-op.
     /// </param>
+    /// <param name="errorRenderer">
+    /// Optional override for the error-surfacing call invoked when
+    /// <see cref="IMacroService.PlayByNameAsync"/> returns a failed result. Defaults to
+    /// <see cref="MacroErrorRenderer.RenderAsync"/>. Supply a stub in unit tests to avoid
+    /// touching VS shell services (Output pane, InfoBar, Error List).
+    /// </param>
     /// <exception cref="ArgumentNullException"><paramref name="descriptor"/> is <see langword="null"/>.</exception>
-    public MacroItemViewModel(MacroEntry descriptor, IMacroService? service)
+    public MacroItemViewModel(MacroEntry descriptor, IMacroService? service,
+        Func<MacroPlayResult, string, Task>? errorRenderer = null)
     {
         Descriptor = descriptor ?? throw new ArgumentNullException(nameof(descriptor));
         _service = service;
+        _errorRenderer = errorRenderer ?? MacroErrorRenderer.RenderAsync;
 
         var play = new RelayCommand(_ => InvokePlay(), _ => CanInvoke && service is not null);
         PlayCommand = play;
@@ -197,10 +208,19 @@ public sealed class MacroItemViewModel : INotifyPropertyChanged
             return;
         }
 
-        // The command is sync (ICommand contract); the underlying call is async. Capture the
-        // task on the VM so unit tests can observe completion. Production WPF doesn't await
-        // it; the engine's StateChanged event is what surfaces playback progress to the UI.
-        LastPlayTask = _service.PlayByNameAsync(Name, Scope, CancellationToken.None);
+        LastPlayTask = InvokePlayAsync(Name, Scope);
+    }
+
+    private async Task InvokePlayAsync(string name, MacroScope scope)
+    {
+        MacroPlayResult result = await _service!
+            .PlayByNameAsync(name, scope, CancellationToken.None)
+            .ConfigureAwait(false);
+
+        if (!result.Success)
+        {
+            await _errorRenderer(result, name).ConfigureAwait(false);
+        }
     }
 
     private void OnPropertyChanged([CallerMemberName] string? name = null)

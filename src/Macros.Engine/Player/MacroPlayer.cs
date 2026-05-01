@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Diagnostics;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using Community.VisualStudio.Toolkit;
@@ -155,6 +156,7 @@ internal sealed class MacroPlayer : IMacroPlayer
 
     private static ScriptOptions BuildScriptOptions() =>
         ScriptOptions.Default
+            .WithMetadataResolver(InteropAwareMetadataResolver.Instance)
             .WithReferences(
                 // Macros.Engine — Helpers, MacroContext, ReplayGuard.
                 typeof(MacroGlobals).Assembly,
@@ -173,6 +175,80 @@ internal sealed class MacroPlayer : IMacroPlayer
                 "Macros.Engine.Scripting.Helpers",
                 "Macros.Engine.Recording.ReplayGuard",
                 "Community.VisualStudio.Toolkit.VS");
+
+    /// <summary>
+    /// Resolves <c>#r "EnvDTE"</c> and <c>#r "EnvDTE80"</c> directives that the codegen emits
+    /// for external dotnet-script / IntelliSense consumers. Roslyn's default
+    /// <see cref="ScriptMetadataResolver"/> only probes the script search paths, GAC, and
+    /// trusted platform assemblies — none of which contain the VS interop assemblies — so
+    /// without this hook the script fails to compile with
+    /// <c>CS0006: Metadata file 'EnvDTE' could not be found</c>. We map those simple names
+    /// to the file paths of the interop assemblies that are already loaded in the process,
+    /// then delegate everything else to the default resolver so user-written
+    /// <c>#r "Some.Other.Assembly"</c> directives keep working.
+    /// </summary>
+    private sealed class InteropAwareMetadataResolver : MetadataReferenceResolver
+    {
+        public static readonly InteropAwareMetadataResolver Instance = new();
+
+        private static readonly ScriptMetadataResolver Inner = ScriptMetadataResolver.Default;
+
+        private static readonly Dictionary<string, string> InteropPaths = BuildInteropPaths();
+
+        private InteropAwareMetadataResolver()
+        {
+        }
+
+        public override bool ResolveMissingAssemblies => Inner.ResolveMissingAssemblies;
+
+        public override ImmutableArray<PortableExecutableReference> ResolveReference(
+            string reference,
+            string? baseFilePath,
+            MetadataReferenceProperties properties)
+        {
+            if (reference is null)
+            {
+                return ImmutableArray<PortableExecutableReference>.Empty;
+            }
+
+            if (InteropPaths.TryGetValue(reference, out string path)
+                && !string.IsNullOrEmpty(path)
+                && File.Exists(path))
+            {
+                return ImmutableArray.Create(MetadataReference.CreateFromFile(path, properties));
+            }
+
+            return Inner.ResolveReference(reference, baseFilePath, properties);
+        }
+
+        public override PortableExecutableReference? ResolveMissingAssembly(
+            MetadataReference definition,
+            AssemblyIdentity referenceIdentity) =>
+            Inner.ResolveMissingAssembly(definition, referenceIdentity);
+
+        // Roslyn requires value equality on metadata resolvers so that scripts compiled with
+        // logically identical options can share Compilation state. Instance is a singleton, so
+        // reference equality is sufficient and stable.
+        public override bool Equals(object? other) => ReferenceEquals(this, other);
+
+        public override int GetHashCode() => typeof(InteropAwareMetadataResolver).GetHashCode();
+
+        private static Dictionary<string, string> BuildInteropPaths()
+        {
+            var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            AddIfPresent(map, "EnvDTE", typeof(DTE).Assembly.Location);
+            AddIfPresent(map, "EnvDTE80", typeof(DTE2).Assembly.Location);
+            return map;
+        }
+
+        private static void AddIfPresent(Dictionary<string, string> map, string name, string location)
+        {
+            if (!string.IsNullOrEmpty(location))
+            {
+                map[name] = location;
+            }
+        }
+    }
 
     private static bool HasErrors(ImmutableArray<Diagnostic> diagnostics)
     {
