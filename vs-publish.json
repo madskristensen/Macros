@@ -1,0 +1,13 @@
+{
+  "$schema": "http://json.schemastore.org/vsix-publish",
+  "categories": [ "coding" ],
+  "private": false,
+  "identity": {
+    "internalName": "Macros",
+    "tags": [ "macros", "automation", "recording", "replay"]
+  },
+  "assetFiles": [],
+  "overview": "README.md",
+  "publisher": "MadsKristensen",
+  "repo": "https://github.com/madskristensen/Macros"
+}
