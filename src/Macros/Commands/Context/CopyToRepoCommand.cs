@@ -21,6 +21,7 @@ internal sealed class CopyToRepoCommand : BaseCommand<CopyToRepoCommand>
         var current = MacroSelectionContext.Current;
         var solutionOpen = SolutionContextTracker.Current?.HasSolution == true;
         Command.Visible = current?.Scope == MacroScope.Global && solutionOpen;
+        Command.Supported = Command.Visible;
     }
 
     /// <inheritdoc />

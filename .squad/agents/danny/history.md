@@ -10,6 +10,34 @@
 
 <!-- Append learnings below -->
 
+### 2026-05-01 — IntelliSense Shim Lifecycle Wiring (Wave 2)
+
+**`IntelliSenseShimRefresher` pattern:** A pure C# disposable class with no VS shell dependencies. Takes two `Func<>` providers (global folder, repo folder) and an optional `Action<string, Exception>` error callback. `RefreshGlobal()` / `RefreshRepo()` are each independently callable and swallow non-critical exceptions via the callback so a shim failure never crashes package init. `AttachToTracker(SolutionContextTracker)` subscribes to `SolutionChanged`; `Dispose()` unsubscribes. Second `AttachToTracker` call throws `InvalidOperationException`.
+
+**Nullable safety gotcha:** `_repoFolderProvider` returns `string?` but `IntelliSenseShimWriter.Write` takes `string`. After the `IsNullOrWhiteSpace` guard, the compiler still requires `root!` (null-forgiving operator) to satisfy nullable analysis — the guard is not seen as a null-check proof for the return type of a `Func<string?>`.
+
+**Wire-up location in `MacrosPackage`:** Inserted between `SolutionContextTracker.Current = _solutionTracker;` (line ~246) and the `TrustGateInfoBar.InitializeAsync` call. The refresher must attach to the tracker BEFORE calling `RefreshRepo()` so the subscription is in place; the initial `RefreshGlobal()` + `RefreshRepo()` calls cover both the no-solution and with-solution cold-start cases.
+
+**Dispose order in `MacrosPackage`:** `_shimRefresher?.Dispose()` before `_solutionTracker?.Dispose()` — the refresher must unsubscribe from the tracker event before the tracker is torn down.
+
+**Tests:** 8 tests in `tests/Macros.Tests/Lifecycle/IntelliSenseShimRefresherTests.cs`. Key patterns: `IDisposable` test class with `Path.GetTempPath()` scratch root cleaned up in `Dispose()`; `SolutionContextTracker.CreateForTests()` + `ApplySolutionPath()` to simulate solution open; file-at-shim-folder-path to make `Directory.CreateDirectory` throw for the error-callback test.
+
+### 2026-05-01 — IntelliSense Shim Generator + Writer
+
+**Shim format:** `IntelliSenseShim.Generate(IReadOnlyList<string> assemblyPaths)` emits:
+1. Fixed 5-line header block starting with `// Macros — IntelliSense Shim`.
+2. One `#r "path"` directive per supplied assembly path (in caller-supplied order).
+3. `using` + `using static` directives mirroring `CSharpCodeGenerator.EmitUsings` plus `using Macros.Engine.Triggers;`.
+4. Three editor-only global stubs: `EnvDTE80.DTE2 DTE = null!;`, `Macros.Engine.Scripting.IMacroContext Context = null!;`, `Macros.Engine.Triggers.IMacroTrigger Trigger = null!;`.
+
+**`#r` syntax:** Roslyn's scripting `#r` parser does NOT accept C# verbatim `@"..."` literals. Paths must be emitted as `#r "C:\path\to\file.dll"` — the content between the quotes is treated as a raw filesystem path, not a C# string (no escape processing). Backslashes in paths are literal.
+
+**Atomic write pattern:** `IntelliSenseShimWriter.Write(storeRoot)` uses SHA-256 hash comparison for the no-op guard, then `tmp + File.Replace/File.Move` for the atomic rename (mirrors `FileSystemMacroStore.SwapIntoPlace`). The `.intellisense/` folder is created with `Directory.CreateDirectory` before the write.
+
+**Assembly discovery:** Five assemblies resolved via `typeof(T).Assembly.Location`: EnvDTE (`DTE`), EnvDTE80 (`DTE2`), Shell.15.0 (`Package`), Community.VisualStudio.Toolkit (`VS`), Macros.Engine (`MacroGlobals`). Empty locations are skipped with `Debug.WriteLine`.
+
+**Files:** `src/Macros.Engine/Scripting/IntelliSenseShim.cs`, `src/Macros.Engine/Scripting/IntelliSenseShimWriter.cs` (also contains `IntelliSenseShimWriteResult` record). Tests: 32 tests across `IntelliSenseShimTests.cs` + `IntelliSenseShimWriterTests.cs`.
+
 ### 2026-04-30 — v2 Trigger Architecture (VS.Events + BeforeCommand/AfterCommand)
 
 **Event surface:** `Community.VisualStudio.Toolkit.VS.Events` is the canonical trigger source — NOT a hand-curated list. `IMacroEventBus.KnownEvents` is populated at startup by reflecting over `VS.Events.*` subcategory types. Flattened naming convention: `{Category}.{HandlerName}` (e.g., `Build.SolutionBuildDone`, `Document.Saved`, `Debugger.EnterBreakMode`). Subscriptions are lazy and reference-counted per event name; no overhead unless a macro binds to that event.

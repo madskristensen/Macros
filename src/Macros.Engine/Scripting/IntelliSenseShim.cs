@@ -83,12 +83,16 @@ public static class IntelliSenseShim
     {
         foreach (string path in assemblyPaths)
         {
-            // Verbatim string literal (@"…"): backslashes are literal, only " needs doubling.
-            // Roslyn #r accepts verbatim string syntax; paths with backslashes round-trip cleanly.
-            sb.Append("#r @\"");
+            // Roslyn's #r directive parser reads the path as a raw file-system string between
+            // the outer double-quotes — it does NOT process C# escape sequences and does NOT
+            // accept verbatim @"…" syntax. Backslashes are therefore emitted as-is (they are
+            // literal in the #r path grammar, not escape characters). The only character we
+            // cannot safely embed is `"` itself; in practice Windows paths never contain one
+            // so this guard is purely defensive.
+            sb.Append("#r \"");
             foreach (char c in path)
             {
-                if (c == '"') sb.Append("\"\""); else sb.Append(c);
+                if (c != '"') sb.Append(c);
             }
 
             sb.Append("\"\n");

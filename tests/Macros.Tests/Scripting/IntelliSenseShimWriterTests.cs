@@ -176,8 +176,8 @@ public sealed class IntelliSenseShimWriterTests : IDisposable
 
         foreach (string path in result.ResolvedAssemblyPaths)
         {
-            // #r @"<path>" — verbatim string syntax.
-            Assert.Contains($"#r @\"{path}\"", content, StringComparison.Ordinal);
+            // #r "path" — raw string (no verbatim @ prefix; Roslyn #r doesn't accept @"").
+            Assert.Contains($"#r \"{path}\"", content, StringComparison.Ordinal);
         }
     }
 

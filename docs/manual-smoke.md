@@ -122,7 +122,24 @@ Each item should take 1-3 minutes. Total runtime: ~30 minutes.
 
 ---
 
-### [ ] 9. Manage Triggers dialog
+### [ ] 9. IntelliSense in `.csx` editor
+**Steps:**
+1. Right-click any macro in the tool window → **Edit**. The `.csx` opens in VS.
+2. Place the caret after `await ` on a step line and type `T` — `TypeAsync` should appear in the IntelliSense list.
+3. Type `DTE.` — VS should offer `ActiveDocument`, `Solution`, `ExecuteCommand`, and the rest of the DTE surface.
+4. Type `VS.StatusBar.` — VS should offer `ShowMessageAsync`, `ClearAsync`, etc. from the Community Toolkit.
+5. Type `Context.` — VS should offer `MacroName`, `Cancellation`, `CurrentDocument`.
+6. Verify there are NO red squigglies on the `#r`, `using`, or `#load` lines.
+7. **Hidden file check**: navigate to `%APPDATA%\Macros\.intellisense\Macros.Intellisense.csx` (global) and `<sln>\.vs\Macros\.intellisense\Macros.Intellisense.csx` (repo, when a solution is open) — both files should exist and contain absolute `#r` paths.
+
+**Expected:**
+- IntelliSense pops up with matching suggestions for Helpers, DTE properties, VS static surface, and macro globals.
+- No compile-error squigglies on the shim-related lines.
+- `.intellisense` folders exist with auto-generated shim files containing absolute DLL paths.
+
+---
+
+### [ ] 10. Manage Triggers dialog
 **Steps:**
 1. Right-click a macro > Manage Triggers.
 2. Add an event trigger: Kind=VS Event, Name="Build.SolutionBuildDone".
@@ -137,9 +154,9 @@ Each item should take 1-3 minutes. Total runtime: ~30 minutes.
 
 ---
 
-### [ ] 10. Trigger fires
+### [ ] 11. Trigger fires
 **Steps:**
-1. With the macro from step 9 saved (Global scope is fine — Repo would need trust), trigger a build (Build > Build Solution or Ctrl+Shift+B).
+1. With the macro from step 10 saved (Global scope is fine — Repo would need trust), trigger a build (Build > Build Solution or Ctrl+Shift+B).
 2. Watch the status bar.
 
 **Expected:**
@@ -149,7 +166,7 @@ Each item should take 1-3 minutes. Total runtime: ~30 minutes.
 
 ---
 
-### [ ] 11. Trust gate for Repo macros
+### [ ] 12. Trust gate for Repo macros
 **Steps:**
 1. Add a Repo macro with a trigger (use the Manage Triggers dialog).
 2. Close the solution.
@@ -162,7 +179,7 @@ Each item should take 1-3 minutes. Total runtime: ~30 minutes.
 
 ---
 
-### [ ] 12. Esc cancels replay
+### [ ] 13. Esc cancels replay
 **Steps:**
 1. Save a macro that types a long string (record yourself typing 50+ characters).
 2. Play it via Ctrl+Shift+P.
@@ -175,7 +192,7 @@ Each item should take 1-3 minutes. Total runtime: ~30 minutes.
 
 ---
 
-### [ ] 13. Recording cap
+### [ ] 14. Recording cap
 **Steps:**
 1. Tools > Options > Macros > General. Set MaxRecordingSteps to 10. Click OK.
 2. Start recording. Type rapidly to exceed 10 steps.
@@ -189,7 +206,7 @@ Each item should take 1-3 minutes. Total runtime: ~30 minutes.
 
 ---
 
-### [ ] 14. Auto-disable
+### [ ] 15. Auto-disable
 **Steps:**
 1. Edit a macro to deliberately throw: `throw new System.Exception("forced");`
 2. Save it. Add a trigger via Manage Triggers (e.g., BeforeCommand File.Save).
@@ -203,7 +220,7 @@ Each item should take 1-3 minutes. Total runtime: ~30 minutes.
 
 ---
 
-### [ ] 15. Kill switch
+### [ ] 16. Kill switch
 **Steps:**
 1. Click "Toggle All Triggers" button on the toolbar (or Tools > Options > Macros > General > Disable all triggers checkbox).
 2. Observe status bar.
@@ -220,10 +237,10 @@ Each item should take 1-3 minutes. Total runtime: ~30 minutes.
 ## Final notes
 
 After completing all items:
-- All 15 boxes checked → ✅ READY TO SHIP.
+- All 16 boxes checked → ✅ READY TO SHIP.
 - Any failures → file an issue, do NOT publish.
 
-Note: items 14 (auto-disable) and 15 (kill switch toggle) require working Tools > Options interactions with checkbox/save; verify these UI paths work end-to-end.
+Note: items 15 (auto-disable) and 16 (kill switch toggle) require working Tools > Options interactions with checkbox/save; verify these UI paths work end-to-end.
 
 Tip: Capture screenshots during the run; use them in Marketplace listing.
 

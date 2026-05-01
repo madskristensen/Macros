@@ -110,6 +110,11 @@ public sealed class MacrosPackage : ToolkitPackage
     // "TODO(m3-storage-watcher or m3-tool-window): wire solution events".
     private SolutionContextTracker? _solutionTracker;
 
+    // Keeps the .intellisense/Macros.Intellisense.csx shim files current in both the
+    // global and per-repo macro stores. Attached to _solutionTracker so the repo shim
+    // is seeded / refreshed whenever a solution opens without any extra VS shell deps.
+    private IntelliSenseShimRefresher? _shimRefresher;
+
     // Scope-restricted stores fronted by the M4 CompositeMacroStore. The composite owns
     // both children for disposal (ownsChildren: true) — keeping references here lets the
     // dispose path tear them down deterministically and lets test hooks observe them.
@@ -245,7 +250,22 @@ public sealed class MacrosPackage : ToolkitPackage
         _solutionTracker = await SolutionContextTracker.InitializeAsync(this);
         SolutionContextTracker.Current = _solutionTracker;
 
-        // 2b. Wire the M4 trust-gate InfoBar. Subscribes to SolutionChanged on the tracker
+        // 2a-bis. Seed the IntelliSense shim files in the global and per-repo macro folders.
+        //         The shim is what makes `using static Helpers`, `DTE.…`, `VS.StatusBar.…` and the
+        //         script globals (`DTE`, `Context`, `Trigger`) resolve in the C# editor when the
+        //         user opens a .csx for editing. The runtime player ignores the shim via a custom
+        //         SourceReferenceResolver so its global stubs don't shadow the real MacroGlobals.
+        _shimRefresher = new IntelliSenseShimRefresher(
+            globalFolderProvider: () => MacrosPaths.ResolveGlobalFolderOrFallback(
+                MacrosOptions.Instance.GlobalMacrosFolder, out _),
+            repoFolderProvider: () => _solutionTracker?.GetCurrentRepoMacrosFolder(),
+            onError: (which, ex) => System.Diagnostics.Trace.WriteLine(
+                $"Macros: failed to refresh {which} IntelliSense shim: {ex}"));
+        _shimRefresher.AttachToTracker(_solutionTracker);
+        _shimRefresher.RefreshGlobal();
+        _shimRefresher.RefreshRepo(); // no-op if no solution is open
+
+        // 2b. Wire the M4 trust-gate InfoBar.Subscribes to SolutionChanged on the tracker
         //     above and shows an InfoBar at the top of the editor whenever a solution opens
         //     that carries repo macros with auto-run triggers and is neither trusted nor
         //     blocked. Triggers stay dormant until the user makes a choice.
@@ -423,6 +443,7 @@ public sealed class MacrosPackage : ToolkitPackage
             _eventBus?.Dispose();
             _trustGateInfoBar?.Dispose();
             _triggerHintInfoBar?.Dispose();
+            _shimRefresher?.Dispose();
             _solutionTracker?.Dispose();
             // Composite owns both children — disposing it tears down the global + repo
             // FileSystemMacroStore halves (and their watchers / semaphores) in one shot.

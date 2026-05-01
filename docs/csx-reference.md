@@ -87,6 +87,22 @@ if (Context.CurrentDocument?.Name.EndsWith(".cs") == true)
 
 ## Tips
 
-> 💡 Open any macro in VS itself (right-click → **Edit** in the tool window) and you get IntelliSense, refactorings, and squigglies for the script body — the same IDE you record in is also the macro editor.
+> 💡 **IntelliSense in the `.csx` editor.** Open any macro in VS itself (right-click → **Edit** in the tool window) and the C# language service provides full IntelliSense:
+> - Helper verbs (`TypeAsync`, `ExecuteCommandAsync`, etc.)
+> - The entire `DTE` automation surface
+> - The `VS` static facade (status bar, info bars, dialogs, document services…)
+> - The `Context` and `Trigger` globals
+> - Syntax colorization, refactorings, and squigglies
+>
+> This works via an auto-managed `.intellisense/Macros.Intellisense.csx` shim file that lives alongside your macros. The shim is safe to ignore in source control — each contributor's VSIX regenerates it with machine-local DLL paths. (See [**How it works**](#how-it-works) below for the full picture.)
 
 > 💡 You can write macros from scratch without recording. Right-click the tool window → **New Macro**, or use **File → New → Macro** to start a template.
+
+### How it works
+
+When a macro is opened in the editor, the C# language service automatically loads the IntelliSense shim via a `#load` directive. The shim contains:
+- `#r` references to the necessary interop and extension DLLs (resolved to their machine-local absolute paths by the VSIX when the shim is written).
+- `using` directives for the same namespaces as the generated macro code.
+- Top-level field stubs for `DTE`, `Context`, and `Trigger` so the editor knows their types.
+
+At *runtime* (when the macro plays), the player automatically skips loading the shim (so the real `MacroGlobals` take precedence), making the shim a purely editor-time artifact. For a deeper technical walk-through, see the [Architecture](architecture.md#intellisense-in-the-csx-editor) doc.

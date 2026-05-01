@@ -155,8 +155,13 @@
                             </GridViewColumn.CellTemplate>
                         </GridViewColumn>
                         <GridViewColumn Header="Steps"
-                                        Width="60"
-                                        DisplayMemberBinding="{Binding StepCount}" />
+                                        Width="60">
+                            <GridViewColumn.CellTemplate>
+                                <DataTemplate DataType="{x:Type local:MacroItemViewModel}">
+                                    <TextBlock Text="{Binding StepCount, StringFormat={}{0} steps}" />
+                                </DataTemplate>
+                            </GridViewColumn.CellTemplate>
+                        </GridViewColumn>
                         <GridViewColumn Header="" Width="32">
                             <GridViewColumn.CellTemplate>
                                 <DataTemplate DataType="{x:Type local:MacroItemViewModel}">

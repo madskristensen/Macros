@@ -187,6 +187,7 @@
         <Icon guid="ImageCatalogGuid" id="MoveToFolder" />
         <CommandFlag>IconIsMoniker</CommandFlag>
         <CommandFlag>DynamicVisibility</CommandFlag>
+        <CommandFlag>DefaultInvisible</CommandFlag>
         <Strings>
           <ButtonText>Move to &amp;Repo</ButtonText>
           <CommandName>Macros.Context.MoveToRepo</CommandName>
@@ -198,6 +199,7 @@
         <Icon guid="ImageCatalogGuid" id="MoveToFolder" />
         <CommandFlag>IconIsMoniker</CommandFlag>
         <CommandFlag>DynamicVisibility</CommandFlag>
+        <CommandFlag>DefaultInvisible</CommandFlag>
         <Strings>
           <ButtonText>Move to &amp;Global</ButtonText>
           <CommandName>Macros.Context.MoveToGlobal</CommandName>
@@ -209,6 +211,7 @@
         <Icon guid="ImageCatalogGuid" id="Copy" />
         <CommandFlag>IconIsMoniker</CommandFlag>
         <CommandFlag>DynamicVisibility</CommandFlag>
+        <CommandFlag>DefaultInvisible</CommandFlag>
         <Strings>
           <ButtonText>Copy to R&amp;epo</ButtonText>
           <CommandName>Macros.Context.CopyToRepo</CommandName>
@@ -220,6 +223,7 @@
         <Icon guid="ImageCatalogGuid" id="Copy" />
         <CommandFlag>IconIsMoniker</CommandFlag>
         <CommandFlag>DynamicVisibility</CommandFlag>
+        <CommandFlag>DefaultInvisible</CommandFlag>
         <Strings>
           <ButtonText>Copy to G&amp;lobal</ButtonText>
           <CommandName>Macros.Context.CopyToGlobal</CommandName>

@@ -22,6 +22,7 @@ internal sealed class MoveToGlobalCommand : BaseCommand<MoveToGlobalCommand>
     {
         var current = MacroSelectionContext.Current;
         Command.Visible = current?.Scope == MacroScope.Repo;
+        Command.Supported = Command.Visible;
     }
 
     /// <inheritdoc />

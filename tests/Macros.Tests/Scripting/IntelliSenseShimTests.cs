@@ -51,7 +51,7 @@ public sealed class IntelliSenseShimTests
 
         foreach (string path in SamplePaths)
         {
-            string expected = $"#r @\"{path}\"";
+            string expected = $"#r \"{path}\"";
             Assert.Contains(expected, shim, StringComparison.Ordinal);
         }
     }
@@ -64,7 +64,7 @@ public sealed class IntelliSenseShimTests
         int prev = -1;
         foreach (string path in SamplePaths)
         {
-            int idx = shim.IndexOf($"#r @\"{path}\"", StringComparison.Ordinal);
+            int idx = shim.IndexOf($"#r \"{path}\"", StringComparison.Ordinal);
             Assert.True(idx >= 0, $"#r directive for '{path}' not found.");
             Assert.True(idx > prev, $"#r directive for '{path}' is out of expected order.");
             prev = idx;
@@ -72,23 +72,27 @@ public sealed class IntelliSenseShimTests
     }
 
     [Fact]
-    public void Generate_ReferenceDirectiveUsesVerbatimSyntax_BackslashesAreNotEscaped()
+    public void Generate_ReferenceDirective_BackslashPathsAreEmittedLiterally()
     {
+        // Roslyn's #r parser does not process escape sequences — backslashes in paths
+        // are raw characters, not escape prefixes. The generator must emit them as-is.
         var paths = new[] { @"C:\some\path\Assembly.dll" };
         string shim = IntelliSenseShim.Generate(paths);
 
-        // Verbatim literal: the path appears as-is (no doubled backslashes).
-        Assert.Contains("#r @\"C:\\some\\path\\Assembly.dll\"", shim, StringComparison.Ordinal);
+        // The path must appear verbatim inside #r "…" (single backslashes, not doubled).
+        Assert.Contains("#r \"C:\\some\\path\\Assembly.dll\"", shim, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void Generate_ReferenceDirective_PathWithDoubleQuote_IsEscaped()
+    public void Generate_ReferenceDirective_PathWithDoubleQuote_IsStripped()
     {
-        // A path containing a double-quote (rare but possible) must be escaped as "" in @"…".
+        // A double-quote inside a path would terminate the #r string and corrupt the
+        // directive. The generator defensively strips it (paths virtually never have one).
         var paths = new[] { "C:\\weird\"path\\Assembly.dll" };
         string shim = IntelliSenseShim.Generate(paths);
 
-        Assert.Contains("#r @\"C:\\weird\"\"path\\Assembly.dll\"", shim, StringComparison.Ordinal);
+        // The `"` in the middle of the path should be removed.
+        Assert.Contains("#r \"C:\\weirdpath\\Assembly.dll\"", shim, StringComparison.Ordinal);
     }
 
     // ── using directives ─────────────────────────────────────────────────────────────
@@ -168,8 +172,8 @@ public sealed class IntelliSenseShimTests
 
         // Header must still be present.
         Assert.Contains("// Macros — IntelliSense Shim\n", shim, StringComparison.Ordinal);
-        // No #r directives should appear.
-        Assert.DoesNotContain("#r", shim, StringComparison.Ordinal);
+        // No actual #r directives should appear (only the header comment mentions "#r" as prose).
+        Assert.DoesNotContain("\n#r \"", shim, StringComparison.Ordinal);
         // Usings and stubs must still be emitted.
         Assert.Contains("using System;", shim, StringComparison.Ordinal);
         Assert.Contains("EnvDTE80.DTE2 DTE = null!;", shim, StringComparison.Ordinal);

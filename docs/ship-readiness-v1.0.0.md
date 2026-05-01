@@ -123,7 +123,6 @@ their tests).
   (`m5-watcher-restart-on-solution-change`).
 - `SaveCurrent` fire-and-forget UI surfacing
   (background save without progress / error toast).
-- IntelliSense fidelity inside the `.csx` macro editor.
 - Yellow status-bar indicator at the recording cap.
 
 ---

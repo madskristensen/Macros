@@ -31,6 +31,30 @@ tests/
 - Compilation runs on the threadpool; execution switches to the UI thread via `JoinableTaskFactory`.
 - Errors are surfaced through a unified renderer: Output pane entry + Error List items with `.csx` line numbers + an info bar with a *View Output* link.
 
+## IntelliSense in the `.csx` editor
+
+When a user opens a macro file in VS (right-click → **Edit** in the tool window), the C# language service runs Roslyn over the script. By default, Roslyn's `ScriptMetadataResolver` cannot resolve `EnvDTE`, `Community.VisualStudio.Toolkit` (the `VS` facade), or `Macros.Engine` — they're not in the script search paths, GAC, or trusted-platform list — so every helper call and global reference shows a compile error.
+
+**Solution: IntelliSense shim + `#load` directive.**
+
+- **Shim file:** At package load (global) and solution open (repo), the VSIX writes a shim file:
+  - Global: `%APPDATA%\Macros\.intellisense\Macros.Intellisense.csx`
+  - Repo: `<solutionDir>\.vs\Macros\.intellisense\Macros.Intellisense.csx`
+- **Shim contents:** The shim contains `#r` directives with absolute paths to `EnvDTE`, `EnvDTE80`, `Community.VisualStudio.Toolkit`, `Microsoft.VisualStudio.Shell`, and `Macros.Engine` (resolved from the running VS process); `using` directives for all required namespaces; and top-level field stubs for `DTE`, `Context`, and `Trigger` so the editor knows their types.
+- **`#load` in generated code:** Every generated `.csx` file emits `#load ".intellisense/Macros.Intellisense.csx"` near the top. The relative path is identical for both global and repo scopes.
+- **Runtime trick:** At play time, if the player were to follow the `#load`, the shim's field stubs would shadow the real `MacroGlobals` properties, breaking execution. Instead, `MacroPlayer` uses a custom `SkipIntelliSenseShimSourceResolver` that returns an empty stream for any `#load` matching `Macros.Intellisense.csx` (case-insensitive). The editor uses the default resolver and loads the shim; the player ignores it and binds globals from `MacroGlobals`.
+
+**Files involved:**
+- `IntelliSenseShim.cs` — pure generator: produces the shim source string from a list of `Assembly.Location`s and the `MacroGlobals` shape.
+- `IntelliSenseShimWriter.cs` — atomic, idempotent file writer; skips write if content + DLL paths unchanged.
+- `CSharpCodeGenerator.cs` — emits the `#load` line in the header block.
+- `MacroPlayer.cs` — `SkipIntelliSenseShimSourceResolver` that strips the shim `#load` at runtime.
+- `MacrosPackage.cs` — seeds and refreshes the global shim on package load.
+- `RepoMacroStore.cs` — seeds the repo shim on store creation; refreshes on solution open.
+
+The shim is a machine-local artifact (gitignored under `.vs/` for repo scope). Repo macros remain portable — each contributor's VSIX regenerates their own shim with local DLL paths.
+
+
 ## Trigger system
 
 - **`TriggerDirectiveParser`** parses `// @trigger …` headers into `TriggerBinding { Kind, Name, Filters }`.

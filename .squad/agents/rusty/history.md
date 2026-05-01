@@ -118,3 +118,15 @@ Details (see `.squad/decisions.md` and `rusty-triggers-and-scope.md`):
 - All 25 codegen + shim skip tests green.
 
 **Key invariant:** The shim filename `Macros.Intellisense.csx` must stay in sync between `CSharpCodeGenerator.IntelliSenseLoadDirective` and `SkipIntelliSenseShimSourceResolver.ShimFileName`. Danny's `IntelliSenseShimWriter` holds a parallel constant for the writer side.
+
+---
+
+### 2026-05-01 — Wave 3: docs refresh for IntelliSense shim feature
+
+**Completed edits (docs-only):**
+- `docs/csx-reference.md` "Tips" section: replaced 1-line IntelliSense bullet with full expanded description covering shim file, `#load` directive, what now works (Helpers, DTE, VS, Context/Trigger), and a "How it works" sub-section linking to the architecture doc.
+- `docs/architecture.md` added new "IntelliSense in the `.csx` editor" sub-section after "Replay": explains the problem (default ScriptMetadataResolver doesn't see interop/toolkit/engine), the solution (shim + `#load`), shim location (global/repo), runtime trick (`SkipIntelliSenseShimSourceResolver`), and file list.
+- `docs/ship-readiness-v1.0.0.md` "Known limitations" removed "IntelliSense fidelity inside the `.csx` macro editor" — feature is shipped, no longer v1.1 backlog.
+- `docs/manual-smoke.md` added new test item 9 "IntelliSense in `.csx` editor" with 7 steps covering TypeAsync, DTE.*, VS.StatusBar.*, Context.*, no red squigglies, and hidden file existence check (global + repo `.intellisense` folders with absolute `#r` paths). Updated remaining item counts (10-16, formerly 9-15).
+
+**Rationale:** Wave 1 shipped the shim infrastructure; Wave 3 refreshed user-facing docs to reflect it now actually works. Docs are now accurate for beta dogfood.
