@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <RootNamespace>Macros.Engine</RootNamespace>
+    <AssemblyName>Macros.Engine</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Community.VisualStudio.Toolkit.17" Version="17.0.549" ExcludeAssets="Runtime">
+      <IncludeAssets>compile; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Scripting" Version="4.11.0" />
+    <PackageReference Include="Microsoft.VisualStudio.Threading.Analyzers" Version="17.13.61" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.VisualStudio.SDK" Version="17.10.40171" ExcludeAssets="Runtime">
+      <IncludeAssets>compile; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <!-- Generates IsExternalInit (and other modern compiler polyfills) so net48 can use
+         `init` accessors and positional `record` types. Required by Recording/RecordedStep.cs
+         (added by the parallel m2-text-observer / m2-command-observer workstreams). -->
+    <PackageReference Include="PolySharp" Version="1.14.1" PrivateAssets="all" />
+  </ItemGroup>
+
+  <!-- Engine-internal types (RecordingSession, RecordedStep) are exposed to the VSIX project
+       so observers can construct them, and to the unit-test project so tests can verify them
+       directly without going through the IMacroService façade. -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="Macros" />
+    <InternalsVisibleTo Include="Macros.Tests" />
+  </ItemGroup>
+
+</Project>

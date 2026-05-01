@@ -1,0 +1,53 @@
+using System.ComponentModel;
+using Community.VisualStudio.Toolkit;
+
+namespace Macros.Options;
+
+/// <summary>
+/// Persisted user options for the Macros extension. Values are written to the user's settings store
+/// by the Community Toolkit's <see cref="BaseOptionModel{T}"/> infrastructure.
+/// </summary>
+/// <remarks>
+/// The Tools → Options page registration (<c>[ProvideOptionPage]</c>) lands later in
+/// <c>m3-options-page</c>; this class only models the persisted settings. Properties marked
+/// <see cref="BrowsableAttribute">[Browsable(false)]</see> are internal flags that should not be
+/// surfaced even once the options page exists.
+/// </remarks>
+internal sealed class MacrosOptions : BaseOptionModel<MacrosOptions>
+{
+    [Category("General")]
+    [DisplayName("First run")]
+    [Description("Internal flag — true until the user has seen the first-run InfoBar.")]
+    [Browsable(false)]
+    public bool FirstRun { get; set; } = true;
+
+    [Category("Recording")]
+    [DisplayName("Maximum recording steps")]
+    [Description("Stop recording automatically after this many steps to prevent runaway captures.")]
+    public int MaxRecordingSteps { get; set; } = 5000;
+
+    [Category("Storage")]
+    [DisplayName("Global macros folder")]
+    [Description("Path where global macros are stored. Default: %APPDATA%\\Macros\\macros")]
+    public string GlobalMacrosFolder { get; set; } = "";
+
+    [Category("Storage")]
+    [DisplayName("Repo macros folder name")]
+    [Description("Subfolder name under <solution>\\.vs\\ for repo-scoped macros. Default: Macros")]
+    public string RepoMacrosFolderName { get; set; } = "Macros";
+
+    [Category("Replay")]
+    [DisplayName("Confirm before overwrite")]
+    [Description("When recording over an existing named macro, prompt for confirmation.")]
+    public bool ConfirmBeforeOverwrite { get; set; } = true;
+
+    [Category("Triggers")]
+    [DisplayName("Disable all triggers")]
+    [Description("Master kill switch for event-triggered and command-triggered macros (M4 feature). Manual invocation is unaffected.")]
+    public bool DisableAllTriggers { get; set; } = false;
+
+    [Category("Triggers")]
+    [DisplayName("BeforeCommand timeout (ms)")]
+    [Description("Maximum time a BeforeCommand-triggered macro may take before VS forwards the original command (M4 feature). Lower = safer; higher = more powerful macros.")]
+    public int BeforeCommandTimeoutMs { get; set; } = 2000;
+}

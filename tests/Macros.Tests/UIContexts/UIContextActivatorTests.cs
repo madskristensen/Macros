@@ -5,6 +5,7 @@ using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
 using Macros.Engine;
+using Macros.Engine.Player;
 using Macros.Engine.Recording;
 using Microsoft.VisualStudio.Threading;
 using Xunit;
@@ -254,14 +255,33 @@ internal sealed class FakeMacroService : IMacroService
     public MacroState State { get; set; } = MacroState.Idle;
     public IRecordingSink? CurrentSession => null;
     public string? CurrentMacroSource => null;
+    public string? CurrentMacroName => null;
 
     private EventHandler<MacroStateChangedEventArgs>? _stateChanged;
+    private EventHandler? _recordingCapReached;
+    private EventHandler<int>? _recordingStepCountChanged;
 
     public event EventHandler<MacroStateChangedEventArgs>? StateChanged
     {
         add => _stateChanged += value;
         remove => _stateChanged -= value;
     }
+
+    public event EventHandler? RecordingCapReached
+    {
+        add => _recordingCapReached += value;
+        remove => _recordingCapReached -= value;
+    }
+
+    public event EventHandler<int>? RecordingStepCountChanged
+    {
+        add => _recordingStepCountChanged += value;
+        remove => _recordingStepCountChanged -= value;
+    }
+
+    public int CurrentRecordingMaxSteps => int.MaxValue;
+
+    public string? CurrentMacroPath => null;
 
     public bool HasStateChangedSubscribers => _stateChanged != null;
 
@@ -270,7 +290,11 @@ internal sealed class FakeMacroService : IMacroService
 
     public Task StartRecordingAsync(System.Threading.CancellationToken ct = default) => Task.CompletedTask;
     public Task<string> StopRecordingAsync(System.Threading.CancellationToken ct = default) => Task.FromResult(string.Empty);
-    public Task PlayCurrentAsync(System.Threading.CancellationToken ct = default) => Task.CompletedTask;
+    public Task<MacroPlayResult> PlayCurrentAsync(System.Threading.CancellationToken ct = default)
+        => Task.FromResult(new MacroPlayResult(true, null, null, TimeSpan.Zero));
     public Task PlayNamedAsync(string name, System.Threading.CancellationToken ct = default) => Task.CompletedTask;
+    public Task<MacroPlayResult> PlayByNameAsync(string name, Macros.Engine.Storage.MacroScope scope, System.Threading.CancellationToken cancellation = default)
+        => Task.FromResult(new MacroPlayResult(true, null, null, TimeSpan.Zero));
     public Task CancelAsync() => Task.CompletedTask;
+    public void CancelActivePlay() { }
 }

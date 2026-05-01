@@ -1,0 +1,59 @@
+name: Build
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - v*
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build-and-test:
+    name: Build and test
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      # Note: SDK-style VSIX projects (Microsoft.VSSDK.BuildTools 18.5.40034+) build
+      # natively with `dotnet` on Windows. No msbuild setup is needed. This simplifies CI
+      # vs. legacy .sln projects. The project itself brings in all build dependencies.
+
+      - name: Restore
+        run: dotnet restore Macros.slnx
+
+      - name: Build
+        run: dotnet build Macros.slnx --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test tests/Macros.Tests/Macros.Tests.csproj --configuration Release --no-build --verbosity normal
+
+      - name: Upload VSIX artifact
+        uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: Macros-vsix
+          path: src/Macros/bin/Release/net48/Macros.vsix
+
+  publish-marketplace:
+    name: Publish to VS Marketplace
+    runs-on: windows-latest
+    needs: build-and-test
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - name: Placeholder
+        run: |
+          Write-Host "TODO M5 polish: publish to VS Marketplace"
+          Write-Host ""
+          Write-Host "When ready to ship, implement publishing:"
+          Write-Host "  - Marketplace publisher account"
+          Write-Host "  - MARKETPLACE_PAT secret (VS Marketplace PAT)"
+          Write-Host "  - microsoft/vsce-publish-action or VsixPublisher.exe"

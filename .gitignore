@@ -1,0 +1,50 @@
+# Build outputs
+[Bb]in/
+[Oo]bj/
+[Dd]ebug/
+[Rr]elease/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.userprefs
+*.vs/
+*.vsidx
+
+# VSIX
+*.vsix
+*.vsixmanifest.bak
+
+# NuGet
+packages/
+project.lock.json
+project.fragment.lock.json
+artifacts/
+*.nupkg
+
+# JetBrains
+.idea/
+
+# OS
+Thumbs.db
+*.DS_Store
+
+# IDE local state
+.vshistory/
+*.cache
+*.opensdf
+*.sdf
+*.VC.db
+*.VC.opendb
+*.psess
+*.vsp
+*.vspx
+*.tlog
+
+# Squad: ignore runtime state (logs, inbox, sessions) — preserved from initial setup
+.squad/orchestration-log/
+.squad/log/
+.squad/decisions/inbox/
+.squad/sessions/
+.squad-workstream
+.squad/.scratch/

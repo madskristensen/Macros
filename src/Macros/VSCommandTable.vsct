@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="utf-8"?>
+<CommandTable xmlns="http://schemas.microsoft.com/VisualStudio/2005-10-18/CommandTable" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+
+  <!--
+    Macros for Visual Studio - Command Table
+    ========================================
+    This file is the single source of truth for menus, toolbars, buttons, key bindings,
+    and visibility constraints exposed by the extension.
+
+    M1 milestone breakdown:
+      * m1-vsct-symbols       (this todo) - locks the Symbols section so other todos can
+                                            reference IDs without renumbering churn.
+      * m1-vsct-toolbar       - fills <Menus> and <Groups> (main toolbar, tool window
+                                            toolbar, context menu).
+      * m1-vsct-buttons       - fills <Buttons> for each cmdid* symbol below.
+      * m1-vsct-keybindings   - fills <KeyBindings>.
+      * m1-vsct-visibility    - fills <VisibilityConstraints> against guidMacrosRecordingContext.
+  -->
+
+  <Extern href="stdidcmd.h" />
+  <Extern href="vsshlids.h" />
+
+  <!-- Standard VS menu/group/anchor IDs used by later todos (e.g., View > Other Windows). -->
+  <Include href="VSGlobals.vsct" />
+
+  <Commands package="guidMacrosPackage">
+
+    <Menus>
+      <Menu guid="guidMacrosPackageCmdSet" id="MacrosToolbar" type="Toolbar">
+        <CommandFlag>DefaultDocked</CommandFlag>
+        <Strings>
+          <ButtonText>Macros</ButtonText>
+          <CommandName>Macros</CommandName>
+        </Strings>
+      </Menu>
+    </Menus>
+
+    <Groups>
+      <Group guid="guidMacrosPackageCmdSet" id="MacrosToolbarGroup" priority="0x0000">
+        <Parent guid="guidMacrosPackageCmdSet" id="MacrosToolbar" />
+      </Group>
+    </Groups>
+
+    <Buttons>
+      <Button guid="guidMacrosPackageCmdSet" id="cmdidMacrosRecord" priority="0x0100" type="Button">
+        <Parent guid="guidMacrosPackageCmdSet" id="MacrosToolbarGroup" />
+        <CommandFlag>DynamicVisibility</CommandFlag>
+        <CommandFlag>DefaultInvisible</CommandFlag>
+        <Strings>
+          <ButtonText>Record Macro</ButtonText>
+          <CommandName>Macros.Record</CommandName>
+        </Strings>
+      </Button>
+
+      <Button guid="guidMacrosPackageCmdSet" id="cmdidMacrosStop" priority="0x0101" type="Button">
+        <Parent guid="guidMacrosPackageCmdSet" id="MacrosToolbarGroup" />
+        <CommandFlag>DynamicVisibility</CommandFlag>
+        <CommandFlag>DefaultInvisible</CommandFlag>
+        <Strings>
+          <ButtonText>Stop Recording</ButtonText>
+          <CommandName>Macros.Stop</CommandName>
+        </Strings>
+      </Button>
+
+      <Button guid="guidMacrosPackageCmdSet" id="cmdidMacrosPlayLast" priority="0x0110" type="Button">
+        <Parent guid="guidMacrosPackageCmdSet" id="MacrosToolbarGroup" />
+        <Strings>
+          <ButtonText>Play Last Macro</ButtonText>
+          <CommandName>Macros.PlayLast</CommandName>
+        </Strings>
+      </Button>
+
+      <Button guid="guidMacrosPackageCmdSet" id="cmdidMacrosShowWindow" priority="0x0120" type="Button">
+        <Parent guid="guidMacrosPackageCmdSet" id="MacrosToolbarGroup" />
+        <Strings>
+          <ButtonText>Show Macros Window</ButtonText>
+          <CommandName>Macros.ShowWindow</CommandName>
+        </Strings>
+      </Button>
+    </Buttons>
+
+  </Commands>
+
+  <KeyBindings>
+    <KeyBinding guid="guidMacrosPackageCmdSet" id="cmdidMacrosRecord" editor="guidVSStd97" key1="R" mod1="Control Shift" />
+    <KeyBinding guid="guidMacrosPackageCmdSet" id="cmdidMacrosPlayLast" editor="guidVSStd97" key1="P" mod1="Control Shift" />
+  </KeyBindings>
+
+  <VisibilityConstraints>
+    <VisibilityItem guid="guidMacrosPackageCmdSet" id="cmdidMacrosStop" context="guidMacrosRecordingContext" />
+    <VisibilityItem guid="guidMacrosPackageCmdSet" id="cmdidMacrosRecord" context="guidMacrosNotRecordingContext" />
+  </VisibilityConstraints>
+
+  <Symbols>
+
+    <!-- Package GUID. Mirrors PackageGuids.PackageGuidString. -->
+    <GuidSymbol name="guidMacrosPackage" value="{d13e532a-bd43-40df-ae9f-8d05e54138c7}" />
+
+    <!-- Command set GUID. Mirrors PackageGuids.CommandSetGuidString. All menus, groups,
+         and commands for the extension live under this set. -->
+    <GuidSymbol name="guidMacrosPackageCmdSet" value="{1f6e8c4b-2d54-4a76-9c2c-9d8b5a7e1d31}">
+
+      <!-- Menus / Groups (placeholders for m1-vsct-toolbar) -->
+      <IDSymbol name="MacrosToolbar"                 value="0x1000" />
+      <IDSymbol name="MacrosToolbarGroup"            value="0x1010" />
+      <IDSymbol name="MacrosToolWindowToolbar"       value="0x1020" />
+      <IDSymbol name="MacrosToolWindowToolbarGroup"  value="0x1030" />
+      <IDSymbol name="MacrosContextMenu"             value="0x1040" />
+      <IDSymbol name="MacrosContextMenuGroup"        value="0x1050" />
+
+      <!-- Commands (placeholders for m1-vsct-buttons) -->
+      <IDSymbol name="cmdidMacrosRecord"             value="0x0100" />
+      <IDSymbol name="cmdidMacrosStop"               value="0x0101" />
+      <IDSymbol name="cmdidMacrosPlayLast"           value="0x0102" />
+      <IDSymbol name="cmdidMacrosPlayNamed"          value="0x0103" />
+      <IDSymbol name="cmdidMacrosSaveAs"             value="0x0104" />
+      <IDSymbol name="cmdidMacrosShowWindow"         value="0x0105" />
+      <IDSymbol name="cmdidMacrosDelete"             value="0x0106" />
+      <IDSymbol name="cmdidMacrosRename"             value="0x0107" />
+      <IDSymbol name="cmdidMacrosEdit"               value="0x0108" />
+      <IDSymbol name="cmdidMacrosManageTriggers"     value="0x0109" />
+      <IDSymbol name="cmdidMacrosNewMacro"           value="0x010A" />
+      <IDSymbol name="cmdidMacrosRefresh"            value="0x010B" />
+      <IDSymbol name="cmdidMacrosMoveToRepo"         value="0x010C" />
+      <IDSymbol name="cmdidMacrosMoveToGlobal"       value="0x010D" />
+
+    </GuidSymbol>
+
+    <!-- UIContext GUID activated while recording. Drives VisibilityConstraints in
+         m1-vsct-visibility. Mirrors PackageGuids.RecordingContextGuidString. -->
+    <GuidSymbol name="guidMacrosRecordingContext" value="{f0a5d2c7-7e7c-4a47-bc6f-2c0a5b6f2c80}" />
+
+    <!-- Inverse UIContext: active when NOT recording. Drives Record button visibility
+         in m1-vsct-visibility. Mirrors PackageGuids.NotRecordingContextGuidString. -->
+    <GuidSymbol name="guidMacrosNotRecordingContext" value="{c8e5a3b1-9f4d-4d87-b5a2-7e1f3a8c2d40}" />
+
+  </Symbols>
+
+</CommandTable>
