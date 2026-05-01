@@ -23,6 +23,11 @@
   <!-- Standard VS menu/group/anchor IDs used by later todos (e.g., View > Other Windows). -->
   <Include href="VSGlobals.vsct" />
 
+  <!-- KnownMonikers image catalog symbols (ImageCatalogGuid + every <IDSymbol> name from
+       Microsoft.VisualStudio.Imaging.KnownMonikers). Required so VSCT-defined buttons can
+       say <Icon guid="ImageCatalogGuid" id="Run" /> with CommandFlag IconIsMoniker. -->
+  <Include href="KnownImageIds.vsct" />
+
   <Commands package="guidMacrosPackage">
 
     <Menus>
@@ -33,11 +38,31 @@
           <CommandName>Macros</CommandName>
         </Strings>
       </Menu>
+
+      <!-- Tool window context menu (m3-context-menu). Shown via IVsUIShell.ShowContextMenu
+           from MacrosToolWindowControl on right-click over a macro row. The selected macro
+           is supplied through MacroSelectionContext before the menu opens. -->
+      <Menu guid="guidMacrosPackageCmdSet" id="MacrosToolWindowContextMenu" priority="0x0000" type="Context">
+        <Strings>
+          <ButtonText>Macro Context Menu</ButtonText>
+          <CommandName>Macros.MacrosContextMenu</CommandName>
+        </Strings>
+      </Menu>
     </Menus>
 
     <Groups>
       <Group guid="guidMacrosPackageCmdSet" id="MacrosToolbarGroup" priority="0x0000">
         <Parent guid="guidMacrosPackageCmdSet" id="MacrosToolbar" />
+      </Group>
+
+      <!-- Group 1: primary actions on a single macro row. -->
+      <Group guid="guidMacrosPackageCmdSet" id="MacrosContextMenuGroup1" priority="0x0100">
+        <Parent guid="guidMacrosPackageCmdSet" id="MacrosToolWindowContextMenu" />
+      </Group>
+      <!-- Group 2: secondary "navigate to" actions; the priority gap makes VS render a
+           separator between the two groups automatically. -->
+      <Group guid="guidMacrosPackageCmdSet" id="MacrosContextMenuGroup2" priority="0x0200">
+        <Parent guid="guidMacrosPackageCmdSet" id="MacrosToolWindowContextMenu" />
       </Group>
     </Groups>
 
@@ -75,6 +100,60 @@
         <Strings>
           <ButtonText>Show Macros Window</ButtonText>
           <CommandName>Macros.ShowWindow</CommandName>
+        </Strings>
+      </Button>
+
+      <!-- Tool window context menu buttons (m3-context-menu). Each acts on the macro stored
+           in MacroSelectionContext.Current at right-click time. KnownMonikers IDs come from
+           Microsoft.VisualStudio.Imaging.KnownMonikers; ImageCatalogGuid is the well-known
+           {ae27a6b0-e345-4288-96df-5eaf394ee369}. -->
+      <Button guid="guidMacrosPackageCmdSet" id="cmdidMacrosCtxPlay" priority="0x0100" type="Button">
+        <Parent guid="guidMacrosPackageCmdSet" id="MacrosContextMenuGroup1" />
+        <Icon guid="ImageCatalogGuid" id="Run" />
+        <CommandFlag>IconIsMoniker</CommandFlag>
+        <Strings>
+          <ButtonText>&amp;Play</ButtonText>
+          <CommandName>Macros.Context.Play</CommandName>
+        </Strings>
+      </Button>
+
+      <Button guid="guidMacrosPackageCmdSet" id="cmdidMacrosCtxEdit" priority="0x0110" type="Button">
+        <Parent guid="guidMacrosPackageCmdSet" id="MacrosContextMenuGroup1" />
+        <Icon guid="ImageCatalogGuid" id="Edit" />
+        <CommandFlag>IconIsMoniker</CommandFlag>
+        <Strings>
+          <ButtonText>&amp;Edit Macro</ButtonText>
+          <CommandName>Macros.Context.Edit</CommandName>
+        </Strings>
+      </Button>
+
+      <Button guid="guidMacrosPackageCmdSet" id="cmdidMacrosCtxRename" priority="0x0120" type="Button">
+        <Parent guid="guidMacrosPackageCmdSet" id="MacrosContextMenuGroup1" />
+        <Icon guid="ImageCatalogGuid" id="Rename" />
+        <CommandFlag>IconIsMoniker</CommandFlag>
+        <Strings>
+          <ButtonText>&amp;Rename...</ButtonText>
+          <CommandName>Macros.Context.Rename</CommandName>
+        </Strings>
+      </Button>
+
+      <Button guid="guidMacrosPackageCmdSet" id="cmdidMacrosCtxDelete" priority="0x0130" type="Button">
+        <Parent guid="guidMacrosPackageCmdSet" id="MacrosContextMenuGroup1" />
+        <Icon guid="ImageCatalogGuid" id="Cancel" />
+        <CommandFlag>IconIsMoniker</CommandFlag>
+        <Strings>
+          <ButtonText>&amp;Delete</ButtonText>
+          <CommandName>Macros.Context.Delete</CommandName>
+        </Strings>
+      </Button>
+
+      <Button guid="guidMacrosPackageCmdSet" id="cmdidMacrosCtxOpenFolder" priority="0x0100" type="Button">
+        <Parent guid="guidMacrosPackageCmdSet" id="MacrosContextMenuGroup2" />
+        <Icon guid="ImageCatalogGuid" id="FolderOpened" />
+        <CommandFlag>IconIsMoniker</CommandFlag>
+        <Strings>
+          <ButtonText>Open Folder in &amp;Explorer</ButtonText>
+          <CommandName>Macros.Context.OpenFolder</CommandName>
         </Strings>
       </Button>
     </Buttons>
@@ -123,6 +202,17 @@
       <IDSymbol name="cmdidMacrosRefresh"            value="0x010B" />
       <IDSymbol name="cmdidMacrosMoveToRepo"         value="0x010C" />
       <IDSymbol name="cmdidMacrosMoveToGlobal"       value="0x010D" />
+
+      <!-- Tool window context menu (m3-context-menu). Lives in its own 0x2xxx range so it
+           cannot collide with the M1 placeholders above and so the symbols cluster together. -->
+      <IDSymbol name="MacrosToolWindowContextMenu"   value="0x2000" />
+      <IDSymbol name="MacrosContextMenuGroup1"       value="0x2100" />
+      <IDSymbol name="MacrosContextMenuGroup2"       value="0x2200" />
+      <IDSymbol name="cmdidMacrosCtxPlay"            value="0x2110" />
+      <IDSymbol name="cmdidMacrosCtxEdit"            value="0x2111" />
+      <IDSymbol name="cmdidMacrosCtxRename"          value="0x2112" />
+      <IDSymbol name="cmdidMacrosCtxDelete"          value="0x2113" />
+      <IDSymbol name="cmdidMacrosCtxOpenFolder"      value="0x2210" />
 
     </GuidSymbol>
 

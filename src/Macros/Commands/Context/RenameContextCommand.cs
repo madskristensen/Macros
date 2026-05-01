@@ -9,7 +9,7 @@ namespace Macros.Commands.Context;
 
 /// <summary>
 /// Tool window context-menu handler for "Rename...". Shows a modal dialog that validates
-/// the new name against <see cref="IMacroStorage.IsValidName"/> and checks for collisions
+/// the new name against <see cref="IMacroStore.IsValidName"/> and checks for collisions
 /// before committing the rename.
 /// </summary>
 [Command(PackageGuids.CommandSetGuidString, PackageIds.cmdidMacrosCtxRename)]
@@ -21,7 +21,7 @@ internal sealed class RenameContextCommand : BaseCommand<RenameContextCommand>
         var current = MacroSelectionContext.Current;
         if (current is null) return;
 
-        var storage = await VS.GetRequiredServiceAsync<IMacroStorage, IMacroStorage>();
+        var storage = await VS.GetRequiredServiceAsync<IMacroStore, IMacroStore>();
 
         var vm = new RenameDialogViewModel(current, storage);
         var dlg = new RenameDialog { DataContext = vm };

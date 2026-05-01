@@ -5,13 +5,13 @@ namespace Macros.Tests.Storage;
 
 /// <summary>
 /// Pins every clause of the macro-name validation contract documented on
-/// <see cref="FileSystemMacroStorage.IsValidName(string)"/>. The implementation is the
+/// <see cref="FileSystemMacroStore.IsValidName(string)"/>. The implementation is the
 /// only gate between user-supplied names and on-disk file paths, so each rule gets
 /// both a positive and a negative case here.
 /// </summary>
 public sealed class NameValidationTests
 {
-    private static readonly FileSystemMacroStorage Storage =
+    private static readonly FileSystemMacroStore Storage =
         new("X:\\fake-global");
 
     [Theory]

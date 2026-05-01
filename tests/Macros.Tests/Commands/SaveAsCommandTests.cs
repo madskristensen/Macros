@@ -31,7 +31,7 @@ public sealed class SaveAsCommandTests
         var tempRoot = Path.Combine(Path.GetTempPath(), "SaveAsCmdTest_" + System.Guid.NewGuid().ToString("N"));
         try
         {
-            var storage = new FileSystemMacroStorage(tempRoot);
+            var storage = new FileSystemMacroStore(tempRoot);
             var source = await storage.LoadCurrentAsync();
             Assert.Null(source);
         }
@@ -53,7 +53,7 @@ public sealed class SaveAsCommandTests
         try
         {
             const string expected = "// recorded macro\nawait VS.Editor.ActiveView.Caret.MoveToNextLineAsync();\n";
-            var storage = new FileSystemMacroStorage(tempRoot);
+            var storage = new FileSystemMacroStore(tempRoot);
             await storage.SaveCurrentAsync(expected);
 
             var source = await storage.LoadCurrentAsync();

@@ -4,6 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Macros.Engine;
 using Macros.Engine.Player;
+using Macros.Engine.Triggers;
 using Microsoft.VisualStudio.Threading;
 using Xunit;
 
@@ -153,8 +154,7 @@ public sealed class MacroServiceCancelPlayTests
         public async Task<MacroPlayResult> PlayAsync(
             string source,
             string macroName,
-            string triggerKind,
-            IReadOnlyDictionary<string, object?>? trigger,
+            IMacroTrigger? trigger,
             CancellationToken cancellation)
         {
             _started.TrySetResult(true);
@@ -180,8 +180,7 @@ public sealed class MacroServiceCancelPlayTests
         public Task<MacroPlayResult> PlayAsync(
             string source,
             string macroName,
-            string triggerKind,
-            IReadOnlyDictionary<string, object?>? trigger,
+            IMacroTrigger? trigger,
             CancellationToken cancellation)
             => Task.FromResult(_result);
     }

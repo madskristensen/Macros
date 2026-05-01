@@ -4,6 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Community.VisualStudio.Toolkit;
 using EnvDTE;
+using Macros.Commands;
 using Macros.Engine;
 using Microsoft.VisualStudio;
 using Microsoft.VisualStudio.OLE.Interop;
@@ -187,19 +188,26 @@ internal sealed class CommandObserver : IOleCommandTarget
 
     private string? ResolveCommandName(Guid group, uint id)
     {
+        // Fast path: cache hit (no COM call needed).
+        var cached = CommandNameCache.Instance.Lookup(group, id);
+        if (cached is not null) return cached;
+
+        // Slow path: fall back to DTE for commands registered after priming (e.g. dynamic commands).
         try
         {
             ThreadHelper.ThrowIfNotOnUIThread();
 
             _dte ??= ServiceProvider.GlobalProvider.GetService(typeof(DTE)) as DTE;
             var dte = _dte;
-            if (dte is null)
-            {
-                return null;
-            }
+            if (dte is null) return null;
 
             var cmd = dte.Commands.Item(group.ToString("B"), (int)id);
-            return cmd?.Name;
+            var name = cmd?.Name;
+            if (name is not null)
+            {
+                CommandNameCache.Instance.TryAddName(group, id, name);
+            }
+            return name;
         }
         catch
         {

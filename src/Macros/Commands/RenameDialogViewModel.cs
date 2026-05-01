@@ -7,16 +7,16 @@ namespace Macros.Commands;
 
 /// <summary>
 /// View-model for the <c>Rename Macro</c> dialog. Pure MVVM logic with no VS Shell
-/// dependency so it can be unit-tested directly against a fake <see cref="IMacroStorage"/>.
+/// dependency so it can be unit-tested directly against a fake <see cref="IMacroStore"/>.
 /// </summary>
 /// <remarks>
 /// Validation runs synchronously on every <see cref="NewName"/> change using the pure-path
-/// <see cref="IMacroStorage.GetMacroPath"/> helper then <see cref="File.Exists"/> —
+/// <see cref="IMacroStore.GetMacroPath"/> helper then <see cref="File.Exists"/> —
 /// no async I/O required.
 /// </remarks>
 internal sealed class RenameDialogViewModel : INotifyPropertyChanged
 {
-    private readonly IMacroStorage _storage;
+    private readonly IMacroStore _storage;
 
     private string _newName = string.Empty;
     private string _validationMessage = string.Empty;
@@ -24,7 +24,7 @@ internal sealed class RenameDialogViewModel : INotifyPropertyChanged
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    public RenameDialogViewModel(MacroDescriptor descriptor, IMacroStorage storage)
+    public RenameDialogViewModel(MacroEntry descriptor, IMacroStore storage)
     {
         if (descriptor is null) throw new ArgumentNullException(nameof(descriptor));
         _storage = storage ?? throw new ArgumentNullException(nameof(storage));

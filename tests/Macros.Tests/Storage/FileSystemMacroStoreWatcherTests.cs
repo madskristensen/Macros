@@ -10,17 +10,17 @@ using Xunit;
 namespace Macros.Tests.Storage;
 
 /// <summary>
-/// Tests that <see cref="FileSystemMacroStorage"/> translates external filesystem
-/// mutations into <see cref="IMacroStorage.LibraryChanged"/> events via its embedded
+/// Tests that <see cref="FileSystemMacroStore"/> translates external filesystem
+/// mutations into <see cref="IMacroStore.LibraryChanged"/> events via its embedded
 /// <see cref="FileSystemWatcher"/>.
 /// </summary>
-public sealed class FileSystemMacroStorageWatcherTests : IDisposable
+public sealed class FileSystemMacroStoreWatcherTests : IDisposable
 {
     private readonly string _tempRoot;
     private readonly string _globalRoot;
     private readonly string _namedFolder;
 
-    public FileSystemMacroStorageWatcherTests()
+    public FileSystemMacroStoreWatcherTests()
     {
         _tempRoot = Path.Combine(
             Path.GetTempPath(),
@@ -47,15 +47,15 @@ public sealed class FileSystemMacroStorageWatcherTests : IDisposable
 
     // ── helpers ──────────────────────────────────────────────────────────────────────
 
-    private FileSystemMacroStorage CreateStorage()
+    private FileSystemMacroStore CreateStorage()
     {
         // Create the named folder so the watcher can start immediately on subscription.
         Directory.CreateDirectory(_namedFolder);
-        return new FileSystemMacroStorage(_globalRoot);
+        return new FileSystemMacroStore(_globalRoot);
     }
 
     private static List<MacroLibraryChangedEventArgs> Capture(
-        FileSystemMacroStorage storage,
+        FileSystemMacroStore storage,
         out EventHandler<MacroLibraryChangedEventArgs> handler)
     {
         var events = new List<MacroLibraryChangedEventArgs>();

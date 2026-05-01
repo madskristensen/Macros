@@ -9,15 +9,15 @@ using Xunit;
 namespace Macros.Tests.Storage;
 
 /// <summary>
-/// Behavioural tests for <see cref="FileSystemMacroStorage"/>. Each test owns a unique
+/// Behavioural tests for <see cref="FileSystemMacroStore"/>. Each test owns a unique
 /// temp folder under the system temp root so xUnit's parallel runner can drive them
 /// concurrently without cross-contamination.
 /// </summary>
-public sealed class FileSystemMacroStorageTests : IDisposable
+public sealed class FileSystemMacroStoreTests : IDisposable
 {
     private readonly string _tempRoot;
 
-    public FileSystemMacroStorageTests()
+    public FileSystemMacroStoreTests()
     {
         _tempRoot = Path.Combine(Path.GetTempPath(), "Macros.Tests", Guid.NewGuid().ToString("N"));
     }
@@ -41,7 +41,7 @@ public sealed class FileSystemMacroStorageTests : IDisposable
     [Fact]
     public async Task SaveAndLoad_RoundTripsContent()
     {
-        var storage = new FileSystemMacroStorage(_tempRoot);
+        var storage = new FileSystemMacroStore(_tempRoot);
         const string source = "// recorded\nawait DTE.ExecuteCommandAsync(\"Edit.Copy\");\n";
 
         await storage.SaveCurrentAsync(source);
@@ -54,7 +54,7 @@ public sealed class FileSystemMacroStorageTests : IDisposable
     public async Task SaveCurrentAsync_CreatesDirectoryIfMissing()
     {
         var nested = Path.Combine(_tempRoot, "does", "not", "exist", "yet");
-        var storage = new FileSystemMacroStorage(nested);
+        var storage = new FileSystemMacroStore(nested);
 
         Assert.False(Directory.Exists(nested));
 
@@ -67,7 +67,7 @@ public sealed class FileSystemMacroStorageTests : IDisposable
     [Fact]
     public async Task SaveCurrentAsync_LeavesNoTempFileBehind()
     {
-        var storage = new FileSystemMacroStorage(_tempRoot);
+        var storage = new FileSystemMacroStore(_tempRoot);
 
         await storage.SaveCurrentAsync("// first");
         await storage.SaveCurrentAsync("// second");
@@ -83,7 +83,7 @@ public sealed class FileSystemMacroStorageTests : IDisposable
     [Fact]
     public async Task SaveCurrentAsync_OverwritesExistingFile_PreservingPath()
     {
-        var storage = new FileSystemMacroStorage(_tempRoot);
+        var storage = new FileSystemMacroStore(_tempRoot);
 
         await storage.SaveCurrentAsync("// v1");
         await storage.SaveCurrentAsync("// v2");
@@ -95,7 +95,7 @@ public sealed class FileSystemMacroStorageTests : IDisposable
     [Fact]
     public async Task SaveCurrentAsync_WritesUtf8WithBom()
     {
-        var storage = new FileSystemMacroStorage(_tempRoot);
+        var storage = new FileSystemMacroStore(_tempRoot);
 
         await storage.SaveCurrentAsync("// æøå");
 
@@ -110,7 +110,7 @@ public sealed class FileSystemMacroStorageTests : IDisposable
     [Fact]
     public async Task LoadCurrentAsync_ReturnsNull_WhenFileMissing()
     {
-        var storage = new FileSystemMacroStorage(_tempRoot);
+        var storage = new FileSystemMacroStore(_tempRoot);
 
         var result = await storage.LoadCurrentAsync();
 
@@ -120,7 +120,7 @@ public sealed class FileSystemMacroStorageTests : IDisposable
     [Fact]
     public async Task LoadCurrentAsync_ReturnsNull_WhenDirectoryMissing()
     {
-        var storage = new FileSystemMacroStorage(Path.Combine(_tempRoot, "never-created"));
+        var storage = new FileSystemMacroStore(Path.Combine(_tempRoot, "never-created"));
 
         var result = await storage.LoadCurrentAsync();
 
@@ -130,7 +130,7 @@ public sealed class FileSystemMacroStorageTests : IDisposable
     [Fact]
     public async Task DeleteCurrentAsync_ReturnsTrue_WhenFileExists()
     {
-        var storage = new FileSystemMacroStorage(_tempRoot);
+        var storage = new FileSystemMacroStore(_tempRoot);
         await storage.SaveCurrentAsync("// throwaway");
 
         var deleted = await storage.DeleteCurrentAsync();
@@ -142,7 +142,7 @@ public sealed class FileSystemMacroStorageTests : IDisposable
     [Fact]
     public async Task DeleteCurrentAsync_ReturnsFalse_WhenFileMissing()
     {
-        var storage = new FileSystemMacroStorage(_tempRoot);
+        var storage = new FileSystemMacroStore(_tempRoot);
 
         var deleted = await storage.DeleteCurrentAsync();
 
@@ -152,7 +152,7 @@ public sealed class FileSystemMacroStorageTests : IDisposable
     [Fact]
     public async Task SaveCurrentAsync_CancelledBeforeStart_Throws_AndWritesNothing()
     {
-        var storage = new FileSystemMacroStorage(_tempRoot);
+        var storage = new FileSystemMacroStore(_tempRoot);
         using var cts = new CancellationTokenSource();
         cts.Cancel();
 
@@ -169,7 +169,7 @@ public sealed class FileSystemMacroStorageTests : IDisposable
     [Fact]
     public async Task LoadCurrentAsync_CancelledBeforeStart_Throws()
     {
-        var storage = new FileSystemMacroStorage(_tempRoot);
+        var storage = new FileSystemMacroStore(_tempRoot);
         await storage.SaveCurrentAsync("// pre-existing");
         using var cts = new CancellationTokenSource();
         cts.Cancel();
@@ -181,7 +181,7 @@ public sealed class FileSystemMacroStorageTests : IDisposable
     [Fact]
     public async Task ConcurrentSaves_DoNotCrash_AndProduceOneOfTheWrittenValues()
     {
-        var storage = new FileSystemMacroStorage(_tempRoot);
+        var storage = new FileSystemMacroStore(_tempRoot);
 
         // Last-write-wins semantics — we don't pin which write wins, only that the file
         // ends up with one of the two complete payloads (no torn bytes, no exception).
@@ -197,7 +197,7 @@ public sealed class FileSystemMacroStorageTests : IDisposable
     [Fact]
     public void CurrentPath_IsCombinationOfFolderAndCurrentCsx()
     {
-        var storage = new FileSystemMacroStorage(_tempRoot);
+        var storage = new FileSystemMacroStore(_tempRoot);
 
         Assert.Equal(Path.Combine(_tempRoot, "current.csx"), storage.CurrentPath);
     }
@@ -208,6 +208,6 @@ public sealed class FileSystemMacroStorageTests : IDisposable
     [InlineData("   ")]
     public void Constructor_RejectsMissingFolder(string? folder)
     {
-        Assert.Throws<ArgumentException>(() => new FileSystemMacroStorage(folder!));
+        Assert.Throws<ArgumentException>(() => new FileSystemMacroStore(folder!));
     }
 }

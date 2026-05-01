@@ -245,12 +245,12 @@ public sealed class MacrosToolWindowViewModelTests
     // ─── Test doubles ─────────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Hand-rolled <see cref="IMacroStorage"/> double. Has the field-like
+    /// Hand-rolled <see cref="IMacroStore"/> double. Has the field-like
     /// <c>LibraryChanged</c> event the dispose-test inspects via reflection.
     /// </summary>
-    private sealed class FakeStorage : IMacroStorage
+    private sealed class FakeStorage : IMacroStore
     {
-        private readonly Dictionary<(MacroScope, string), MacroDescriptor> _files = new();
+        private readonly Dictionary<(MacroScope, string), MacroEntry> _files = new();
         private readonly bool _repoAvailable;
 
         public FakeStorage(bool repoAvailable)
@@ -260,7 +260,7 @@ public sealed class MacrosToolWindowViewModelTests
 
         public string CurrentPath => $"{FakeRoot}\\current.csx";
         internal event EventHandler<MacroLibraryChangedEventArgs>? LibraryChanged;
-        event EventHandler<MacroLibraryChangedEventArgs>? IMacroStorage.LibraryChanged
+        event EventHandler<MacroLibraryChangedEventArgs>? IMacroStore.LibraryChanged
         {
             add => LibraryChanged += value;
             remove => LibraryChanged -= value;
@@ -268,12 +268,14 @@ public sealed class MacrosToolWindowViewModelTests
 
         public void Add(MacroScope scope, string name, long size = 128)
         {
-            _files[(scope, name)] = new MacroDescriptor(
+            _files[(scope, name)] = new MacroEntry(
                 name,
                 scope,
                 $"{FakeRoot}\\{scope}\\{name}.csx",
-                DateTime.UtcNow,
-                size);
+                0,
+                DateTimeOffset.UtcNow,
+                size,
+                System.Array.Empty<Macros.Engine.Triggers.TriggerBinding>());
         }
 
         public void RaiseChanged(MacroLibraryChangeKind kind, MacroScope scope, string name)
@@ -283,7 +285,7 @@ public sealed class MacrosToolWindowViewModelTests
         public Task<string?> LoadCurrentAsync(CancellationToken cancellation = default) => Task.FromResult<string?>(null);
         public Task<bool> DeleteCurrentAsync(CancellationToken cancellation = default) => Task.FromResult(false);
 
-        public Task<IReadOnlyList<MacroDescriptor>> ListAsync(MacroScope scope, CancellationToken cancellation = default)
+        public Task<IReadOnlyList<MacroEntry>> ListAsync(MacroScope scope, CancellationToken cancellation = default)
         {
             if (scope == MacroScope.Repo && !_repoAvailable)
             {
@@ -295,16 +297,16 @@ public sealed class MacrosToolWindowViewModelTests
                 .Select(kv => kv.Value)
                 .OrderBy(d => d.Name, StringComparer.OrdinalIgnoreCase)
                 .ToList();
-            return Task.FromResult<IReadOnlyList<MacroDescriptor>>(list);
+            return Task.FromResult<IReadOnlyList<MacroEntry>>(list);
         }
 
-        public Task<IReadOnlyList<MacroDescriptor>> ListAllAsync(CancellationToken cancellation = default)
+        public Task<IReadOnlyList<MacroEntry>> ListAllAsync(CancellationToken cancellation = default)
         {
             var combined = _files.Values
                 .Where(d => d.Scope != MacroScope.Repo || _repoAvailable)
                 .OrderBy(d => d.Name, StringComparer.OrdinalIgnoreCase)
                 .ToList();
-            return Task.FromResult<IReadOnlyList<MacroDescriptor>>(combined);
+            return Task.FromResult<IReadOnlyList<MacroEntry>>(combined);
         }
 
         public Task<string?> LoadByNameAsync(string name, MacroScope scope, CancellationToken cancellation = default)
@@ -322,9 +324,15 @@ public sealed class MacrosToolWindowViewModelTests
         public string GetMacroPath(string name, MacroScope scope) => $"{FakeRoot}\\{scope}\\{name}.csx";
 
         public bool IsValidName(string name) => !string.IsNullOrWhiteSpace(name);
+
+        public Task<MacroEntry?> RefreshEntryAsync(string name, MacroScope scope, CancellationToken cancellation = default)
+        {
+            _files.TryGetValue((scope, name), out var entry);
+            return Task.FromResult<MacroEntry?>(entry);
+        }
     }
 
-    private sealed class ThrowingStorage : IMacroStorage
+    private sealed class ThrowingStorage : IMacroStore
     {
         public string CurrentPath => $"{FakeRoot}\\current.csx";
         public event EventHandler<MacroLibraryChangedEventArgs>? LibraryChanged
@@ -337,10 +345,10 @@ public sealed class MacrosToolWindowViewModelTests
         public Task<string?> LoadCurrentAsync(CancellationToken cancellation = default) => Task.FromResult<string?>(null);
         public Task<bool> DeleteCurrentAsync(CancellationToken cancellation = default) => Task.FromResult(false);
 
-        public Task<IReadOnlyList<MacroDescriptor>> ListAsync(MacroScope scope, CancellationToken cancellation = default)
+        public Task<IReadOnlyList<MacroEntry>> ListAsync(MacroScope scope, CancellationToken cancellation = default)
             => throw new InvalidOperationException("simulated I/O failure");
 
-        public Task<IReadOnlyList<MacroDescriptor>> ListAllAsync(CancellationToken cancellation = default)
+        public Task<IReadOnlyList<MacroEntry>> ListAllAsync(CancellationToken cancellation = default)
             => throw new InvalidOperationException("simulated I/O failure");
 
         public Task<string?> LoadByNameAsync(string name, MacroScope scope, CancellationToken cancellation = default)
@@ -357,6 +365,9 @@ public sealed class MacrosToolWindowViewModelTests
 
         public string GetMacroPath(string name, MacroScope scope) => $"{FakeRoot}\\{scope}\\{name}.csx";
         public bool IsValidName(string name) => true;
+
+        public Task<MacroEntry?> RefreshEntryAsync(string name, MacroScope scope, CancellationToken cancellation = default)
+            => throw new InvalidOperationException("simulated I/O failure");
     }
 
     /// <summary>

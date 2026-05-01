@@ -7,6 +7,7 @@ using Macros.Engine;
 using Macros.Engine.Player;
 using Macros.Engine.Scripting;
 using Macros.Engine.Storage;
+using Macros.Commands;
 using Macros.Observers;
 using Macros.Onboarding;
 using Macros.Options;
@@ -48,6 +49,8 @@ namespace Macros;
     VSConstants.UICONTEXT.NoSolution_string)]
 [ProvideOptionPage(typeof(OptionsProvider.GeneralOptionsPage), "Macros", "General",
     categoryResourceID: 0, pageNameResourceID: 0, supportsAutomation: true)]
+[ProvideOptionPage(typeof(TrustedSolutionsPage), "Macros", "Trusted Solutions",
+    categoryResourceID: 0, pageNameResourceID: 0, supportsAutomation: true)]
 [Guid(PackageGuids.PackageGuidString)]
 public sealed class MacrosPackage : ToolkitPackage
 {
@@ -58,7 +61,7 @@ public sealed class MacrosPackage : ToolkitPackage
     private readonly ScriptCompilationCache _scriptCache = new();
 
     // Active solution directory. Read by the repo-folder provider passed to
-    // FileSystemMacroStorage; updated from solution-open / solution-close events
+    // FileSystemMacroStore; updated from solution-open / solution-close events
     // (wired in m3-storage-watcher). Field is updated via Volatile.Write so the
     // background-thread reader sees a fresh value without taking a lock.
     private string? _solutionDirectory;
@@ -77,11 +80,11 @@ public sealed class MacrosPackage : ToolkitPackage
         //    The folder defaults to %APPDATA%\Macros and is overridable via
         //    MacrosOptions.GlobalMacrosFolder.
         //
-        //    The same storage instance is re-exposed as IMacroStorage so the M3 tool window VM
+        //    The same storage instance is re-exposed as IMacroStore so the M3 tool window VM
         //    can enumerate / watch the named-macro library independently of the engine. Lazy<T>
-        //    guarantees a single backing FileSystemMacroStorage no matter which service is
+        //    guarantees a single backing FileSystemMacroStore no matter which service is
         //    resolved first (the resolves cross threads via the VS service container).
-        var sharedStorage = new Lazy<IMacroStorage>(
+        var sharedStorage = new Lazy<IMacroStore>(
             () =>
             {
                 var folder = MacrosPaths.ResolveGlobalFolder(MacrosOptions.Instance.GlobalMacrosFolder);
@@ -96,12 +99,12 @@ public sealed class MacrosPackage : ToolkitPackage
                 Func<string?> repoProvider = () => MacrosPaths.ResolveRepoFolder(
                     Volatile.Read(ref _solutionDirectory),
                     MacrosOptions.Instance.RepoMacrosFolderName ?? "Macros");
-                return new FileSystemMacroStorage(folder, repoProvider);
+                return new FileSystemMacroStore(folder, repoProvider);
             },
             isThreadSafe: true);
 
         this.AddService(
-            typeof(IMacroStorage),
+            typeof(IMacroStore),
             (_, _, _) => Task.FromResult<object>(sharedStorage.Value),
             promote: true);
 
@@ -165,6 +168,14 @@ public sealed class MacrosPackage : ToolkitPackage
             await JoinableTaskFactory.SwitchToMainThreadAsync(DisposalToken);
             await OnboardingInfoBar.ShowIfFirstRunAsync();
         });
+
+        // 9. Prime the command-name cache once so BeforeCommand / AfterCommand trigger lookups
+        //    never enumerate DTE.Commands on the hot path. Fire-and-forget is intentional —
+        //    the cache degrades gracefully to per-call DTE lookup when not yet primed.
+        JoinableTaskFactory.RunAsync(async () =>
+        {
+            await CommandNameCache.Instance.PrimeAsync(dte, JoinableTaskFactory);
+        }).FileAndForget("Macros/CommandNameCache");
     }
 
     /// <inheritdoc />

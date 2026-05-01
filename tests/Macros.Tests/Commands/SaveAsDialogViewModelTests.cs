@@ -11,7 +11,7 @@ namespace Macros.Tests.Commands;
 
 /// <summary>
 /// Unit tests for <see cref="SaveAsDialogViewModel"/>. All tests run without a VS host;
-/// the <see cref="IMacroStorage"/> is mocked via Moq.
+/// the <see cref="IMacroStore"/> is mocked via Moq.
 /// </summary>
 public sealed class SaveAsDialogViewModelTests
 {
@@ -21,9 +21,9 @@ public sealed class SaveAsDialogViewModelTests
     /// Builds a mock storage where <paramref name="name"/> is valid and the target file
     /// does NOT yet exist on disk.
     /// </summary>
-    private static Mock<IMacroStorage> MakeStorage(string validName, MacroScope scope = MacroScope.Global)
+    private static Mock<IMacroStore> MakeStorage(string validName, MacroScope scope = MacroScope.Global)
     {
-        var mock = new Mock<IMacroStorage>(MockBehavior.Strict);
+        var mock = new Mock<IMacroStore>(MockBehavior.Strict);
 
         // IsValidName: true for exactly validName, false for anything containing '<' or empty
         mock.Setup(s => s.IsValidName(It.IsAny<string>()))
@@ -53,7 +53,7 @@ public sealed class SaveAsDialogViewModelTests
     [Fact]
     public void InvalidName_ContainsAngleBracket_CanSave_False_MessageSet()
     {
-        var storage = new Mock<IMacroStorage>(MockBehavior.Strict);
+        var storage = new Mock<IMacroStore>(MockBehavior.Strict);
         storage.Setup(s => s.IsValidName(It.IsAny<string>()))
                .Returns<string>(n => !n.Contains("<"));
 
@@ -69,7 +69,7 @@ public sealed class SaveAsDialogViewModelTests
     [Fact]
     public void EmptyName_CanSave_False_NoMessage()
     {
-        var storage = new Mock<IMacroStorage>(MockBehavior.Strict);
+        var storage = new Mock<IMacroStore>(MockBehavior.Strict);
         storage.Setup(s => s.IsValidName(It.IsAny<string>()))
                .Returns<string>(n => !string.IsNullOrEmpty(n));
 
@@ -91,7 +91,7 @@ public sealed class SaveAsDialogViewModelTests
 
         try
         {
-            var mock = new Mock<IMacroStorage>(MockBehavior.Strict);
+            var mock = new Mock<IMacroStore>(MockBehavior.Strict);
             mock.Setup(s => s.IsValidName("existing")).Returns(true);
             mock.Setup(s => s.GetMacroPath("existing", MacroScope.Global)).Returns(existingFile);
 
@@ -111,7 +111,7 @@ public sealed class SaveAsDialogViewModelTests
     [Fact]
     public void RepoScope_WhenNoRepo_CannotBeSet()
     {
-        var mock = new Mock<IMacroStorage>(MockBehavior.Strict);
+        var mock = new Mock<IMacroStore>(MockBehavior.Strict);
         mock.Setup(s => s.IsValidName(It.IsAny<string>())).Returns(true);
         mock.Setup(s => s.GetMacroPath(It.IsAny<string>(), MacroScope.Global))
             .Returns<string, MacroScope>((n, _) =>
@@ -141,7 +141,7 @@ public sealed class SaveAsDialogViewModelTests
 
         try
         {
-            var mock = new Mock<IMacroStorage>(MockBehavior.Strict);
+            var mock = new Mock<IMacroStore>(MockBehavior.Strict);
             mock.Setup(s => s.IsValidName("shared")).Returns(true);
             mock.Setup(s => s.GetMacroPath("shared", MacroScope.Global))
                 .Returns(Path.Combine(globalDir, "shared.csx"));   // does NOT exist
@@ -172,7 +172,7 @@ public sealed class SaveAsDialogViewModelTests
     [Fact]
     public void IsGlobalScope_IsRepoScope_ReflectScope()
     {
-        var mock = new Mock<IMacroStorage>(MockBehavior.Strict);
+        var mock = new Mock<IMacroStore>(MockBehavior.Strict);
         mock.Setup(s => s.IsValidName(It.IsAny<string>())).Returns(true);
         mock.Setup(s => s.GetMacroPath(It.IsAny<string>(), It.IsAny<MacroScope>()))
             .Returns<string, MacroScope>((n, _) =>
@@ -193,7 +193,7 @@ public sealed class SaveAsDialogViewModelTests
     [Fact]
     public void PropertyChanged_FiresForRelevantProperties()
     {
-        var mock = new Mock<IMacroStorage>(MockBehavior.Strict);
+        var mock = new Mock<IMacroStore>(MockBehavior.Strict);
         // "bad..name" is invalid → triggers the error path (ValidationMessage goes "" → error)
         mock.Setup(s => s.IsValidName("bad..name")).Returns(false);
         // "newname" is valid → clears the error (ValidationMessage goes error → "")

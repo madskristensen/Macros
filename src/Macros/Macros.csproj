@@ -92,8 +92,11 @@
 
   <!-- Grant the unit-test project access to internal members (LastPlayTask, SaveAsDialogViewModel,
        etc.) that tests need to assert on without making them part of the public API. -->
+  <!-- DynamicProxyGenAssembly2 is required so Moq can create proxies for internal interfaces
+       (e.g. IDeleteCommandUI) in unit tests. -->
   <ItemGroup>
     <InternalsVisibleTo Include="Macros.Tests" />
+    <InternalsVisibleTo Include="DynamicProxyGenAssembly2" />
   </ItemGroup>
 
 </Project>

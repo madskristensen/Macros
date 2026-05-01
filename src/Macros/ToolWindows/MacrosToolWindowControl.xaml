@@ -106,7 +106,8 @@
                                         <DataTemplate DataType="{x:Type local:MacroItemViewModel}">
                                             <Border Margin="0,1"
                                                     Padding="4,3"
-                                                    Background="{DynamicResource {x:Static vsui:EnvironmentColors.ToolWindowBackgroundBrushKey}}">
+                                                    Background="{DynamicResource {x:Static vsui:EnvironmentColors.ToolWindowBackgroundBrushKey}}"
+                                                    PreviewMouseRightButtonUp="MacroRow_PreviewMouseRightButtonUp">
                                                 <Grid>
                                                     <Grid.ColumnDefinitions>
                                                         <ColumnDefinition Width="*" />

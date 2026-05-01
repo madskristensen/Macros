@@ -2,7 +2,7 @@ namespace Macros.Engine.Storage;
 
 /// <summary>
 /// Logical home of a named macro file. Determines which on-disk folder
-/// <see cref="IMacroStorage"/> reads from and writes to for the named-macro APIs.
+/// <see cref="IMacroStore"/> reads from and writes to for the named-macro APIs.
 /// </summary>
 /// <remarks>
 /// The scope is a user-facing concept surfaced in the tool window grouping and the

@@ -4,7 +4,7 @@ namespace Macros.Engine.Storage;
 
 /// <summary>
 /// Categorises the on-disk change that triggered a
-/// <see cref="IMacroStorage.LibraryChanged"/> event.
+/// <see cref="IMacroStore.LibraryChanged"/> event.
 /// </summary>
 public enum MacroLibraryChangeKind
 {
@@ -22,7 +22,7 @@ public enum MacroLibraryChangeKind
 }
 
 /// <summary>
-/// Payload for <see cref="IMacroStorage.LibraryChanged"/>. Raised both by the storage
+/// Payload for <see cref="IMacroStore.LibraryChanged"/>. Raised both by the storage
 /// implementation itself (after a successful Save / Delete / Rename) and by the
 /// out-of-band file-system watcher (next wave) when an external editor mutates a file.
 /// </summary>

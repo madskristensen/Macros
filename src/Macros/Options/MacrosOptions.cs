@@ -1,4 +1,7 @@
+using System;
+using System.Collections.Generic;
 using System.ComponentModel;
+using System.IO;
 using Community.VisualStudio.Toolkit;
 
 namespace Macros.Options;
@@ -50,4 +53,72 @@ internal sealed class MacrosOptions : BaseOptionModel<MacrosOptions>
     [DisplayName("BeforeCommand timeout (ms)")]
     [Description("Maximum time a BeforeCommand-triggered macro may take before VS forwards the original command (M4 feature). Lower = safer; higher = more powerful macros.")]
     public int BeforeCommandTimeoutMs { get; set; } = 2000;
+
+    [Category("Triggers")]
+    [DisplayName("Trusted solutions")]
+    [Description("Semicolon-separated absolute paths to .sln files. Triggers from repo macros only auto-run for trusted solutions.")]
+    [Browsable(false)]
+    public string TrustedSolutions { get; set; } = "";
+
+    [Category("Triggers")]
+    [DisplayName("Blocked solutions")]
+    [Description("Solutions explicitly blocked from running any triggers.")]
+    [Browsable(false)]
+    public string BlockedSolutions { get; set; } = "";
+
+    // ── Trust helpers ──────────────────────────────────────────────────────
+
+    public bool IsSolutionTrusted(string? solutionPath)
+    {
+        if (string.IsNullOrEmpty(solutionPath)) return false;
+        return GetTrustedSet().Contains(Canonicalize(solutionPath!));
+    }
+
+    public bool IsSolutionBlocked(string? solutionPath)
+    {
+        if (string.IsNullOrEmpty(solutionPath)) return false;
+        return GetBlockedSet().Contains(Canonicalize(solutionPath!));
+    }
+
+    public void TrustSolution(string solutionPath)
+    {
+        var trusted = GetTrustedSet();
+        var blocked = GetBlockedSet();
+        var key = Canonicalize(solutionPath);
+        trusted.Add(key);
+        blocked.Remove(key);
+        TrustedSolutions = string.Join(";", trusted);
+        BlockedSolutions = string.Join(";", blocked);
+    }
+
+    public void BlockSolution(string solutionPath)
+    {
+        var trusted = GetTrustedSet();
+        var blocked = GetBlockedSet();
+        var key = Canonicalize(solutionPath);
+        blocked.Add(key);
+        trusted.Remove(key);
+        BlockedSolutions = string.Join(";", blocked);
+        TrustedSolutions = string.Join(";", trusted);
+    }
+
+    public void RevokeTrust(string solutionPath)
+    {
+        var set = GetTrustedSet();
+        if (set.Remove(Canonicalize(solutionPath)))
+            TrustedSolutions = string.Join(";", set);
+    }
+
+    private HashSet<string> GetTrustedSet() =>
+        new HashSet<string>(
+            (TrustedSolutions ?? "").Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries),
+            StringComparer.OrdinalIgnoreCase);
+
+    private HashSet<string> GetBlockedSet() =>
+        new HashSet<string>(
+            (BlockedSolutions ?? "").Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries),
+            StringComparer.OrdinalIgnoreCase);
+
+    private static string Canonicalize(string path) =>
+        Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar).ToLowerInvariant();
 }

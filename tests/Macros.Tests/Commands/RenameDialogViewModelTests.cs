@@ -10,20 +10,21 @@ namespace Macros.Tests.Commands;
 
 /// <summary>
 /// Unit tests for <see cref="RenameDialogViewModel"/>. All tests run without a VS host;
-/// the <see cref="IMacroStorage"/> is mocked via Moq.
+/// the <see cref="IMacroStore"/> is mocked via Moq.
 /// </summary>
 public sealed class RenameDialogViewModelTests
 {
-    private static MacroDescriptor MakeDescriptor(string name, MacroScope scope = MacroScope.Global)
-        => new(name, scope, $@"C:\macros\{name}.csx", DateTime.UtcNow, 0);
+    private static MacroEntry MakeDescriptor(string name, MacroScope scope = MacroScope.Global)
+        => new(name, scope, $@"C:\macros\{name}.csx", 0, DateTimeOffset.UtcNow, 0,
+            System.Array.Empty<Macros.Engine.Triggers.TriggerBinding>());
 
     /// <summary>
     /// Builds a mock storage where IsValidName returns true for names not containing '&lt;'
     /// and GetMacroPath returns a path that does NOT exist on disk.
     /// </summary>
-    private static Mock<IMacroStorage> MakeStorage(MacroScope scope = MacroScope.Global)
+    private static Mock<IMacroStore> MakeStorage(MacroScope scope = MacroScope.Global)
     {
-        var mock = new Mock<IMacroStorage>(MockBehavior.Strict);
+        var mock = new Mock<IMacroStore>(MockBehavior.Strict);
 
         mock.Setup(s => s.IsValidName(It.IsAny<string>()))
             .Returns<string>(n => !string.IsNullOrEmpty(n) && !n.Contains("<"));
@@ -62,7 +63,7 @@ public sealed class RenameDialogViewModelTests
     [Fact]
     public void InvalidName_ContainsAngleBracket_CanRename_False_InvalidCharactersMessage()
     {
-        var mock = new Mock<IMacroStorage>(MockBehavior.Strict);
+        var mock = new Mock<IMacroStore>(MockBehavior.Strict);
         mock.Setup(s => s.IsValidName(It.IsAny<string>()))
             .Returns<string>(n => !n.Contains("<"));
 
@@ -84,7 +85,7 @@ public sealed class RenameDialogViewModelTests
 
         try
         {
-            var mock = new Mock<IMacroStorage>(MockBehavior.Strict);
+            var mock = new Mock<IMacroStore>(MockBehavior.Strict);
             mock.Setup(s => s.IsValidName("existing")).Returns(true);
             mock.Setup(s => s.GetMacroPath("existing", MacroScope.Global)).Returns(existingFile);
 
@@ -117,7 +118,7 @@ public sealed class RenameDialogViewModelTests
     [Fact]
     public void PropertyChanged_FiresForValidationMessageAndCanRename_WhenNewNameChanges()
     {
-        var mock = new Mock<IMacroStorage>(MockBehavior.Strict);
+        var mock = new Mock<IMacroStore>(MockBehavior.Strict);
         // "<bad>" is invalid → sets ValidationMessage
         mock.Setup(s => s.IsValidName("<bad>")).Returns(false);
         // "new-macro" is valid + non-existing → clears ValidationMessage, sets CanRename=true

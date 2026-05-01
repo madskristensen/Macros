@@ -6,6 +6,7 @@ using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using Macros.Engine.Scripting;
+using Macros.Engine.Triggers;
 using Xunit;
 
 namespace Macros.Tests.Scripting;
@@ -134,51 +135,36 @@ public sealed class HelpersContractTests
         Assert.Equal("MyMacro", ctx.MacroName);
         Assert.Equal("Manual", ctx.TriggerKind);
         Assert.True(ctx.IsManual);
-        Assert.Empty(ctx.Trigger);
+        Assert.True(ctx.Trigger.IsManual);
+        Assert.Empty(ctx.Trigger.Payload);
         Assert.Equal(CancellationToken.None, ctx.Cancellation);
     }
 
     [Fact]
     public void MacroContext_FullConstructor_RoundTripsAllValues()
     {
-        var args = new Dictionary<string, object?>
-        {
-            ["CommandName"] = "File.Open",
-            ["WillCancel"] = false,
-        };
+        var trigger = new CommandMacroTrigger(TriggerKind.BeforeCommand, "File.Open", DateTimeOffset.UtcNow);
         using var cts = new CancellationTokenSource();
 
-        var ctx = new MacroContext("BeforeOpen", "BeforeCommand", args, cts.Token);
+        var ctx = new MacroContext("BeforeOpen", trigger, cts.Token);
 
         Assert.Equal("BeforeOpen", ctx.MacroName);
         Assert.Equal("BeforeCommand", ctx.TriggerKind);
         Assert.False(ctx.IsManual);
-        Assert.Same(args, ctx.Trigger);
+        Assert.Same(trigger, ctx.Trigger);
         Assert.Equal(cts.Token, ctx.Cancellation);
     }
 
     [Theory]
-    [InlineData("macroName", null, "Manual")]
-    [InlineData("triggerKind", "Foo", null)]
-    public void MacroContext_FullConstructor_RejectsNullArguments(string expectedParam, string? macroName, string? triggerKind)
+    [InlineData("macroName", false)]
+    [InlineData("trigger", true)]
+    public void MacroContext_FullConstructor_RejectsNullArguments(string expectedParam, bool nullTrigger)
     {
         var ex = Assert.Throws<ArgumentNullException>(() => new MacroContext(
-            macroName!,
-            triggerKind!,
-            new Dictionary<string, object?>(),
+            nullTrigger ? "Foo" : null!,
+            nullTrigger ? null! : ManualMacroTrigger.Instance,
             CancellationToken.None));
         Assert.Equal(expectedParam, ex.ParamName);
-    }
-
-    [Fact]
-    public void MacroContext_FullConstructor_RejectsNullTriggerBag()
-    {
-        var ex = Assert.Throws<ArgumentNullException>(() => new MacroContext(
-            "Foo",
-            "Manual",
-            trigger: null!,
-            CancellationToken.None));
-        Assert.Equal("trigger", ex.ParamName);
     }
 
     [Fact]

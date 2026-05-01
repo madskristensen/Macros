@@ -7,17 +7,17 @@ namespace Macros.Engine;
 
 /// <summary>
 /// View-model for the <c>Save Macro As</c> dialog. Pure MVVM logic with no VS Shell
-/// dependency so it can be unit-tested directly against a fake <see cref="IMacroStorage"/>.
+/// dependency so it can be unit-tested directly against a fake <see cref="IMacroStore"/>.
 /// </summary>
 /// <remarks>
 /// Validation runs synchronously on every <see cref="Name"/> or <see cref="Scope"/> change.
 /// The heavy lifting (file-system existence check) calls the pure-path
-/// <see cref="IMacroStorage.GetMacroPath"/> helper then <see cref="File.Exists"/> —
+/// <see cref="IMacroStore.GetMacroPath"/> helper then <see cref="File.Exists"/> —
 /// no async I/O required because no directory is created or read.
 /// </remarks>
 internal sealed class SaveAsDialogViewModel : INotifyPropertyChanged
 {
-    private readonly IMacroStorage _storage;
+    private readonly IMacroStore _storage;
     private readonly bool _hasRepo;
 
     private string _name = string.Empty;
@@ -28,7 +28,7 @@ internal sealed class SaveAsDialogViewModel : INotifyPropertyChanged
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    public SaveAsDialogViewModel(string currentSource, IMacroStorage storage, bool hasRepo)
+    public SaveAsDialogViewModel(string currentSource, IMacroStore storage, bool hasRepo)
     {
         CurrentSource = currentSource ?? throw new ArgumentNullException(nameof(currentSource));
         _storage = storage ?? throw new ArgumentNullException(nameof(storage));

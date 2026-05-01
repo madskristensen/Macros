@@ -11,7 +11,7 @@ using Xunit;
 namespace Macros.Tests;
 
 /// <summary>
-/// Verifies that the optional <see cref="IMacroStorage"/> dependency on
+/// Verifies that the optional <see cref="IMacroStore"/> dependency on
 /// <see cref="MacroService"/> is wired correctly: stop-recording persists the generated
 /// source fire-and-forget, play-current rehydrates from disk on a fresh service, and a
 /// service constructed without storage still works (the unit-test default).
@@ -147,8 +147,8 @@ public sealed class MacroServiceStorageTests
         Assert.Equal(source, svc.CurrentMacroSource);
     }
 
-    /// <summary>In-memory <see cref="IMacroStorage"/> double for engine wiring tests.</summary>
-    private sealed class FakeMacroStorage : IMacroStorage
+    /// <summary>In-memory <see cref="IMacroStore"/> double for engine wiring tests.</summary>
+    private sealed class FakeMacroStorage : IMacroStore
     {
         private readonly bool _throwOnSave;
         private readonly TaskCompletionSource<string> _saveTcs = new();
@@ -199,11 +199,11 @@ public sealed class MacroServiceStorageTests
             remove { /* no-op for fake */ }
         }
 
-        public Task<IReadOnlyList<MacroDescriptor>> ListAsync(MacroScope scope, CancellationToken cancellation = default)
-            => Task.FromResult<IReadOnlyList<MacroDescriptor>>(Array.Empty<MacroDescriptor>());
+        public Task<IReadOnlyList<MacroEntry>> ListAsync(MacroScope scope, CancellationToken cancellation = default)
+            => Task.FromResult<IReadOnlyList<MacroEntry>>(Array.Empty<MacroEntry>());
 
-        public Task<IReadOnlyList<MacroDescriptor>> ListAllAsync(CancellationToken cancellation = default)
-            => Task.FromResult<IReadOnlyList<MacroDescriptor>>(Array.Empty<MacroDescriptor>());
+        public Task<IReadOnlyList<MacroEntry>> ListAllAsync(CancellationToken cancellation = default)
+            => Task.FromResult<IReadOnlyList<MacroEntry>>(Array.Empty<MacroEntry>());
 
         public Task<string?> LoadByNameAsync(string name, MacroScope scope, CancellationToken cancellation = default)
             => Task.FromResult<string?>(null);
@@ -220,6 +220,9 @@ public sealed class MacroServiceStorageTests
         public string GetMacroPath(string name, MacroScope scope) => $"X:\\fake\\{name}.csx";
 
         public bool IsValidName(string name) => !string.IsNullOrWhiteSpace(name);
+
+        public Task<MacroEntry?> RefreshEntryAsync(string name, MacroScope scope, CancellationToken cancellation = default)
+            => Task.FromResult<MacroEntry?>(null);
 
         public async Task WaitForSaveAsync(TimeSpan timeout)
         {
@@ -241,7 +244,7 @@ public sealed class MacroServiceStorageTests
             _capture = capture;
         }
 
-        public Task<MacroPlayResult> PlayAsync(string source, string macroName, string triggerKind, System.Collections.Generic.IReadOnlyDictionary<string, object?>? trigger, CancellationToken cancellation)
+        public Task<MacroPlayResult> PlayAsync(string source, string macroName, Macros.Engine.Triggers.IMacroTrigger? trigger, CancellationToken cancellation)
         {
             _capture(source);
             return Task.FromResult(new MacroPlayResult(true, null, null, TimeSpan.Zero));

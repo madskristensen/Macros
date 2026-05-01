@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Threading;
+using Macros.Engine.Triggers;
 
 [assembly: InternalsVisibleTo("Macros.Tests")]
 
@@ -34,10 +35,10 @@ public interface IMacroContext
     string TriggerKind { get; }
 
     /// <summary>
-    /// Gets a free-form key/value bag of trigger-specific arguments (e.g. the command name for
-    /// <c>BeforeCommand</c>). Empty for <see cref="IsManual"/> invocations.
+    /// Gets the typed trigger that initiated this playback. Always non-null; use
+    /// <see cref="IMacroTrigger.IsManual"/> to distinguish user-initiated runs.
     /// </summary>
-    IReadOnlyDictionary<string, object?> Trigger { get; }
+    IMacroTrigger Trigger { get; }
 
     /// <summary>
     /// Gets a value indicating whether the macro was started by direct user action
@@ -66,35 +67,29 @@ internal sealed class MacroContext : IMacroContext
     /// <summary>The string used by manual <c>Play</c> invocations for <see cref="TriggerKind"/>.</summary>
     internal const string ManualTriggerKind = "Manual";
 
-    private static readonly IReadOnlyDictionary<string, object?> EmptyTrigger
-        = new Dictionary<string, object?>(0);
-
     /// <summary>
     /// Initializes a new instance representing a manual (user-initiated) playback with no trigger
     /// arguments and no cancellation source.
     /// </summary>
     /// <param name="macroName">Logical name of the macro (without the <c>.csx</c> extension).</param>
     public MacroContext(string macroName)
-        : this(macroName, ManualTriggerKind, EmptyTrigger, CancellationToken.None)
+        : this(macroName, Triggers.ManualMacroTrigger.Instance, CancellationToken.None)
     {
     }
 
-    /// <summary>Initializes a new instance with explicit values for every property.</summary>
+    /// <summary>Initializes a new instance with an explicit trigger and cancellation token.</summary>
     /// <param name="macroName">Logical name of the macro (without the <c>.csx</c> extension).</param>
-    /// <param name="triggerKind">Stable kind string (e.g. <c>"Manual"</c>, <c>"BuildSucceeded"</c>).</param>
-    /// <param name="trigger">Trigger-specific argument bag; pass an empty dictionary for manual playback.</param>
+    /// <param name="trigger">The typed trigger that initiated playback; never <see langword="null"/>.</param>
     /// <param name="cancellation">Token observed by the player and forwarded to helper calls.</param>
     /// <exception cref="System.ArgumentNullException">
-    /// <paramref name="macroName"/>, <paramref name="triggerKind"/>, or <paramref name="trigger"/> is <see langword="null"/>.
+    /// <paramref name="macroName"/> or <paramref name="trigger"/> is <see langword="null"/>.
     /// </exception>
     public MacroContext(
         string macroName,
-        string triggerKind,
-        IReadOnlyDictionary<string, object?> trigger,
+        IMacroTrigger trigger,
         CancellationToken cancellation)
     {
         MacroName = macroName ?? throw new System.ArgumentNullException(nameof(macroName));
-        TriggerKind = triggerKind ?? throw new System.ArgumentNullException(nameof(triggerKind));
         Trigger = trigger ?? throw new System.ArgumentNullException(nameof(trigger));
         Cancellation = cancellation;
     }
@@ -103,13 +98,13 @@ internal sealed class MacroContext : IMacroContext
     public string MacroName { get; }
 
     /// <inheritdoc />
-    public string TriggerKind { get; }
+    public string TriggerKind => Trigger.Kind.ToString();
 
     /// <inheritdoc />
-    public IReadOnlyDictionary<string, object?> Trigger { get; }
+    public IMacroTrigger Trigger { get; }
 
     /// <inheritdoc />
-    public bool IsManual => string.Equals(TriggerKind, ManualTriggerKind, System.StringComparison.Ordinal);
+    public bool IsManual => Trigger.IsManual;
 
     /// <inheritdoc />
     public CancellationToken Cancellation { get; }

@@ -6,6 +6,7 @@ using EnvDTE80;
 using Macros.Engine.Player;
 using Macros.Engine.Recording;
 using Macros.Engine.Scripting;
+using Macros.Engine.Triggers;
 using Microsoft.VisualStudio.Threading;
 using Moq;
 using Xunit;
@@ -48,12 +49,11 @@ public sealed class MacroPlayerTests
         public MacroPlayResult Play(
             string source,
             string macroName = "test",
-            string triggerKind = "Manual",
-            IReadOnlyDictionary<string, object?>? trigger = null,
+            IMacroTrigger? trigger = null,
             CancellationToken cancellation = default)
         {
             MacroPlayer player = Player;
-            return Jtf.Run(() => player.PlayAsync(source, macroName, triggerKind, trigger, cancellation));
+            return Jtf.Run(() => player.PlayAsync(source, macroName, trigger, cancellation));
         }
     }
 
@@ -231,18 +231,16 @@ if (!Macros.Engine.Recording.ReplayGuard.IsReplaying)
     public void PlayAsync_TriggerBag_IsForwardedToScript()
     {
         PlayerHarness harness = CreatePlayer();
-        var bag = new Dictionary<string, object?>
-        {
-            ["CommandName"] = "File.Open",
-        };
+        var trigger = new CommandMacroTrigger(TriggerKind.BeforeCommand, "File.Open", DateTimeOffset.UtcNow);
 
         const string source = @"
 if (Context.TriggerKind != ""BeforeCommand"") throw new System.Exception(""kind"");
 if (Context.IsManual) throw new System.Exception(""IsManual should be false"");
-if (!Context.Trigger.ContainsKey(""CommandName"")) throw new System.Exception(""missing key"");
+if (Context.Trigger.CommandName != ""File.Open"") throw new System.Exception(""missing CommandName"");
+if (Trigger.CommandName != ""File.Open"") throw new System.Exception(""Trigger shortcut mismatch"");
 ";
 
-        MacroPlayResult result = harness.Play(source, macroName: "before", triggerKind: "BeforeCommand", trigger: bag);
+        MacroPlayResult result = harness.Play(source, macroName: "before", trigger: trigger);
 
         Assert.True(result.Success, result.RuntimeError?.Message ?? "no error");
     }
@@ -252,7 +250,7 @@ if (!Context.Trigger.ContainsKey(""CommandName"")) throw new System.Exception(""
     {
         PlayerHarness harness = CreatePlayer();
         await Assert.ThrowsAsync<ArgumentNullException>(
-            () => harness.Player.PlayAsync(null!, "x", "Manual", null, CancellationToken.None));
+            () => harness.Player.PlayAsync(null!, "x", trigger: null, CancellationToken.None));
     }
 
     [Fact]

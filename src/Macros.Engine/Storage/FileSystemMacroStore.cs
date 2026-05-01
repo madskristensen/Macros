@@ -6,11 +6,12 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Macros.Engine.Triggers;
 
 namespace Macros.Engine.Storage;
 
 /// <summary>
-/// Default <see cref="IMacroStorage"/> backed by the local file system. Persists the
+/// Default <see cref="IMacroStore"/> backed by the local file system. Persists the
 /// current ad-hoc macro as a single <c>current.csx</c> file under the configured global
 /// folder, and the named-macro library as <c>&lt;name&gt;.csx</c> files under either the
 /// global <c>Macros\</c> subfolder or the per-solution <c>.vs\Macros\</c> folder.
@@ -44,13 +45,17 @@ namespace Macros.Engine.Storage;
 /// surfaces should hide repo-scoped commands while no solution is open.
 /// </para>
 /// </remarks>
-public sealed class FileSystemMacroStorage : IMacroStorage, IDisposable
+public sealed class FileSystemMacroStore : IMacroStore, IDisposable
 {
     private const string CurrentFileName = "current.csx";
     private const string CurrentReservedName = "current";
     private const string MacroExtension = ".csx";
     private const string GlobalNamedSubfolder = "Macros";
     private const int MaxNameLength = 60;
+
+    // Cap the on-disk read in ParseHeaderAsync so a multi-megabyte .csx (which would not
+    // be a recorded macro anyway) doesn't blow memory while enumerating a large library.
+    private const int HeaderReadBudgetBytes = 4 * 1024;
 
     private static readonly UTF8Encoding Utf8WithBom = new(encoderShouldEmitUTF8Identifier: true);
 
@@ -100,7 +105,7 @@ public sealed class FileSystemMacroStorage : IMacroStorage, IDisposable
     private sealed record PendingChange(MacroLibraryChangeKind Kind, MacroScope Scope, string Name, string? OldName);
 
     /// <summary>
-    /// Initializes a new <see cref="FileSystemMacroStorage"/> rooted at
+    /// Initializes a new <see cref="FileSystemMacroStore"/> rooted at
     /// <paramref name="globalFolder"/>. The folder is not created until the first save —
     /// constructing the storage is side-effect free so package initialization stays cheap.
     /// </summary>
@@ -119,7 +124,7 @@ public sealed class FileSystemMacroStorage : IMacroStorage, IDisposable
     /// that only exercise the global scope.
     /// </param>
     /// <exception cref="ArgumentException"><paramref name="globalFolder"/> is null or whitespace.</exception>
-    public FileSystemMacroStorage(string globalFolder, Func<string?>? repoFolderProvider = null)
+    public FileSystemMacroStore(string globalFolder, Func<string?>? repoFolderProvider = null)
     {
         if (string.IsNullOrWhiteSpace(globalFolder))
         {
@@ -231,28 +236,28 @@ public sealed class FileSystemMacroStorage : IMacroStorage, IDisposable
         }, cancellation);
     }
 
-    // ─── M3 named-macro API ────────────────────────────────────────────────────────────
+    // ─── M3+ named-macro API ───────────────────────────────────────────────────────────
 
     /// <inheritdoc />
-    public Task<IReadOnlyList<MacroDescriptor>> ListAsync(MacroScope scope, CancellationToken cancellation = default)
+    public Task<IReadOnlyList<MacroEntry>> ListAsync(MacroScope scope, CancellationToken cancellation = default)
     {
         cancellation.ThrowIfCancellationRequested();
 
         var folder = ResolveScopeFolder(scope);
 
-        return Task.Run<IReadOnlyList<MacroDescriptor>>(() =>
+        return Task.Run<IReadOnlyList<MacroEntry>>(() =>
         {
             cancellation.ThrowIfCancellationRequested();
 
             if (!Directory.Exists(folder))
             {
-                return Array.Empty<MacroDescriptor>();
+                return Array.Empty<MacroEntry>();
             }
 
-            // Top-level only — nested folders are not part of the M3 model. SearchOption.TopDirectoryOnly
+            // Top-level only — nested folders are not part of the model. SearchOption.TopDirectoryOnly
             // is the default but spelling it out avoids surprises if the default ever changes.
             var files = Directory.EnumerateFiles(folder, "*" + MacroExtension, SearchOption.TopDirectoryOnly);
-            var descriptors = new List<MacroDescriptor>();
+            var entries = new List<MacroEntry>();
 
             foreach (var path in files)
             {
@@ -269,36 +274,24 @@ public sealed class FileSystemMacroStorage : IMacroStorage, IDisposable
                     continue;
                 }
 
-                FileInfo info;
-                try
+                var entry = TryBuildEntry(path, name, scope);
+                if (entry is not null)
                 {
-                    info = new FileInfo(path);
+                    entries.Add(entry);
                 }
-                catch (IOException)
-                {
-                    // Race with an external delete: skip rather than fail the listing.
-                    continue;
-                }
-
-                descriptors.Add(new MacroDescriptor(
-                    Name: name,
-                    Scope: scope,
-                    FilePath: path,
-                    LastModifiedUtc: info.LastWriteTimeUtc,
-                    SizeBytes: info.Length));
             }
 
-            descriptors.Sort(static (a, b) => StringComparer.OrdinalIgnoreCase.Compare(a.Name, b.Name));
-            return descriptors;
+            entries.Sort(static (a, b) => StringComparer.OrdinalIgnoreCase.Compare(a.Name, b.Name));
+            return entries;
         }, cancellation);
     }
 
     /// <inheritdoc />
-    public async Task<IReadOnlyList<MacroDescriptor>> ListAllAsync(CancellationToken cancellation = default)
+    public async Task<IReadOnlyList<MacroEntry>> ListAllAsync(CancellationToken cancellation = default)
     {
         cancellation.ThrowIfCancellationRequested();
 
-        var combined = new List<MacroDescriptor>();
+        var combined = new List<MacroEntry>();
         combined.AddRange(await ListAsync(MacroScope.Global, cancellation).ConfigureAwait(false));
 
         // Repo scope is optional: silently skip if no solution is open so callers can
@@ -316,6 +309,27 @@ public sealed class FileSystemMacroStorage : IMacroStorage, IDisposable
         });
 
         return combined;
+    }
+
+    /// <inheritdoc />
+    public Task<MacroEntry?> RefreshEntryAsync(string name, MacroScope scope, CancellationToken cancellation = default)
+    {
+        EnsureValidName(name);
+        cancellation.ThrowIfCancellationRequested();
+
+        var path = GetMacroPath(name, scope);
+
+        return Task.Run<MacroEntry?>(() =>
+        {
+            cancellation.ThrowIfCancellationRequested();
+
+            if (!File.Exists(path))
+            {
+                return null;
+            }
+
+            return TryBuildEntry(path, name, scope);
+        }, cancellation);
     }
 
     /// <inheritdoc />
@@ -679,10 +693,153 @@ public sealed class FileSystemMacroStorage : IMacroStorage, IDisposable
     }
 
     /// <summary>
+    /// Builds a <see cref="MacroEntry"/> for an existing file. Returns <see langword="null"/>
+    /// when the file disappeared mid-enumeration (a race with an external delete is not a
+    /// listing failure). Header parsing failures degrade to defaults rather than dropping
+    /// the entry: the user still sees the macro in the tool window, just without metadata.
+    /// </summary>
+    private static MacroEntry? TryBuildEntry(string path, string name, MacroScope scope)
+    {
+        FileInfo info;
+        try
+        {
+            info = new FileInfo(path);
+            if (!info.Exists)
+            {
+                return null;
+            }
+        }
+        catch (IOException)
+        {
+            // Race with an external delete: skip rather than fail the listing.
+            return null;
+        }
+
+        var (stepCount, triggers) = ParseHeader(path);
+
+        return new MacroEntry(
+            Name: name,
+            Scope: scope,
+            Path: path,
+            StepCount: stepCount,
+            Modified: new DateTimeOffset(info.LastWriteTimeUtc, TimeSpan.Zero),
+            SizeBytes: info.Length,
+            Triggers: triggers);
+    }
+
+    /// <summary>
+    /// Reads the leading comment block of a <c>.csx</c> file (capped at
+    /// <see cref="HeaderReadBudgetBytes"/> bytes) and extracts the <c>// Steps: N</c>
+    /// counter and <c>// @trigger</c> directives. Failures degrade to defaults so a
+    /// malformed file never crashes enumeration.
+    /// </summary>
+    /// <remarks>
+    /// TODO(m4-trigger-directive-parser): the parser wave wires
+    /// <c>TriggerDirectiveParser.Parse(headerText)</c> in here so each <c>// @trigger</c>
+    /// line becomes a <see cref="TriggerBinding"/> with parsed filters. Until then this
+    /// method returns an empty trigger list — every entry collapses to the default
+    /// <see cref="TriggerBinding.Manual"/> badge in the tool window.
+    /// </remarks>
+    private static (int StepCount, IReadOnlyList<TriggerBinding> Triggers) ParseHeader(string path)
+    {
+        try
+        {
+            string headerText = ReadHeaderText(path);
+            int stepCount = ParseStepCount(headerText);
+            return (stepCount, Array.Empty<TriggerBinding>());
+        }
+        catch (IOException)
+        {
+            return (0, Array.Empty<TriggerBinding>());
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return (0, Array.Empty<TriggerBinding>());
+        }
+    }
+
+    /// <summary>
+    /// Reads at most <see cref="HeaderReadBudgetBytes"/> bytes from the head of
+    /// <paramref name="path"/>. Returns an empty string when the file is shorter or
+    /// unreadable. Exposed at <see langword="internal"/> visibility for unit tests that
+    /// pin the parser behaviour without going through full ListAsync enumeration.
+    /// </summary>
+    internal static string ReadHeaderText(string path)
+    {
+        using var stream = new FileStream(
+            path,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.ReadWrite | FileShare.Delete);
+        var buffer = new byte[HeaderReadBudgetBytes];
+        int read = stream.Read(buffer, 0, buffer.Length);
+        if (read == 0)
+        {
+            return string.Empty;
+        }
+
+        // Strip a leading UTF-8 BOM so the first comment line parses cleanly.
+        int offset = 0;
+        if (read >= 3 && buffer[0] == 0xEF && buffer[1] == 0xBB && buffer[2] == 0xBF)
+        {
+            offset = 3;
+        }
+
+        return Encoding.UTF8.GetString(buffer, offset, read - offset);
+    }
+
+    /// <summary>
+    /// Extracts the integer N from the first <c>// Steps: N</c> comment line in
+    /// <paramref name="headerText"/>. Returns 0 when no such line exists or the integer
+    /// could not be parsed. Exposed at <see langword="internal"/> visibility for tests.
+    /// </summary>
+    internal static int ParseStepCount(string headerText)
+    {
+        if (string.IsNullOrEmpty(headerText))
+        {
+            return 0;
+        }
+
+        // Walk the file line by line; bail out as soon as we leave the leading comment block
+        // since trigger directives and the steps counter only ever live in the header.
+        using var reader = new StringReader(headerText);
+        string? line;
+        while ((line = reader.ReadLine()) is not null)
+        {
+            var trimmed = line.TrimStart();
+            if (trimmed.Length == 0)
+            {
+                continue;
+            }
+
+            if (!trimmed.StartsWith("//", StringComparison.Ordinal))
+            {
+                // Hit code — the comment header is over. Step counter must come before code.
+                break;
+            }
+
+            // Strip the "//" then any whitespace, then look for "Steps:".
+            var commentBody = trimmed.Substring(2).TrimStart();
+            const string marker = "Steps:";
+            if (commentBody.StartsWith(marker, StringComparison.OrdinalIgnoreCase))
+            {
+                var valueText = commentBody.Substring(marker.Length).Trim();
+                if (int.TryParse(valueText, System.Globalization.NumberStyles.Integer,
+                        System.Globalization.CultureInfo.InvariantCulture, out var parsed) && parsed >= 0)
+                {
+                    return parsed;
+                }
+                return 0;
+            }
+        }
+
+        return 0;
+    }
+
+    /// <summary>
     /// Manually raises <see cref="LibraryChanged"/>. Reserved for the file-system watcher
-    /// that arrives in the next M3 wave so external edits surface through the same event.
-    /// Intentionally <c>internal</c>: external callers go through the Save / Delete /
-    /// Rename APIs.
+    /// so external edits surface through the same event. Intentionally <c>internal</c>:
+    /// external callers go through the Save / Delete / Rename APIs.
     /// </summary>
     internal void RaiseLibraryChangedForWatcher(MacroLibraryChangedEventArgs args)
     {

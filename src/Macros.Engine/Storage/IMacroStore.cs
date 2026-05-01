@@ -8,7 +8,8 @@ namespace Macros.Engine.Storage;
 /// <summary>
 /// Persistent storage for macro source code. The M2 surface only knows about a single
 /// "current" macro — the most-recently-recorded ad-hoc macro that <c>Play Last</c>
-/// re-executes. Named macros, the repo macro library, and sync arrive in M3.
+/// re-executes. M3 added the named-macro library; M4 extends every enumeration result
+/// with parsed header metadata (step count + trigger bindings).
 /// </summary>
 /// <remarks>
 /// Implementations must be safe to call from any thread; the engine fires saves as
@@ -16,7 +17,7 @@ namespace Macros.Engine.Storage;
 /// explicitly disallowed. Saves should be atomic — a crash midway through a write must
 /// either leave the previous <c>current.csx</c> intact or produce the new one fully.
 /// </remarks>
-public interface IMacroStorage
+public interface IMacroStore
 {
     /// <summary>
     /// Persists <paramref name="source"/> as the current macro. Overwrites any existing
@@ -47,26 +48,27 @@ public interface IMacroStorage
     /// </summary>
     string CurrentPath { get; }
 
-    // ─── Named-macro library API (M3) ──────────────────────────────────────────────────
+    // ─── Named-macro library API (M3+) ─────────────────────────────────────────────────
     //
-    // The M3 surface adds a multi-file macro library on top of the single-file M2 surface.
-    // Files live in two scope folders (see MacroScope) and have a stable .csx name. The
-    // M2 single-file `current.csx` is reserved for the most-recently-recorded ad-hoc
-    // macro and is intentionally excluded from the named-macro listing — Save As is what
-    // promotes it into the library.
+    // The named-macro surface adds a multi-file macro library on top of the single-file M2
+    // surface. Files live in two scope folders (see MacroScope) and have a stable .csx
+    // name. The M2 single-file `current.csx` is reserved for the most-recently-recorded
+    // ad-hoc macro and is intentionally excluded from the named-macro listing — Save As
+    // is what promotes it into the library.
 
     /// <summary>
     /// Enumerates every named macro in the requested <paramref name="scope"/>. Returns an
     /// empty list when the scope folder doesn't exist yet (first run, fresh repo). The
     /// reserved <c>current.csx</c> from the M2 single-file API is filtered out. Results
-    /// are sorted by name ascending so the tool window can render deterministically.
+    /// are sorted by name ascending so the tool window can render deterministically. Each
+    /// returned <see cref="MacroEntry"/> includes the parsed header (step count + triggers).
     /// </summary>
     /// <param name="scope">Which scope folder to enumerate.</param>
     /// <param name="cancellation">Cancels the enumeration before any I/O.</param>
     /// <exception cref="System.InvalidOperationException">
     /// <paramref name="scope"/> is <see cref="MacroScope.Repo"/> and no solution is open.
     /// </exception>
-    Task<IReadOnlyList<MacroDescriptor>> ListAsync(MacroScope scope, CancellationToken cancellation = default);
+    Task<IReadOnlyList<MacroEntry>> ListAsync(MacroScope scope, CancellationToken cancellation = default);
 
     /// <summary>
     /// Convenience wrapper that returns the union of <see cref="ListAsync"/> for every
@@ -74,7 +76,26 @@ public interface IMacroStorage
     /// window can call this from a no-solution startup without special-casing.
     /// </summary>
     /// <param name="cancellation">Cancels the enumeration before any I/O.</param>
-    Task<IReadOnlyList<MacroDescriptor>> ListAllAsync(CancellationToken cancellation = default);
+    Task<IReadOnlyList<MacroEntry>> ListAllAsync(CancellationToken cancellation = default);
+
+    /// <summary>
+    /// Re-reads the on-disk header for a single named macro and returns a fresh
+    /// <see cref="MacroEntry"/> reflecting the latest step count, triggers, modified
+    /// timestamp, and size. Returns <see langword="null"/> when the file no longer exists.
+    /// </summary>
+    /// <remarks>
+    /// Used after a manual edit (e.g. the user opens the .csx in the VS editor and saves)
+    /// or after a directive parser run so a single row in the tool window can refresh
+    /// without re-enumerating the whole scope folder.
+    /// </remarks>
+    /// <param name="name">The macro name (file stem, no extension). Validated via <see cref="IsValidName"/>.</param>
+    /// <param name="scope">Which scope folder to look in.</param>
+    /// <param name="cancellation">Cancels the refresh before any I/O.</param>
+    /// <exception cref="System.ArgumentException"><paramref name="name"/> fails <see cref="IsValidName"/>.</exception>
+    /// <exception cref="System.InvalidOperationException">
+    /// <paramref name="scope"/> is <see cref="MacroScope.Repo"/> and no solution is open.
+    /// </exception>
+    Task<MacroEntry?> RefreshEntryAsync(string name, MacroScope scope, CancellationToken cancellation = default);
 
     /// <summary>
     /// Loads the source of the named macro from <paramref name="scope"/>, or
@@ -167,8 +188,8 @@ public interface IMacroStorage
 
     /// <summary>
     /// Raised when the macro library changes — both as a result of this storage's own
-    /// Save / Delete / Rename operations and (in the next wave) when an external editor
-    /// mutates a file the watcher is observing.
+    /// Save / Delete / Rename operations and when an external editor mutates a file the
+    /// watcher is observing.
     /// </summary>
     /// <remarks>
     /// Fired <strong>synchronously on whichever thread performed the change</strong>.

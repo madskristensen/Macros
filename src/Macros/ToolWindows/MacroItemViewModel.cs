@@ -12,7 +12,7 @@ using Macros.Mvvm;
 namespace Macros.ToolWindows;
 
 /// <summary>
-/// View-model for a single row in the macro list. Wraps a <see cref="MacroDescriptor"/> and
+/// View-model for a single row in the macro list. Wraps a <see cref="MacroEntry"/> and
 /// exposes the per-row commands the XAML binds to.
 /// </summary>
 /// <remarks>
@@ -36,7 +36,7 @@ public sealed class MacroItemViewModel : INotifyPropertyChanged
     /// <see langword="null"/>, <see cref="PlayCommand"/> becomes a no-op.
     /// </param>
     /// <exception cref="ArgumentNullException"><paramref name="descriptor"/> is <see langword="null"/>.</exception>
-    public MacroItemViewModel(MacroDescriptor descriptor, IMacroService? service)
+    public MacroItemViewModel(MacroEntry descriptor, IMacroService? service)
     {
         Descriptor = descriptor ?? throw new ArgumentNullException(nameof(descriptor));
         _service = service;
@@ -55,7 +55,7 @@ public sealed class MacroItemViewModel : INotifyPropertyChanged
     private readonly RelayCommand _playCommand;
 
     /// <summary>Gets the underlying file-system metadata snapshot for this macro.</summary>
-    public MacroDescriptor Descriptor { get; }
+    public MacroEntry Descriptor { get; }
 
     /// <summary>Gets the macro name (file stem, no extension) — primary row text.</summary>
     public string Name => Descriptor.Name;
@@ -67,7 +67,7 @@ public sealed class MacroItemViewModel : INotifyPropertyChanged
     /// Gets a short human-readable last-modified timestamp ("just now", "5m ago", "2 days ago",
     /// or absolute date) for the secondary row text.
     /// </summary>
-    public string LastModifiedDisplay => FormatRelative(Descriptor.LastModifiedUtc, DateTime.UtcNow);
+    public string LastModifiedDisplay => FormatRelative(Descriptor.Modified, DateTimeOffset.UtcNow);
 
     /// <summary>
     /// Gets a short human-readable file size for the tertiary row text (e.g. <c>"1.2 KB"</c>).
@@ -135,11 +135,11 @@ public sealed class MacroItemViewModel : INotifyPropertyChanged
     /// <summary>
     /// Formats a UTC timestamp as a coarse-grained "X ago" string for the tool window. Pure
     /// helper; exposed internally so the unit tests can pin the formatting without going
-    /// through the live <see cref="DateTime.UtcNow"/>.
+    /// through the live <see cref="DateTimeOffset.UtcNow"/>.
     /// </summary>
     /// <param name="utc">The timestamp to format.</param>
     /// <param name="nowUtc">The reference "now" timestamp.</param>
-    internal static string FormatRelative(DateTime utc, DateTime nowUtc)
+    internal static string FormatRelative(DateTimeOffset utc, DateTimeOffset nowUtc)
     {
         var delta = nowUtc - utc;
         if (delta.TotalSeconds < 60)

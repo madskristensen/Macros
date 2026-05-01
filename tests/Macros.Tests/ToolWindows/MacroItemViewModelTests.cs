@@ -21,7 +21,7 @@ public sealed class MacroItemViewModelTests
     [Fact]
     public void Properties_ProjectFromDescriptor()
     {
-        var descriptor = new MacroDescriptor("Greeting", MacroScope.Global, "X:\\fake\\Greeting.csx", DateTime.UtcNow, 256);
+        var descriptor = new MacroEntry("Greeting", MacroScope.Global, "X:\\fake\\Greeting.csx", 0, DateTimeOffset.UtcNow, 256, System.Array.Empty<Macros.Engine.Triggers.TriggerBinding>());
         var item = new MacroItemViewModel(descriptor, service: null);
 
         Assert.Equal("Greeting", item.Name);
@@ -40,7 +40,7 @@ public sealed class MacroItemViewModelTests
     [InlineData(60 * 60 * 24 * 3, "3 days ago")]
     public void FormatRelative_BucketsByAge(int secondsAgo, string expected)
     {
-        var now = new DateTime(2026, 5, 1, 12, 0, 0, DateTimeKind.Utc);
+        var now = new DateTimeOffset(2026, 5, 1, 12, 0, 0, TimeSpan.Zero);
         var stamp = now.AddSeconds(-secondsAgo);
 
         Assert.Equal(expected, MacroItemViewModel.FormatRelative(stamp, now));
@@ -49,7 +49,7 @@ public sealed class MacroItemViewModelTests
     [Fact]
     public void FormatRelative_OlderThanOneWeek_FallsBackToAbsoluteDate()
     {
-        var now = new DateTime(2026, 5, 1, 12, 0, 0, DateTimeKind.Utc);
+        var now = new DateTimeOffset(2026, 5, 1, 12, 0, 0, TimeSpan.Zero);
         var twoWeeks = now.AddDays(-14);
 
         var formatted = MacroItemViewModel.FormatRelative(twoWeeks, now);
@@ -75,7 +75,7 @@ public sealed class MacroItemViewModelTests
     [Fact]
     public void PlayCommand_NullService_CannotExecute()
     {
-        var descriptor = new MacroDescriptor("X", MacroScope.Global, "p", DateTime.UtcNow, 1);
+        var descriptor = new MacroEntry("X", MacroScope.Global, "p", 0, DateTimeOffset.UtcNow, 1, System.Array.Empty<Macros.Engine.Triggers.TriggerBinding>());
         var item = new MacroItemViewModel(descriptor, service: null);
 
         Assert.False(item.PlayCommand.CanExecute(null));
@@ -87,7 +87,7 @@ public sealed class MacroItemViewModelTests
     [Fact]
     public void CanInvoke_FlippingTo_False_DisablesPlayCommand()
     {
-        var descriptor = new MacroDescriptor("X", MacroScope.Global, "p", DateTime.UtcNow, 1);
+        var descriptor = new MacroEntry("X", MacroScope.Global, "p", 0, DateTimeOffset.UtcNow, 1, System.Array.Empty<Macros.Engine.Triggers.TriggerBinding>());
         var item = new MacroItemViewModel(descriptor, service: null) { CanInvoke = true };
 
         item.CanInvoke = false;
@@ -98,7 +98,7 @@ public sealed class MacroItemViewModelTests
     [Fact]
     public void EditRenameDeleteCommands_ArePlaceholders_DisabledUntilContextMenuWave()
     {
-        var descriptor = new MacroDescriptor("X", MacroScope.Global, "p", DateTime.UtcNow, 1);
+        var descriptor = new MacroEntry("X", MacroScope.Global, "p", 0, DateTimeOffset.UtcNow, 1, System.Array.Empty<Macros.Engine.Triggers.TriggerBinding>());
         var item = new MacroItemViewModel(descriptor, service: null);
 
         Assert.False(item.EditCommand.CanExecute(null));

@@ -9,6 +9,7 @@ using EnvDTE;
 using EnvDTE80;
 using Macros.Engine.Recording;
 using Macros.Engine.Scripting;
+using Macros.Engine.Triggers;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Scripting;
 using Microsoft.CodeAnalysis.Scripting;
@@ -64,13 +65,13 @@ internal sealed class MacroPlayer : IMacroPlayer
     public async Task<MacroPlayResult> PlayAsync(
         string source,
         string macroName,
-        string triggerKind,
-        IReadOnlyDictionary<string, object?>? trigger,
+        IMacroTrigger? trigger,
         CancellationToken cancellation)
     {
         if (source is null) throw new ArgumentNullException(nameof(source));
         if (macroName is null) throw new ArgumentNullException(nameof(macroName));
-        if (triggerKind is null) throw new ArgumentNullException(nameof(triggerKind));
+
+        var resolvedTrigger = trigger ?? ManualMacroTrigger.Instance;
 
         var stopwatch = Stopwatch.StartNew();
 
@@ -116,8 +117,7 @@ internal sealed class MacroPlayer : IMacroPlayer
 
         var ctx = new MacroContext(
             macroName,
-            triggerKind,
-            trigger ?? new Dictionary<string, object?>(0),
+            resolvedTrigger,
             cancellation);
         var globals = new MacroGlobals(_dte, ctx);
 

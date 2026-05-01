@@ -26,7 +26,7 @@ internal sealed class SaveAsCommand : BaseCommand<SaveAsCommand>
     /// <inheritdoc />
     protected override async Task ExecuteAsync(OleMenuCmdEventArgs e)
     {
-        var storage = await VS.GetRequiredServiceAsync<IMacroStorage, IMacroStorage>();
+        var storage = await VS.GetRequiredServiceAsync<IMacroStore, IMacroStore>();
 
         string? source = await ResolveSourceAsync(storage);
         if (string.IsNullOrEmpty(source))
@@ -69,15 +69,15 @@ internal sealed class SaveAsCommand : BaseCommand<SaveAsCommand>
     /// when no <c>current.csx</c> exists (first run or never recorded). Extracted as a
     /// static helper so it can be exercised by unit tests without a VS host.
     /// </summary>
-    internal static Task<string?> ResolveSourceAsync(IMacroStorage storage)
+    internal static Task<string?> ResolveSourceAsync(IMacroStore storage)
         => storage.LoadCurrentAsync();
 
     /// <summary>
     /// Returns <see langword="true"/> when the storage layer can compute a repo-scope path,
     /// indicating that a solution is currently open. Uses a pure-path computation
-    /// (<see cref="IMacroStorage.GetMacroPath"/>) so no file-system I/O is performed.
+    /// (<see cref="IMacroStore.GetMacroPath"/>) so no file-system I/O is performed.
     /// </summary>
-    private static bool HasRepoScope(IMacroStorage storage)
+    private static bool HasRepoScope(IMacroStore storage)
     {
         try
         {

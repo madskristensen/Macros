@@ -38,7 +38,7 @@ public sealed class MacroService : IMacroService
     private readonly JoinableTaskFactory _jtf;
     private readonly Func<int>? _maxStepsProvider;
     private readonly Func<CancellationToken, Task<IMacroPlayer>> _playerFactory;
-    private readonly IMacroStorage? _storage;
+    private readonly IMacroStore? _storage;
     private readonly object _stateLock = new();
     private volatile MacroState _state = MacroState.Idle;
     private string? _currentMacroSource;
@@ -67,7 +67,7 @@ public sealed class MacroService : IMacroService
     /// </param>
     /// <param name="storage">
     /// Optional persistent storage. When supplied (production wiring in
-    /// <c>MacrosPackage.InitializeAsync</c> hands in a <see cref="FileSystemMacroStorage"/>)
+    /// <c>MacrosPackage.InitializeAsync</c> hands in a <see cref="FileSystemMacroStore"/>)
     /// <see cref="StopRecordingAsync"/> writes the generated source to disk fire-and-forget
     /// so <c>Play Last</c> survives a VS restart, and <see cref="PlayCurrentAsync"/>
     /// transparently rehydrates from disk if no in-memory source is loaded yet. When
@@ -79,7 +79,7 @@ public sealed class MacroService : IMacroService
         JoinableTaskFactory jtf,
         Func<int>? maxStepsProvider = null,
         Func<CancellationToken, Task<IMacroPlayer>>? playerFactory = null,
-        IMacroStorage? storage = null)
+        IMacroStore? storage = null)
     {
         _jtf = jtf ?? throw new ArgumentNullException(nameof(jtf));
         _maxStepsProvider = maxStepsProvider;
@@ -351,7 +351,7 @@ public sealed class MacroService : IMacroService
         try
         {
             IMacroPlayer player = await _playerFactory(_activeCts.Token).ConfigureAwait(false);
-            return await player.PlayAsync(source, name, "Manual", trigger: null, _activeCts.Token).ConfigureAwait(false);
+            return await player.PlayAsync(source, name, trigger: null, _activeCts.Token).ConfigureAwait(false);
         }
         finally
         {

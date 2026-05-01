@@ -4,6 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Macros.Engine;
 using Macros.Engine.Player;
+using Macros.Engine.Triggers;
 using Microsoft.VisualStudio.Threading;
 using Xunit;
 
@@ -87,7 +88,7 @@ public sealed class MacroServicePlayResultTests
         Assert.Equal(TimeSpan.FromMilliseconds(7), result.Duration);
         Assert.Same(svc.CurrentMacroSource, fake.LastSource);
         Assert.Equal(svc.CurrentMacroName, fake.LastName);
-        Assert.Equal("Manual", fake.LastTriggerKind);
+        Assert.True(fake.LastTrigger?.IsManual);
     }
 
     [Fact]
@@ -131,20 +132,19 @@ public sealed class MacroServicePlayResultTests
         private readonly MacroPlayResult _result;
         public string? LastSource { get; private set; }
         public string? LastName { get; private set; }
-        public string? LastTriggerKind { get; private set; }
+        public IMacroTrigger? LastTrigger { get; private set; }
 
         public FakePlayer(MacroPlayResult result) => _result = result;
 
         public Task<MacroPlayResult> PlayAsync(
             string source,
             string macroName,
-            string triggerKind,
-            IReadOnlyDictionary<string, object?>? trigger,
+            IMacroTrigger? trigger,
             CancellationToken cancellation)
         {
             LastSource = source;
             LastName = macroName;
-            LastTriggerKind = triggerKind;
+            LastTrigger = trigger;
             return Task.FromResult(_result);
         }
     }

@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Macros.Engine;
 using Macros.Engine.Player;
 using Macros.Engine.Storage;
+using Macros.Engine.Triggers;
 using Microsoft.VisualStudio.Threading;
 using Xunit;
 
@@ -104,10 +105,10 @@ public sealed class MacroServicePlayByNameTests
     }
 
     /// <summary>
-    /// Minimal in-memory <see cref="IMacroStorage"/> double that supports the named-macro
+    /// Minimal in-memory <see cref="IMacroStore"/> double that supports the named-macro
     /// API. The single-file API is left intentionally bare — these tests don't exercise it.
     /// </summary>
-    private sealed class FakeNamedStorage : IMacroStorage
+    private sealed class FakeNamedStorage : IMacroStore
     {
         private readonly Dictionary<(MacroScope, string), string> _files = new();
 
@@ -122,10 +123,10 @@ public sealed class MacroServicePlayByNameTests
 
         public event EventHandler<MacroLibraryChangedEventArgs>? LibraryChanged;
 
-        public Task<IReadOnlyList<MacroDescriptor>> ListAsync(MacroScope scope, CancellationToken cancellation = default)
-            => Task.FromResult<IReadOnlyList<MacroDescriptor>>(Array.Empty<MacroDescriptor>());
-        public Task<IReadOnlyList<MacroDescriptor>> ListAllAsync(CancellationToken cancellation = default)
-            => Task.FromResult<IReadOnlyList<MacroDescriptor>>(Array.Empty<MacroDescriptor>());
+        public Task<IReadOnlyList<MacroEntry>> ListAsync(MacroScope scope, CancellationToken cancellation = default)
+            => Task.FromResult<IReadOnlyList<MacroEntry>>(Array.Empty<MacroEntry>());
+        public Task<IReadOnlyList<MacroEntry>> ListAllAsync(CancellationToken cancellation = default)
+            => Task.FromResult<IReadOnlyList<MacroEntry>>(Array.Empty<MacroEntry>());
 
         public Task<string?> LoadByNameAsync(string name, MacroScope scope, CancellationToken cancellation = default)
         {
@@ -149,6 +150,9 @@ public sealed class MacroServicePlayByNameTests
         public string GetMacroPath(string name, MacroScope scope) => $"X:\\fake\\{scope}\\{name}.csx";
 
         public bool IsValidName(string name) => !string.IsNullOrWhiteSpace(name);
+
+        public Task<MacroEntry?> RefreshEntryAsync(string name, MacroScope scope, CancellationToken cancellation = default)
+            => Task.FromResult<MacroEntry?>(null);
     }
 
     /// <summary>Captures both the source and macro-name handed to the player.</summary>
@@ -161,7 +165,7 @@ public sealed class MacroServicePlayByNameTests
             _capture = capture;
         }
 
-        public Task<MacroPlayResult> PlayAsync(string source, string macroName, string triggerKind, IReadOnlyDictionary<string, object?>? trigger, CancellationToken cancellation)
+        public Task<MacroPlayResult> PlayAsync(string source, string macroName, IMacroTrigger? trigger, CancellationToken cancellation)
         {
             _capture(source, macroName);
             return Task.FromResult(new MacroPlayResult(true, null, null, TimeSpan.Zero));

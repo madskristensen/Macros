@@ -17,20 +17,20 @@ namespace Macros.ToolWindows;
 /// <summary>
 /// Top-level view-model behind the Macros tool window. Owns the Repo and Global
 /// <see cref="MacroGroupViewModel"/>s, the search filter, the toolbar commands, and the
-/// inline error banner. Subscribes to <see cref="IMacroStorage.LibraryChanged"/> so the
+/// inline error banner. Subscribes to <see cref="IMacroStore.LibraryChanged"/> so the
 /// list re-renders automatically when the underlying file system mutates.
 /// </summary>
 /// <remarks>
 /// <para>
 /// <b>Async loading.</b> <see cref="LoadAsync"/> calls
-/// <see cref="IMacroStorage.ListAllAsync"/>, partitions the result into Global / Repo
+/// <see cref="IMacroStore.ListAllAsync"/>, partitions the result into Global / Repo
 /// groups, and rebuilds the view-model collections in place. Failures are surfaced via
 /// <see cref="HasError"/> + <see cref="StatusMessage"/> rather than thrown to the caller —
 /// the tool window is a passive surface and a temporary I/O error must not bring it down.
 /// </para>
 /// <para>
 /// <b>Auto-refresh.</b> The view-model subscribes to
-/// <see cref="IMacroStorage.LibraryChanged"/> in the constructor and unsubscribes in
+/// <see cref="IMacroStore.LibraryChanged"/> in the constructor and unsubscribes in
 /// <see cref="Dispose"/>. Library events fire on whichever thread performed the change, so
 /// the handler debounces through a <see cref="System.Threading.Timer"/>: rapid bursts (e.g.
 /// rename = remove + add) coalesce into a single reload after
@@ -47,7 +47,7 @@ namespace Macros.ToolWindows;
 /// </remarks>
 public sealed class MacrosToolWindowViewModel : INotifyPropertyChanged, IDisposable
 {
-    private readonly IMacroStorage _storage;
+    private readonly IMacroStore _storage;
     private readonly IMacroService? _service;
     private readonly SynchronizationContext? _uiSync;
     private readonly TimeSpan _debounceInterval;
@@ -81,12 +81,12 @@ public sealed class MacrosToolWindowViewModel : INotifyPropertyChanged, IDisposa
     /// <c>ObservableCollection</c> mutations. Tests typically pass <see langword="null"/>.
     /// </param>
     /// <param name="debounceInterval">
-    /// Coalesce window for <see cref="IMacroStorage.LibraryChanged"/> bursts. Defaults to
+    /// Coalesce window for <see cref="IMacroStore.LibraryChanged"/> bursts. Defaults to
     /// 100 ms. Tests pass <see cref="TimeSpan.Zero"/> to drain the queue immediately.
     /// </param>
     /// <exception cref="ArgumentNullException"><paramref name="storage"/> is <see langword="null"/>.</exception>
     public MacrosToolWindowViewModel(
-        IMacroStorage storage,
+        IMacroStore storage,
         IMacroService? service = null,
         SynchronizationContext? uiSync = null,
         TimeSpan? debounceInterval = null)
@@ -120,7 +120,7 @@ public sealed class MacrosToolWindowViewModel : INotifyPropertyChanged, IDisposa
     }
 
     /// <summary>
-    /// Resolves <see cref="IMacroStorage"/> and <see cref="IMacroService"/> from the VS
+    /// Resolves <see cref="IMacroStore"/> and <see cref="IMacroService"/> from the VS
     /// service container, instantiates the view-model, and triggers the initial load.
     /// Captures <see cref="SynchronizationContext.Current"/> as the UI sync context — the
     /// caller is expected to invoke this from the WPF dispatcher (the tool window's
@@ -128,7 +128,7 @@ public sealed class MacrosToolWindowViewModel : INotifyPropertyChanged, IDisposa
     /// </summary>
     public static async Task<MacrosToolWindowViewModel> CreateAsync()
     {
-        var storage = await VS.GetRequiredServiceAsync<IMacroStorage, IMacroStorage>();
+        var storage = await VS.GetRequiredServiceAsync<IMacroStore, IMacroStore>();
         var service = await VS.GetRequiredServiceAsync<IMacroService, IMacroService>();
 
         var vm = new MacrosToolWindowViewModel(storage, service, SynchronizationContext.Current);
@@ -238,7 +238,7 @@ public sealed class MacrosToolWindowViewModel : INotifyPropertyChanged, IDisposa
     public int LoadCount => _loadCount;
 
     /// <summary>
-    /// Gets the debounce interval used to coalesce <see cref="IMacroStorage.LibraryChanged"/>
+    /// Gets the debounce interval used to coalesce <see cref="IMacroStore.LibraryChanged"/>
     /// events. Exposed for testing.
     /// </summary>
     internal TimeSpan DebounceInterval => _debounceInterval;
@@ -260,7 +260,7 @@ public sealed class MacrosToolWindowViewModel : INotifyPropertyChanged, IDisposa
     }
 
     /// <summary>
-    /// Loads the macro library from <see cref="IMacroStorage.ListAllAsync"/>, partitions
+    /// Loads the macro library from <see cref="IMacroStore.ListAllAsync"/>, partitions
     /// into Global / Repo groups, and refreshes the view-model. Errors are caught and
     /// surfaced via <see cref="HasError"/>.
     /// </summary>
@@ -276,7 +276,7 @@ public sealed class MacrosToolWindowViewModel : INotifyPropertyChanged, IDisposa
         HasError = false;
         StatusMessage = null;
 
-        IReadOnlyList<MacroDescriptor>? loaded = null;
+        IReadOnlyList<MacroEntry>? loaded = null;
         Exception? failure = null;
         bool repoAvailable = false;
 
@@ -400,7 +400,7 @@ public sealed class MacrosToolWindowViewModel : INotifyPropertyChanged, IDisposa
             period: System.Threading.Timeout.InfiniteTimeSpan);
     }
 
-    private void ReplaceItems(IReadOnlyList<MacroDescriptor> descriptors, bool repoAvailable)
+    private void ReplaceItems(IReadOnlyList<MacroEntry> descriptors, bool repoAvailable)
     {
         var byScope = descriptors
             .GroupBy(d => d.Scope)

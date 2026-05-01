@@ -10,7 +10,7 @@ using Xunit;
 namespace Macros.Tests.Storage;
 
 /// <summary>
-/// Behavioural tests for the M3 named-macro API on <see cref="FileSystemMacroStorage"/>.
+/// Behavioural tests for the M3 named-macro API on <see cref="FileSystemMacroStore"/>.
 /// Each test owns a unique temp folder under the system temp root so xUnit's parallel
 /// runner can drive them concurrently without cross-contamination.
 /// </summary>
@@ -42,9 +42,9 @@ public sealed class NamedStorageTests : IDisposable
         }
     }
 
-    private FileSystemMacroStorage CreateStorage(bool withRepo = false)
+    private FileSystemMacroStore CreateStorage(bool withRepo = false)
     {
-        return new FileSystemMacroStorage(
+        return new FileSystemMacroStore(
             _globalRoot,
             withRepo ? () => _repoRoot : null);
     }
@@ -70,8 +70,8 @@ public sealed class NamedStorageTests : IDisposable
         var entry = Assert.Single(list);
         Assert.Equal("Hello", entry.Name);
         Assert.Equal(MacroScope.Global, entry.Scope);
-        Assert.True(File.Exists(entry.FilePath));
-        Assert.Equal("Hello.csx", Path.GetFileName(entry.FilePath));
+        Assert.True(File.Exists(entry.Path));
+        Assert.Equal("Hello.csx", Path.GetFileName(entry.Path));
     }
 
     [Fact]
@@ -368,7 +368,7 @@ public sealed class NamedStorageTests : IDisposable
         // The provider returns null first, then a path: storage should switch from
         // throwing to writing successfully without being recreated.
         string? current = null;
-        var storage = new FileSystemMacroStorage(_globalRoot, () => current);
+        var storage = new FileSystemMacroStore(_globalRoot, () => current);
 
         await Assert.ThrowsAsync<InvalidOperationException>(
             () => storage.SaveAsAsync("X", "// x", MacroScope.Repo));

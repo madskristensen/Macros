@@ -101,7 +101,7 @@ public sealed class MacroGroupViewModelTests
 
     private static MacroItemViewModel MakeItem(string name)
     {
-        var descriptor = new MacroDescriptor(name, MacroScope.Global, $"X:\\fake\\{name}.csx", DateTime.UtcNow, 1);
+        var descriptor = new MacroEntry(name, MacroScope.Global, $"X:\\fake\\{name}.csx", 0, DateTimeOffset.UtcNow, 1, System.Array.Empty<Macros.Engine.Triggers.TriggerBinding>());
         return new MacroItemViewModel(descriptor, service: null);
     }
 }

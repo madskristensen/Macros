@@ -1,4 +1,5 @@
 using System;
+using Macros.Engine.Triggers;
 using EnvDTE80;
 
 namespace Macros.Engine.Scripting;
@@ -49,4 +50,10 @@ public sealed class MacroGlobals
 
     /// <summary>Gets the per-invocation <see cref="IMacroContext"/> describing this playback.</summary>
     public IMacroContext Context { get; }
+
+    /// <summary>
+    /// Gets the typed trigger that initiated this playback. Shortcut for <c>Context.Trigger</c>
+    /// so script authors can write <c>Trigger.Kind</c> / <c>Trigger.CommandName</c> directly.
+    /// </summary>
+    public IMacroTrigger Trigger => Context.Trigger;
 }

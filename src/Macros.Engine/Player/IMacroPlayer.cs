@@ -1,7 +1,7 @@
 using System;
-using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using Macros.Engine.Triggers;
 
 namespace Macros.Engine.Player;
 
@@ -29,10 +29,10 @@ public interface IMacroPlayer
     /// </summary>
     /// <param name="source">The C# script source. May be empty; never <see langword="null"/>.</param>
     /// <param name="macroName">Logical macro name surfaced via <c>Context.MacroName</c>.</param>
-    /// <param name="triggerKind">Stable trigger kind (e.g. <c>"Manual"</c>).</param>
     /// <param name="trigger">
-    /// Optional trigger argument bag surfaced via <c>Context.Trigger</c>; <see langword="null"/>
-    /// is normalised to an empty dictionary.
+    /// The typed trigger that caused playback. Pass <see cref="ManualMacroTrigger.Instance"/>
+    /// for user-initiated runs; <see langword="null"/> is normalised to
+    /// <see cref="ManualMacroTrigger.Instance"/>.
     /// </param>
     /// <param name="cancellation">
     /// Token forwarded to the script via <c>Context.Cancellation</c> and observed by the
@@ -44,8 +44,7 @@ public interface IMacroPlayer
     Task<MacroPlayResult> PlayAsync(
         string source,
         string macroName,
-        string triggerKind,
-        IReadOnlyDictionary<string, object?>? trigger,
+        IMacroTrigger? trigger,
         CancellationToken cancellation);
 }
 
