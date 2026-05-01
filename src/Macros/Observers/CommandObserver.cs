@@ -80,6 +80,12 @@ internal sealed class CommandObserver : IOleCommandTarget
     /// <item><description><c>cmdidEditMenu</c> (29) — top-level menu opener, captured separately if user actually clicks an item.</description></item>
     /// </list>
     /// </remarks>
+    /// <summary>
+    /// GUID for the VS 2000+ standard command set (GUID_VSStd2KCmdId). Commands in this
+    /// group with well-known noise IDs are excluded from recording and trigger dispatch.
+    /// </summary>
+    private static readonly Guid VSStd2KCmdId = new("1496a755-94de-11d0-8c3f-00c04fc2aae2");
+
     private static readonly HashSet<(Guid Group, uint Id)> NoiseCommands = new()
     {
         (VSConstants.GUID_VSStandardCommandSet97, 1037), // cmdidMouseHover
@@ -91,6 +97,16 @@ internal sealed class CommandObserver : IOleCommandTarget
         (VSConstants.GUID_VSStandardCommandSet97, 889),  // cmdidToolboxAddItem
         (VSConstants.GUID_VSStandardCommandSet97, 890),  // cmdidToolboxRemoveItem
         (VSConstants.GUID_VSStandardCommandSet97, 891),  // cmdidToolboxRefresh
+        // GUID_VSStd2KCmdId/1627 — editor window-focus sync command that fires on every
+        // document tab activation. Has no DTE name and replaying it is a no-op; it
+        // pollutes recordings with opaque GUID/ID lines.
+        (VSStd2KCmdId, 1627u),
+        // GUID_VSStandardCommandSet97/900 — fires when the File > Open dialog is invoked.
+        // Has no args and no DTE name; the file path is captured separately via the
+        // DocumentEvents.Opened subscription in MacrosPackage (Bug #2 fix) and emitted as
+        // OpenFileAsync(@"path"). Recording this raw command alongside that would duplicate
+        // the step without adding replay value.
+        (VSConstants.GUID_VSStandardCommandSet97, 900u),
     };
 
     /// <summary>
@@ -99,7 +115,7 @@ internal sealed class CommandObserver : IOleCommandTarget
     /// meaningfully trigger before/after its own invocation command — that's what direct
     /// playback APIs are for).
     /// </summary>
-    private static readonly Guid MacrosCommandSetGuid = new(PackageGuids.CommandSetGuidString);
+    private static readonly Guid MacrosCommandSetGuid = PackageGuids.guidMacrosPackageCmdSet;
 
     private readonly JoinableTaskFactory _jtf;
 
@@ -337,9 +353,11 @@ internal sealed class CommandObserver : IOleCommandTarget
     /// Production-mode lazy <see cref="IMacroService"/> accessor. Returns the cached
     /// instance once resolved; while resolution is in flight (or during a transient
     /// failure-and-retry window) returns <see langword="null"/>. The first call kicks off
-    /// an async resolve via <see cref="VS.GetRequiredServiceAsync{TService, TInterface}"/>
-    /// on the joinable-task pool; we don't block the UI thread synchronously because
-    /// even one slow first-resolve would surface as a perceptible IDE hang.
+    /// an async resolve through <see cref="MacrosPackage.Instance"/>'s own service
+    /// container — NOT the global <see cref="VS"/> container — so the lookup hits the
+    /// synchronously-populated package services even before promotion has finished. We
+    /// don't block the UI thread synchronously because even one slow first-resolve would
+    /// surface as a perceptible IDE hang.
     /// </summary>
     private IMacroService? ResolveServiceLazily()
     {
@@ -371,7 +389,12 @@ internal sealed class CommandObserver : IOleCommandTarget
             {
                 try
                 {
-                    var resolved = await VS.GetRequiredServiceAsync<IMacroService, IMacroService>();
+                    var package = MacrosPackage.Instance
+                        ?? throw new InvalidOperationException(
+                            "MacrosPackage is not loaded; cannot resolve IMacroService.");
+                    var resolved = await package.GetServiceAsync(typeof(IMacroService)) as IMacroService
+                        ?? throw new InvalidOperationException(
+                            "IMacroService is not registered in the package container.");
                     Volatile.Write(ref _service, resolved);
                 }
                 catch (Exception ex)

@@ -151,4 +151,48 @@ public sealed class SolutionContextTrackerTests
 
         Assert.Equal(0, count);
     }
+
+    [Fact]
+    public void GetCurrentSolutionPath_BeforeAnyApply_ReturnsNull()
+    {
+        using var tracker = SolutionContextTracker.CreateForTests();
+        Assert.Null(tracker.GetCurrentSolutionPath());
+    }
+
+    [Fact]
+    public void ApplySolutionFullPath_ExposesFullPath_AndDerivesDirectory()
+    {
+        using var tracker = SolutionContextTracker.CreateForTests();
+        var slnPath = Path.Combine(Path.GetTempPath(), "Macros.Tests.Tracker", Guid.NewGuid().ToString("N"), "App.sln");
+
+        tracker.ApplySolutionFullPath(slnPath);
+
+        Assert.Equal(slnPath, tracker.GetCurrentSolutionPath());
+        Assert.Equal(Path.GetDirectoryName(slnPath), tracker.GetCurrentSolutionDirectory());
+    }
+
+    [Fact]
+    public void ApplySolutionFullPath_Then_Null_ClearsBothPathAndDirectory()
+    {
+        using var tracker = SolutionContextTracker.CreateForTests();
+        tracker.ApplySolutionFullPath(@"C:\\repo\\App.sln");
+        Assert.NotNull(tracker.GetCurrentSolutionPath());
+
+        tracker.ApplySolutionFullPath(null);
+
+        Assert.Null(tracker.GetCurrentSolutionPath());
+        Assert.Null(tracker.GetCurrentSolutionDirectory());
+    }
+
+    [Fact]
+    public void ApplySolutionPath_LeavesFullPathNull()
+    {
+        // Legacy directory-only test hook: GetCurrentSolutionPath stays null because
+        // the caller never told us the .sln file name. Trust-gate consumers must use
+        // ApplySolutionFullPath when the .sln matters.
+        using var tracker = SolutionContextTracker.CreateForTests();
+        tracker.ApplySolutionPath(@"C:\\repo");
+        Assert.Equal(@"C:\\repo", tracker.GetCurrentSolutionDirectory());
+        Assert.Null(tracker.GetCurrentSolutionPath());
+    }
 }

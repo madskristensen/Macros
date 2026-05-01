@@ -41,6 +41,7 @@ internal sealed class SolutionContextTracker : IDisposable
     private readonly object _sync = new();
     private readonly JoinableTaskFactory? _jtf;
     private string? _solutionDirectory;
+    private string? _solutionPath;
     private SolutionEvents? _events;
 
     private SolutionContextTracker(JoinableTaskFactory jtf)
@@ -93,6 +94,28 @@ internal sealed class SolutionContextTracker : IDisposable
     }
 
     /// <summary>
+    /// Returns the full <c>.sln</c> file path of the currently open solution, or
+    /// <see langword="null"/> when no solution is open or the toolkit has not yet supplied
+    /// a path. Trust-gate consumers (<see cref="Macros.Trust.TrustGate"/>) key off this
+    /// value because <see cref="Macros.Options.MacrosOptions.IsSolutionTrusted"/> stores
+    /// per-file decisions, not per-directory ones. Safe to call from any thread.
+    /// </summary>
+    /// <remarks>
+    /// May return <see langword="null"/> even when <see cref="GetCurrentSolutionDirectory"/>
+    /// returns a value: legacy test fixtures call <see cref="ApplySolutionPath"/> with a
+    /// directory and never knew the solution file. Production code paths
+    /// (<see cref="OnSolutionOpened"/>, <see cref="RefreshAsync"/>) always populate both
+    /// fields together when the toolkit reports a non-null <c>FullPath</c>.
+    /// </remarks>
+    public string? GetCurrentSolutionPath()
+    {
+        lock (_sync)
+        {
+            return _solutionPath;
+        }
+    }
+
+    /// <summary>
     /// Returns the absolute path of the per-solution repo macros folder
     /// (<c>&lt;solution&gt;\.vs\&lt;RepoMacrosFolderName&gt;</c>), or <see langword="null"/>
     /// when no solution is open. Resolves the configured folder name from
@@ -138,12 +161,26 @@ internal sealed class SolutionContextTracker : IDisposable
 #pragma warning restore VSTHRD012
 
     /// <summary>
-    /// Test hook: sets the tracked solution path as if VS had raised the corresponding
-    /// open / close event. Pass <see langword="null"/> to simulate a close.
+    /// Test hook: sets the tracked solution <em>directory</em> as if VS had raised the
+    /// corresponding open / close event. Pass <see langword="null"/> to simulate a close.
+    /// Leaves <see cref="GetCurrentSolutionPath"/> as <see langword="null"/>; tests that
+    /// need to exercise trust-gate logic should call <see cref="ApplySolutionFullPath"/>
+    /// instead.
     /// </summary>
     internal void ApplySolutionPath(string? solutionDirectory)
     {
-        SetDirectoryAndRaise(NormalizeNullOrEmpty(solutionDirectory));
+        SetSolutionStateAndRaise(NormalizeNullOrEmpty(solutionDirectory), null);
+    }
+
+    /// <summary>
+    /// Test hook: sets the tracked solution to a full <c>.sln</c> file path, populating
+    /// both <see cref="GetCurrentSolutionDirectory"/> (derived) and
+    /// <see cref="GetCurrentSolutionPath"/>. Pass <see langword="null"/> to simulate a close.
+    /// </summary>
+    internal void ApplySolutionFullPath(string? solutionFullPath)
+    {
+        var normalized = NormalizeNullOrEmpty(solutionFullPath);
+        SetSolutionStateAndRaise(TryGetDirectory(normalized), normalized);
     }
 
     private async Task RefreshAsync(JoinableTaskFactory jtf)
@@ -151,8 +188,8 @@ internal sealed class SolutionContextTracker : IDisposable
         await jtf.SwitchToMainThreadAsync();
 
         var soln = await VS.Solutions.GetCurrentSolutionAsync();
-        var dir = TryGetDirectory(soln?.FullPath);
-        SetDirectoryAndRaise(dir);
+        var fullPath = soln?.FullPath;
+        SetSolutionStateAndRaise(TryGetDirectory(fullPath), NormalizeNullOrEmpty(fullPath));
     }
 
     private void OnSolutionOpened(Community.VisualStudio.Toolkit.Solution? solution)
@@ -166,7 +203,8 @@ internal sealed class SolutionContextTracker : IDisposable
         if (jtf is null)
         {
             // Test-only path (no JTF wired); just snapshot whatever the toolkit gave us.
-            SetDirectoryAndRaise(TryGetDirectory(solution?.FullPath));
+            var snapshot = solution?.FullPath;
+            SetSolutionStateAndRaise(TryGetDirectory(snapshot), NormalizeNullOrEmpty(snapshot));
             return;
         }
 
@@ -180,22 +218,24 @@ internal sealed class SolutionContextTracker : IDisposable
                 path = fresh?.FullPath;
             }
 
-            SetDirectoryAndRaise(TryGetDirectory(path));
+            SetSolutionStateAndRaise(TryGetDirectory(path), NormalizeNullOrEmpty(path));
         }).FileAndForget("Macros/SolutionContextTracker/Opened");
     }
 
     private void OnSolutionClosed()
     {
-        SetDirectoryAndRaise(null);
+        SetSolutionStateAndRaise(null, null);
     }
 
-    private void SetDirectoryAndRaise(string? dir)
+    private void SetSolutionStateAndRaise(string? dir, string? fullPath)
     {
         bool changed;
         lock (_sync)
         {
-            changed = !string.Equals(_solutionDirectory, dir, StringComparison.OrdinalIgnoreCase);
+            changed = !string.Equals(_solutionDirectory, dir, StringComparison.OrdinalIgnoreCase)
+                  || !string.Equals(_solutionPath, fullPath, StringComparison.OrdinalIgnoreCase);
             _solutionDirectory = dir;
+            _solutionPath = fullPath;
         }
 
         if (changed)

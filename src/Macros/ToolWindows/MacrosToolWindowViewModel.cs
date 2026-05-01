@@ -136,8 +136,21 @@ public sealed class MacrosToolWindowViewModel : INotifyPropertyChanged, IDisposa
     /// </summary>
     public static async Task<MacrosToolWindowViewModel> CreateAsync()
     {
-        var storage = await VS.GetRequiredServiceAsync<IMacroStore, IMacroStore>();
-        var service = await VS.GetRequiredServiceAsync<IMacroService, IMacroService>();
+        // Resolve via the package's own service container — NOT VS.GetRequiredServiceAsync.
+        // The tool window can be auto-restored on shell startup before the global service
+        // container has finished promoting our services; the package container is populated
+        // synchronously by AddService(...) and is always queryable once MacrosPackage.Instance
+        // is non-null (set as the very first line of InitializeAsync).
+        var package = MacrosPackage.Instance
+            ?? throw new InvalidOperationException(
+                "MacrosPackage is not loaded; cannot resolve services for the tool window.");
+
+        var storage = await package.GetServiceAsync(typeof(IMacroStore)) as IMacroStore
+            ?? throw new InvalidOperationException(
+                "IMacroStore is not registered in the package container.");
+        var service = await package.GetServiceAsync(typeof(IMacroService)) as IMacroService
+            ?? throw new InvalidOperationException(
+                "IMacroService is not registered in the package container.");
 
         var vm = new MacrosToolWindowViewModel(storage, service, SynchronizationContext.Current);
         await vm.LoadAsync();
@@ -187,6 +200,13 @@ public sealed class MacrosToolWindowViewModel : INotifyPropertyChanged, IDisposa
             OnPropertyChanged(nameof(IsEmpty));
         }
     }
+
+    /// <summary>
+    /// Sets the active filter text, driving the same logic as <see cref="FilterText"/>.
+    /// Called by the native VS search integration (<c>MacrosToolWindow.Pane</c>) when the
+    /// user types in the VS search bar. Pass <see langword="null"/> or empty to clear.
+    /// </summary>
+    public void SetFilter(string? text) => FilterText = text ?? string.Empty;
 
     /// <summary>Gets a value indicating whether a load is in flight.</summary>
     public bool IsLoading

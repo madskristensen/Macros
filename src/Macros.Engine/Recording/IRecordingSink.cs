@@ -50,5 +50,18 @@ public interface IRecordingSink
     /// </remarks>
     void OnCommand(Guid group, uint id, string? canonicalName);
 
+    /// <summary>
+    /// Records that a document was opened during the recording session. This is used to
+    /// capture the full file path when a user opens a file via the File &gt; Open dialog (where
+    /// the command itself fires with no arguments) or via any other document-opening mechanism.
+    /// </summary>
+    /// <param name="path">The full absolute path of the document that was opened.</param>
+    /// <remarks>
+    /// MUST be a no-op when <see cref="IsCapturing"/> is <see langword="false"/>. Callers
+    /// SHOULD check <see cref="IsCapturing"/> cheaply before calling; the sink re-checks
+    /// inside its lock so a race with a concurrent stop-recording transition is benign.
+    /// </remarks>
+    void OnFileOpen(string path);
+
     // void OnTextEdit(...) — to be added by m2-text-observer (don't add now, leave for them).
 }

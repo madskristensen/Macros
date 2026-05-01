@@ -192,12 +192,19 @@ public sealed class MacroService : IMacroService
         // (which is often on the UI thread). Failures bubble up via FileAndForget's telemetry
         // channel; the in-memory _currentMacroSource above already makes the just-recorded
         // macro playable in this session even if the write fails.
+        //
+        // We also save to the named library (overwriting any previous "RecordedMacro" entry).
+        // SaveAsAsync raises IMacroStore.LibraryChanged, which is what the Macros tool window
+        // subscribes to — without this call the tool window never learns that a new macro
+        // arrived and the list stays stale after every Stop Recording.
         if (_storage is not null)
         {
             var storage = _storage;
+            var name = generatedName;
             _jtf.RunAsync(async () =>
             {
                 await storage.SaveCurrentAsync(source).ConfigureAwait(false);
+                await storage.SaveAsAsync(name, source, MacroScope.Global, overwrite: true).ConfigureAwait(false);
             }).FileAndForget("Macros/Storage/SaveCurrent");
         }
 

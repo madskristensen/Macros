@@ -1,10 +1,9 @@
 using System;
 using System.ComponentModel.Composition;
-using System.Threading;
-using Community.VisualStudio.Toolkit;
+using Macros;
 using Macros.Engine;
+using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Text.Editor;
-using Microsoft.VisualStudio.Threading;
 using Microsoft.VisualStudio.Utilities;
 
 namespace Macros.Cancellation;
@@ -34,9 +33,6 @@ namespace Macros.Cancellation;
 [Order(Before = "DefaultKeyProcessor")]
 internal sealed class EscCancelKeyProcessorProvider : IKeyProcessorProvider
 {
-    [Import]
-    internal JoinableTaskContext JoinableTaskContext { get; set; } = null!;
-
     /// <inheritdoc />
     public KeyProcessor GetAssociatedProcessor(IWpfTextView wpfTextView)
     {
@@ -48,10 +44,14 @@ internal sealed class EscCancelKeyProcessorProvider : IKeyProcessorProvider
         return new EscCancelKeyProcessor(ServiceCache.Instance);
     }
 
-    private IMacroService ResolveService()
+    private static IMacroService ResolveService()
     {
-        return JoinableTaskContext.Factory.Run(
-            () => VS.GetRequiredServiceAsync<IMacroService, IMacroService>());
+        var package = MacrosPackage.Instance ?? throw new InvalidOperationException(
+            "MacrosPackage is not initialized — cannot resolve IMacroService.");
+        return package.JoinableTaskFactory.Run(async () =>
+            await package.GetServiceAsync(typeof(IMacroService)) as IMacroService
+                ?? throw new InvalidOperationException(
+                    "IMacroService is not registered in the package container."));
     }
 }
 

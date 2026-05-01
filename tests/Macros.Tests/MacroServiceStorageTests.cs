@@ -44,6 +44,26 @@ public sealed class MacroServiceStorageTests
     }
 
     [Fact]
+    public async Task StopRecordingAsync_WithStorage_AlsoSavesToNamedLibrary()
+    {
+        // Regression guard: Stop Recording must call SaveAsAsync in addition to
+        // SaveCurrentAsync so that IMacroStore.LibraryChanged fires and the Macros tool
+        // window refreshes its list. Without the SaveAsAsync call current.csx is excluded
+        // from ListAsync and the tool window never sees the just-recorded macro.
+        var fake = new FakeMacroStorage();
+        var svc = new MacroService(CreateJtf(), storage: fake);
+
+        await svc.StartRecordingAsync();
+        var source = await svc.StopRecordingAsync();
+
+        await fake.WaitForNamedSaveAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Equal("RecordedMacro", fake.LastSavedName);
+        Assert.Equal(MacroScope.Global, fake.LastSavedScope);
+        Assert.Equal(source, fake.LastSavedNamedSource);
+    }
+
+    [Fact]
     public async Task PlayCurrentAsync_RehydratesFromStorage_AfterRestart()
     {
         // Simulate "VS restarted": pre-populate storage but construct a fresh MacroService
@@ -152,6 +172,7 @@ public sealed class MacroServiceStorageTests
     {
         private readonly bool _throwOnSave;
         private readonly TaskCompletionSource<string> _saveTcs = new();
+        private readonly TaskCompletionSource<string> _namedSaveTcs = new();
         private string? _content;
 
         public FakeMacroStorage(bool throwOnSave = false)
@@ -162,6 +183,9 @@ public sealed class MacroServiceStorageTests
         public string CurrentPath => @"X:\fake\current.csx";
 
         public string? LastSaved => _content;
+        public string? LastSavedName { get; private set; }
+        public MacroScope? LastSavedScope { get; private set; }
+        public string? LastSavedNamedSource { get; private set; }
 
         public Task SaveCurrentAsync(string source, CancellationToken cancellation = default)
         {
@@ -209,7 +233,13 @@ public sealed class MacroServiceStorageTests
             => Task.FromResult<string?>(null);
 
         public Task SaveAsAsync(string name, string source, MacroScope scope, bool overwrite = false, CancellationToken cancellation = default)
-            => Task.CompletedTask;
+        {
+            LastSavedName = name;
+            LastSavedScope = scope;
+            LastSavedNamedSource = source;
+            _namedSaveTcs.TrySetResult(name);
+            return Task.CompletedTask;
+        }
 
         public Task<bool> DeleteAsync(string name, MacroScope scope, CancellationToken cancellation = default)
             => Task.FromResult(false);
@@ -230,6 +260,15 @@ public sealed class MacroServiceStorageTests
             if (completed != _saveTcs.Task)
             {
                 throw new TimeoutException("Storage save did not occur within the expected window.");
+            }
+        }
+
+        public async Task WaitForNamedSaveAsync(TimeSpan timeout)
+        {
+            var completed = await Task.WhenAny(_namedSaveTcs.Task, Task.Delay(timeout));
+            if (completed != _namedSaveTcs.Task)
+            {
+                throw new TimeoutException("Named-library save did not occur within the expected window.");
             }
         }
     }

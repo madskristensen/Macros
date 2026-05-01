@@ -27,10 +27,98 @@ public static class MacrosPaths
             return configuredFolder!;
         }
 
-        return Path.Combine(
+        return GetDefaultGlobalFolder();
+    }
+
+    /// <summary>
+    /// Returns <see langword="true"/> when <paramref name="configuredFolder"/> is either
+    /// empty (the "use default" sentinel) or a syntactically valid absolute / relative
+    /// path that the file-system layer can later try to create. Returns
+    /// <see langword="false"/> for paths that contain Windows-illegal characters, are
+    /// rooted on a malformed drive specifier, or otherwise fail
+    /// <see cref="Path.GetFullPath(string)"/>.
+    /// </summary>
+    /// <remarks>
+    /// Pure syntactic validation — does NOT touch the file system. A valid syntax does
+    /// not guarantee the path exists or is writable; callers still need to handle disk
+    /// errors when they actually try to write. The point of this helper is to catch the
+    /// "user typed garbage in Tools → Options" case before it surfaces as a cryptic
+    /// <see cref="ArgumentException"/> deep inside the storage layer.
+    /// </remarks>
+    public static bool IsValidGlobalFolder(string? configuredFolder)
+    {
+        // Empty / whitespace is the "use default" sentinel — always valid because
+        // ResolveGlobalFolder will swap in the well-known default.
+        if (string.IsNullOrWhiteSpace(configuredFolder))
+        {
+            return true;
+        }
+
+        try
+        {
+            // Reject Windows-illegal characters explicitly first — Path.GetFullPath on
+            // .NET Framework 4.8 silently strips some of them on certain inputs, which
+            // would let "Q:\bad|name" sneak through as "Q:\badname".
+            foreach (char invalid in Path.GetInvalidPathChars())
+            {
+                if (configuredFolder!.IndexOf(invalid) >= 0)
+                {
+                    return false;
+                }
+            }
+
+            // Path.GetFullPath round-trips the syntactic validation that Directory.CreateDirectory
+            // would do later. Any ArgumentException / NotSupportedException / PathTooLongException
+            // here means the storage layer would have failed at first save with a worse message.
+            _ = Path.GetFullPath(configuredFolder!);
+            return true;
+        }
+        catch (ArgumentException) { return false; }
+        catch (NotSupportedException) { return false; }
+        catch (PathTooLongException) { return false; }
+        catch (System.Security.SecurityException) { return false; }
+    }
+
+    /// <summary>
+    /// Variant of <see cref="ResolveGlobalFolder(string?)"/> that falls back to the
+    /// default <c>%APPDATA%\Macros</c> location when <paramref name="configuredFolder"/>
+    /// fails <see cref="IsValidGlobalFolder(string?)"/>. The <paramref name="usedFallback"/>
+    /// out-parameter tells the caller whether the fallback was triggered, so a one-time
+    /// warning can be surfaced (e.g. status bar / Output pane) without crashing the
+    /// package on first save.
+    /// </summary>
+    /// <param name="configuredFolder">
+    /// The value of <c>MacrosOptions.GlobalMacrosFolder</c>. May be null/empty (use default)
+    /// or a user-typed string that hasn't been validated yet.
+    /// </param>
+    /// <param name="usedFallback">
+    /// <see langword="true"/> when <paramref name="configuredFolder"/> was non-empty but
+    /// invalid and the default was substituted; <see langword="false"/> when the default
+    /// was used because nothing was configured, or when the configured value passed
+    /// validation and was returned verbatim.
+    /// </param>
+    public static string ResolveGlobalFolderOrFallback(string? configuredFolder, out bool usedFallback)
+    {
+        if (string.IsNullOrWhiteSpace(configuredFolder))
+        {
+            usedFallback = false;
+            return GetDefaultGlobalFolder();
+        }
+
+        if (!IsValidGlobalFolder(configuredFolder))
+        {
+            usedFallback = true;
+            return GetDefaultGlobalFolder();
+        }
+
+        usedFallback = false;
+        return configuredFolder!;
+    }
+
+    private static string GetDefaultGlobalFolder() =>
+        Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
             "Macros");
-    }
 
     /// <summary>
     /// Resolves the absolute path of the per-solution repo macros folder, or

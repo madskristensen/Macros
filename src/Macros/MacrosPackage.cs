@@ -10,6 +10,7 @@ using Macros.Engine.Scripting;
 using Macros.Engine.Storage;
 using Macros.Engine.Triggers;
 using Macros.Commands;
+using Macros.Commands.Context;
 using Macros.Lifecycle;
 using Macros.Observers;
 using Macros.Onboarding;
@@ -56,15 +57,27 @@ namespace Macros;
     categoryResourceID: 0, pageNameResourceID: 0, supportsAutomation: true)]
 [ProvideOptionPage(typeof(TrustedSolutionsPage), "Macros", "Trusted Solutions",
     categoryResourceID: 0, pageNameResourceID: 0, supportsAutomation: true)]
-[Guid(PackageGuids.PackageGuidString)]
+[Guid(PackageGuids.guidMacrosPackageString)]
 public sealed class MacrosPackage : ToolkitPackage
 {
+    /// <summary>
+    /// Process-wide handle to the loaded <see cref="MacrosPackage"/> singleton. Set as the
+    /// VERY FIRST line of <see cref="InitializeAsync"/> so observers / handlers wired during
+    /// package init can call <see cref="AsyncPackage.GetServiceAsync"/> directly against the
+    /// package's own service container — bypassing the global <see cref="VS"/> service
+    /// container which only sees promoted services AFTER SetSite completes (i.e. after
+    /// InitializeAsync has fully run). Cleared in <see cref="Dispose"/>.
+    /// </summary>
+    public static MacrosPackage? Instance { get; private set; }
+
     private IVsRegisterPriorityCommandTarget? _priorityCommandTarget;
     private uint _commandObserverCookie;
     private UIContextActivator? _uiContextActivator;
     private RecordingCapHandler? _recordingCapHandler;
     private MacroTriggerRegistry? _triggerRegistry;
     private CommandTriggerDispatcher? _commandTriggerDispatcher;
+    private EventTriggerDispatcher? _eventTriggerDispatcher;
+    private MacroFailureTracker? _failureTracker;
     private MacroEventBus? _eventBus;
     // CommandEvents is a COM object the shell only weak-references through our subscription;
     // GC'ing the wrapper detaches the event handlers and silently breaks AfterCommand
@@ -93,9 +106,32 @@ public sealed class MacrosPackage : ToolkitPackage
     // and is unwired deterministically on package dispose.
     private TrustGateInfoBar? _trustGateInfoBar;
 
+    // One-shot InfoBar shown the first time a .csx macro file is opened in the editor.
+    // Persists HasShownTriggerHint so the hint never reappears after dismissal.
+    private TriggerHintInfoBar? _triggerHintInfoBar;
+
+    // Direct reference to the IMacroService instance — set inside the AddService factory so
+    // the document-open recording handler can push OnFileOpen(path) without a service-
+    // container round-trip on the hot path. Volatile so the UI-thread handler sees the
+    // write that happened on whichever thread first resolved the service.
+    private volatile IMacroService? _recordingServiceRef;
+
+    // DocumentEvents subscription used to forward file opens into the recording session.
+    // Stored on a field so the event source stays rooted and the handler can be unsubscribed
+    // deterministically on package dispose (same pattern as _commandEvents).
+    private Community.VisualStudio.Toolkit.DocumentEvents? _recordingDocumentEvents;
+
     /// <inheritdoc />
     protected override async Task InitializeAsync(CancellationToken cancellationToken, IProgress<ServiceProgressData> progress)
     {
+        // Publish the package handle BEFORE awaiting anything. Observers / handlers wired
+        // below resolve our custom services (IMacroService, IMacroStore, IMacroEventBus,
+        // IMacroPlayer, IMacroTriggerRegistry) via this.GetServiceAsync(...) — that path
+        // queries the package's own container, which is populated by AddService(...) calls
+        // synchronously, instead of the global VS.GetRequiredServiceAsync<T,T>() path that
+        // only sees promoted services AFTER SetSite has fully completed.
+        Instance = this;
+
         await base.InitializeAsync(cancellationToken, progress);
 
         // 1. Register IMacroService FIRST so consumers (status bar, commands, tool window) can
@@ -120,7 +156,18 @@ public sealed class MacrosPackage : ToolkitPackage
         var sharedStorage = new Lazy<IMacroStore>(
             () =>
             {
-                var folder = MacrosPaths.ResolveGlobalFolder(MacrosOptions.Instance.GlobalMacrosFolder);
+                var folder = MacrosPaths.ResolveGlobalFolderOrFallback(
+                    MacrosOptions.Instance.GlobalMacrosFolder,
+                    out bool usedFallback);
+                if (usedFallback)
+                {
+                    // The user typed a malformed path in Tools → Options. Fall back to the
+                    // documented default and log to the activity log so the failure is
+                    // discoverable without crashing the storage layer at first save. We
+                    // intentionally don't pop a modal here — package init must stay quiet.
+                    System.Diagnostics.Trace.WriteLine(
+                        "Macros: configured GlobalMacrosFolder is invalid; falling back to default %APPDATA%\\Macros.");
+                }
                 // The repo-folder accessor must be cheap and non-blocking — it's invoked on
                 // every named-macro call. SolutionContextTracker (constructed below) caches
                 // the active solution's directory and updates it from solution-open /
@@ -147,10 +194,13 @@ public sealed class MacrosPackage : ToolkitPackage
             typeof(IMacroService),
             (container, ct, type) =>
             {
-                return Task.FromResult<object>(
-                    new MacroService(this.JoinableTaskFactory,
-                        maxStepsProvider: () => MacrosOptions.Instance.MaxRecordingSteps,
-                        storage: sharedStorage.Value));
+                var svc = new MacroService(this.JoinableTaskFactory,
+                    maxStepsProvider: () => MacrosOptions.Instance.MaxRecordingSteps,
+                    storage: sharedStorage.Value);
+                // Publish the instance so the document-open recording handler (wired below)
+                // can call svc.CurrentSession.OnFileOpen without a service-container lookup.
+                _recordingServiceRef = svc;
+                return Task.FromResult<object>(svc);
             },
             promote: true);
 
@@ -163,9 +213,10 @@ public sealed class MacrosPackage : ToolkitPackage
             (_, _, _) => Task.FromResult<object>(_eventBus),
             promote: true);
 
-        // 2. Register command handlers (scans this assembly for BaseCommand<T> subclasses with
-        //    [Command] attributes and wires them to the IMenuCommandService).
-        await this.RegisterCommandsAsync();
+        // 2. Register command handlers — explicit per-command calls so a failure in any
+        //    single command produces a precise stack trace instead of silently aborting
+        //    the entire reflection sweep.
+        await RegisterCommandsAsync();
 
         // 2a. Initialize the solution tracker BEFORE any consumer touches the shared storage
         //     (the trigger registry below resolves sharedStorage.Value, which lazily builds
@@ -182,6 +233,10 @@ public sealed class MacrosPackage : ToolkitPackage
         //     that carries repo macros with auto-run triggers and is neither trusted nor
         //     blocked. Triggers stay dormant until the user makes a choice.
         _trustGateInfoBar = await TrustGateInfoBar.InitializeAsync(this, _solutionTracker);
+
+        // 2c. Wire the trigger-hint InfoBar. Listens for .csx macro files being opened in
+        //     the editor and shows a one-time tip about Manage Triggers.
+        _triggerHintInfoBar = await TriggerHintInfoBar.InitializeAsync(this);
 
         // 3. Register IMacroPlayer so the play infrastructure has a resolvable producer.
         //    ScriptCompilationCache is package-lifetime (single instance on _scriptCache) so
@@ -203,13 +258,21 @@ public sealed class MacrosPackage : ToolkitPackage
         //    still be on the threadpool here.
         await JoinableTaskFactory.SwitchToMainThreadAsync(cancellationToken);
 
+        // Construct the consecutive-failure tracker BEFORE the registry so the registry can
+        // filter auto-disabled paths out of every Lookup. The tracker is shared between the
+        // registry (filtering) and both dispatchers (recording success/failure on every play)
+        // so a failing trigger macro disables itself across both command and event paths
+        // simultaneously — that's the M4 auto-disable contract.
+        _failureTracker = new MacroFailureTracker();
+
         // Construct the trigger registry over the shared store so the dispatcher can probe
         // O(1) per command. The kill-switch hook funnels MacrosOptions.DisableAllTriggers
         // back into the registry without taking a project reference on the options DLL.
         _triggerRegistry = new MacroTriggerRegistry(
             sharedStorage.Value,
             JoinableTaskFactory,
-            disableAllTriggersProvider: () => MacrosOptions.Instance.DisableAllTriggers);
+            disableAllTriggersProvider: () => MacrosOptions.Instance.DisableAllTriggers,
+            failureTracker: _failureTracker);
 
         // Construct the dispatcher. The MacroPlayer here is a fresh instance — we cannot
         // resolve via VS.GetRequiredServiceAsync from inside the package's own
@@ -223,8 +286,19 @@ public sealed class MacrosPackage : ToolkitPackage
             CommandNameCache.Instance,
             beforeTimeoutMsProvider: () => MacrosOptions.Instance.BeforeCommandTimeoutMs,
             JoinableTaskFactory,
-            tracker: null /* m4-auto-disable wires this */,
+            tracker: _failureTracker,
             guard: reentranceGuard);
+
+        // Wire the bus → registry → player pipeline. Without this dispatcher the event bus
+        // is dormant: VS.Events.* fires, but no listener turns the firing into a player
+        // invocation. The dispatcher subscribes lazily — one bus subscription per canonical
+        // name with at least one matching trigger, re-synced whenever the registry rebuilds.
+        _eventTriggerDispatcher = new EventTriggerDispatcher(
+            _triggerRegistry,
+            _eventBus,
+            dispatcherPlayer,
+            JoinableTaskFactory,
+            tracker: _failureTracker);
 
         _priorityCommandTarget = await GetServiceAsync(typeof(SVsRegisterPriorityCommandTarget)) as IVsRegisterPriorityCommandTarget;
         if (_priorityCommandTarget is not null)
@@ -256,13 +330,27 @@ public sealed class MacrosPackage : ToolkitPackage
         };
         _commandEvents.AfterExecute += _afterExecuteHandler;
 
+        // Subscribe to DocumentEvents.Opened so the recording session captures the full
+        // file path whenever a document is opened during recording (Bug #2: file-open
+        // path capture). The same VS.Events.DocumentEvents pattern used by TriggerHintInfoBar
+        // fires for every document that gains its first editor frame — including files opened
+        // via File > Open dialog where the IOleCommandTarget command carries no path arg.
+        // The handler is a no-op when recording is not active (_recordingServiceRef may also
+        // be null before the first IMacroService resolve, but recording can't start before
+        // that happens, so no file opens are silently dropped in practice).
+        _recordingDocumentEvents = VS.Events.DocumentEvents;
+        _recordingDocumentEvents.Opened += OnDocumentOpenedForRecording;
+
         // 4. Register tool windows (scans this assembly for BaseToolWindow<T> subclasses).
         this.RegisterToolWindows();
 
         // 5. Wire the status bar to MacroService.StateChanged.
         await StatusBarObserver.InitializeAsync(this);
 
-        // 6. Wire UIContext activation so the VSCT VisibilityItems (Record / Stop buttons)
+        // 5a. Inject the recording-active indicator into the LEFT side of the VS status bar.
+        await RecordingStatusBarInjector.InitializeAsync(this);
+
+        // 6. Wire UIContext activationso the VSCT VisibilityItems (Record / Stop buttons)
         //    flip correctly whenever the macro engine state changes.
         _uiContextActivator = await UIContextActivator.InitializeAsync(this);
 
@@ -297,13 +385,27 @@ public sealed class MacrosPackage : ToolkitPackage
 
         if (disposing)
         {
+            // Clear the static handle before tearing down owned components so any late
+            // background callback that still races against shutdown sees a null Instance
+            // rather than a half-disposed package and skips its work cleanly.
+            if (ReferenceEquals(Instance, this))
+            {
+                Instance = null;
+            }
+
             _uiContextActivator?.Dispose();
             _recordingCapHandler?.Dispose();
+            RecordingStatusBarInjector.Dispose();
             UnregisterCommandObserver();
             UnsubscribeCommandEvents();
+            UnsubscribeRecordingDocumentEvents();
+            // Dispose the event-trigger bridge BEFORE the bus / registry so its
+            // subscription tokens unwire cleanly while their owners are still alive.
+            _eventTriggerDispatcher?.Dispose();
             _triggerRegistry?.Dispose();
             _eventBus?.Dispose();
             _trustGateInfoBar?.Dispose();
+            _triggerHintInfoBar?.Dispose();
             _solutionTracker?.Dispose();
             // Composite owns both children — disposing it tears down the global + repo
             // FileSystemMacroStore halves (and their watchers / semaphores) in one shot.
@@ -393,5 +495,77 @@ public sealed class MacrosPackage : ToolkitPackage
 
         _commandEvents = null;
         _afterExecuteHandler = null;
+    }
+
+    /// <summary>
+    /// Handler forwarded from <c>VS.Events.DocumentEvents.Opened</c>. Pushes a
+    /// <see cref="RecordedStep.FileOpenStep"/> into the active recording session when
+    /// recording is in progress. No-op at all other times.
+    /// </summary>
+    /// <remarks>
+    /// Fires on the UI thread. Failure is swallowed so a bad file path or an unexpected
+    /// session state never tears down the VS document-event source for the whole session.
+    /// </remarks>
+    private void OnDocumentOpenedForRecording(string filePath)
+    {
+        try
+        {
+            var session = _recordingServiceRef?.CurrentSession;
+            if (session is { IsCapturing: true })
+            {
+                session.OnFileOpen(filePath);
+            }
+        }
+        catch
+        {
+            // Defensive: recording infrastructure must never crash the VS event system.
+        }
+    }
+
+    /// <summary>
+    /// Detaches the <c>DocumentEvents.Opened</c> subscription used to forward file opens
+    /// into the recording session. Defensive against a partially-initialised package.
+    /// </summary>
+    private void UnsubscribeRecordingDocumentEvents()
+    {
+        ThreadHelper.ThrowIfNotOnUIThread();
+
+        if (_recordingDocumentEvents is not null)
+        {
+            try
+            {
+                _recordingDocumentEvents.Opened -= OnDocumentOpenedForRecording;
+            }
+            catch
+            {
+                // Shutdown path: toolkit event source may already be torn down.
+            }
+
+            _recordingDocumentEvents = null;
+        }
+    }
+
+    private async Task RegisterCommandsAsync()
+    {
+        // Top-level commands
+        await RecordCommand.InitializeAsync(this);
+        await StopCommand.InitializeAsync(this);
+        await PlayLastCommand.InitializeAsync(this);
+        await ShowToolWindowCommand.InitializeAsync(this);
+        await SaveAsCommand.InitializeAsync(this);
+        await DeleteCommand.InitializeAsync(this);
+        await RenameCommand.InitializeAsync(this);
+        await EditCommand.InitializeAsync(this);
+        await ToggleTriggersCommand.InitializeAsync(this);
+
+        // Context-menu commands
+        await PlayContextCommand.InitializeAsync(this);
+        await EditContextCommand.InitializeAsync(this);
+        await RenameContextCommand.InitializeAsync(this);
+        await DeleteContextCommand.InitializeAsync(this);
+        await OpenFolderContextCommand.InitializeAsync(this);
+        await MoveToRepoCommand.InitializeAsync(this);
+        await MoveToGlobalCommand.InitializeAsync(this);
+        await ManageTriggersContextCommand.InitializeAsync(this);
     }
 }

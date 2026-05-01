@@ -14,7 +14,7 @@ namespace Macros.Commands.Context;
 /// macro source is written to the Repo scope and deleted from Global; a conflict
 /// (same name already exists in Repo) is resolved by prompting the user to overwrite.
 /// </summary>
-[Command(PackageGuids.CommandSetGuidString, PackageIds.cmdidMacrosCtxMoveToRepo)]
+[Command(PackageGuids.guidMacrosPackageCmdSetString, PackageIds.cmdidMacrosCtxMoveToRepo)]
 internal sealed class MoveToRepoCommand : BaseCommand<MoveToRepoCommand>
 {
     /// <inheritdoc />
@@ -42,7 +42,8 @@ internal sealed class MoveToRepoCommand : BaseCommand<MoveToRepoCommand>
             return;
         }
 
-        var storage = await VS.GetRequiredServiceAsync<IMacroStore, IMacroStore>();
+        var storage = await Package.GetServiceAsync(typeof(IMacroStore)) as IMacroStore
+            ?? throw new InvalidOperationException("IMacroStore is not registered in the package container.");
         try
         {
             var source = await storage.LoadByNameAsync(current.Name, MacroScope.Global);

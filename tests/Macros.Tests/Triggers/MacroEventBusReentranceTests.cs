@@ -1,8 +1,7 @@
-using System;
-using System.Collections.Generic;
-using System.Threading;
-using System.Threading.Tasks;
 using Macros.Engine.Triggers;
+
+using System;
+
 using Xunit;
 
 namespace Macros.Tests.Triggers;
@@ -140,7 +139,6 @@ public sealed class MacroEventBusReentranceTests
         var src1 = new FakeSource();
         var src2 = new FakeSource();
         const string name1 = "Test.Fired1";
-        const string name2 = "Test.Fired2";
 
         var known1 = new KnownVsEvent(name1, "Test", nameof(FakeSource.Fired), typeof(EventArgs), typeof(FakeSource));
 

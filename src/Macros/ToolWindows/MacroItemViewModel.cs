@@ -97,6 +97,14 @@ public sealed class MacroItemViewModel : INotifyPropertyChanged
     public string ModifiedRelative => FormatModifiedRelative(Descriptor.Modified, DateTimeOffset.UtcNow);
 
     /// <summary>
+    /// Gets the compound screen-reader label for the row. Concatenates the macro name, the
+    /// triggers summary, and the relative modified timestamp via
+    /// <see cref="AccessibilityHelpers.FormatMacroAutomationName"/> so Narrator/JAWS announce
+    /// "Macro Greeting, Manual, modified 5m" instead of just "Greeting".
+    /// </summary>
+    public string AutomationName => AccessibilityHelpers.FormatMacroAutomationName(Descriptor, TriggersSummary, ModifiedRelative);
+
+    /// <summary>
     /// Gets the group label this row belongs to in the tool window's grouped ListView. The
     /// XAML's <c>PropertyGroupDescription</c> binds to this property, so it is plain text and
     /// identical to the corresponding <see cref="MacroGroupViewModel.Header"/>.

@@ -12,7 +12,7 @@ namespace Macros.Commands.Context;
 /// the new name against <see cref="IMacroStore.IsValidName"/> and checks for collisions
 /// before committing the rename.
 /// </summary>
-[Command(PackageGuids.CommandSetGuidString, PackageIds.cmdidMacrosCtxRename)]
+[Command(PackageGuids.guidMacrosPackageCmdSetString, PackageIds.cmdidMacrosCtxRename)]
 internal sealed class RenameContextCommand : BaseCommand<RenameContextCommand>
 {
     /// <inheritdoc />
@@ -21,7 +21,8 @@ internal sealed class RenameContextCommand : BaseCommand<RenameContextCommand>
         var current = MacroSelectionContext.Current;
         if (current is null) return;
 
-        var storage = await VS.GetRequiredServiceAsync<IMacroStore, IMacroStore>();
+        var storage = await Package.GetServiceAsync(typeof(IMacroStore)) as IMacroStore
+            ?? throw new InvalidOperationException("IMacroStore is not registered in the package container.");
 
         var vm = new RenameDialogViewModel(current, storage);
         var dlg = new RenameDialog { DataContext = vm };

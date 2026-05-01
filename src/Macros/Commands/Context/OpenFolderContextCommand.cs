@@ -12,7 +12,7 @@ namespace Macros.Commands.Context;
 /// Explorer with the macro's .csx file selected so the user can poke at sibling macros or
 /// drop the file into source control.
 /// </summary>
-[Command(PackageGuids.CommandSetGuidString, PackageIds.cmdidMacrosCtxOpenFolder)]
+[Command(PackageGuids.guidMacrosPackageCmdSetString, PackageIds.cmdidMacrosCtxOpenFolder)]
 internal sealed class OpenFolderContextCommand : BaseCommand<OpenFolderContextCommand>
 {
     /// <inheritdoc />

@@ -22,6 +22,7 @@ public sealed class ContextCommandSmokeTests
     private const int CmdCtxEdit = 0x2111;
     private const int CmdCtxRename = 0x2112;
     private const int CmdCtxDelete = 0x2113;
+    private const int CmdCtxManageTriggers = 0x2116;
     private const int CmdCtxOpenFolder = 0x2210;
 
     [Theory]
@@ -29,6 +30,7 @@ public sealed class ContextCommandSmokeTests
     [InlineData("Macros.Commands.Context.EditContextCommand", CmdCtxEdit)]
     [InlineData("Macros.Commands.Context.RenameContextCommand", CmdCtxRename)]
     [InlineData("Macros.Commands.Context.DeleteContextCommand", CmdCtxDelete)]
+    [InlineData("Macros.Commands.Context.ManageTriggersContextCommand", CmdCtxManageTriggers)]
     [InlineData("Macros.Commands.Context.OpenFolderContextCommand", CmdCtxOpenFolder)]
     public void ContextCommandHandler_HasMatchingCommandAttribute(string typeFullName, int expectedCmdId)
     {
@@ -60,6 +62,7 @@ public sealed class ContextCommandSmokeTests
             "Macros.Commands.Context.EditContextCommand",
             "Macros.Commands.Context.RenameContextCommand",
             "Macros.Commands.Context.DeleteContextCommand",
+            "Macros.Commands.Context.ManageTriggersContextCommand",
             "Macros.Commands.Context.OpenFolderContextCommand",
         };
 

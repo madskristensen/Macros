@@ -44,8 +44,19 @@ public sealed class MacrosToolWindowViewModelTests
             g =>
             {
                 Assert.Equal(MacroScope.Global, g.Scope);
+                Assert.False(g.IsShadowed);
                 Assert.True(g.IsAvailable);
                 Assert.Equal(new[] { "Global-A", "Global-B" }, g.Items.Select(i => i.Name));
+            },
+            g =>
+            {
+                // Third group is the "Shadowed Global Macros" overflow — empty (and so
+                // collapsed) when no global names collide with a repo macro.
+                Assert.Equal(MacroScope.Global, g.Scope);
+                Assert.True(g.IsShadowed);
+                Assert.Empty(g.Items);
+                Assert.False(g.IsAvailable);
+                Assert.False(g.IsVisible);
             });
 
         Assert.False(vm.IsEmpty);
@@ -79,7 +90,7 @@ public sealed class MacrosToolWindowViewModelTests
 
         vm.FilterText = "form";
 
-        var global = vm.Groups.Single(g => g.Scope == MacroScope.Global);
+        var global = vm.Groups.Single(g => g.Scope == MacroScope.Global && !g.IsShadowed);
         // VM sorts case-insensitively by Name; "format-helper" < "Format-On-Save" because
         // after the shared "format-" prefix 'h' (0x68) < 'O' (0x4F) under OrdinalIgnoreCase.
         Assert.Equal(
@@ -99,7 +110,7 @@ public sealed class MacrosToolWindowViewModelTests
 
         vm.FilterText = "zzz";
 
-        var global = vm.Groups.Single(g => g.Scope == MacroScope.Global);
+        var global = vm.Groups.Single(g => g.Scope == MacroScope.Global && !g.IsShadowed);
         Assert.Empty(global.VisibleItems);
         Assert.False(global.IsVisible);
         Assert.True(vm.IsEmpty);
@@ -123,7 +134,7 @@ public sealed class MacrosToolWindowViewModelTests
         await Task.WhenAny(nextLoad, Task.Delay(TimeSpan.FromSeconds(2)));
 
         Assert.True(vm.LoadCount > initial);
-        var global = vm.Groups.Single(g => g.Scope == MacroScope.Global);
+        var global = vm.Groups.Single(g => g.Scope == MacroScope.Global && !g.IsShadowed);
         Assert.Equal(new[] { "First", "Second" }, global.Items.Select(i => i.Name));
     }
 
@@ -165,7 +176,7 @@ public sealed class MacrosToolWindowViewModelTests
         using var vm = new MacrosToolWindowViewModel(storage, service, debounceInterval: TimeSpan.Zero);
         await vm.LoadAsync();
 
-        var global = vm.Groups.Single(g => g.Scope == MacroScope.Global);
+        var global = vm.Groups.Single(g => g.Scope == MacroScope.Global && !g.IsShadowed);
         Assert.All(global.Items, item => Assert.True(item.CanInvoke));
 
         service.RaiseStateChanged(MacroState.Idle, MacroState.Playing);
@@ -185,7 +196,7 @@ public sealed class MacrosToolWindowViewModelTests
         using var vm = new MacrosToolWindowViewModel(storage, service, debounceInterval: TimeSpan.Zero);
         await vm.LoadAsync();
 
-        var item = vm.Groups.Single(g => g.Scope == MacroScope.Global).Items.Single();
+        var item = vm.Groups.Single(g => g.Scope == MacroScope.Global && !g.IsShadowed).Items.Single();
         Assert.True(item.PlayCommand.CanExecute(null));
 
         item.PlayCommand.Execute(null);
@@ -239,7 +250,7 @@ public sealed class MacrosToolWindowViewModelTests
         await Task.WhenAny(next, Task.Delay(TimeSpan.FromSeconds(2)));
 
         Assert.True(vm.LoadCount > before);
-        Assert.Equal(2, vm.Groups.Single(g => g.Scope == MacroScope.Global).Items.Count);
+        Assert.Equal(2, vm.Groups.Single(g => g.Scope == MacroScope.Global && !g.IsShadowed).Items.Count);
     }
 
     // ─── Test doubles ─────────────────────────────────────────────────────────────────

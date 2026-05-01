@@ -59,6 +59,9 @@ namespace Macros
         public const int cmdidMacrosCtxEdit = 0x2111;
         public const int cmdidMacrosCtxRename = 0x2112;
         public const int cmdidMacrosCtxDelete = 0x2113;
+        public const int cmdidMacrosCtxMoveToRepo = 0x2114;
+        public const int cmdidMacrosCtxMoveToGlobal = 0x2115;
+        public const int cmdidMacrosCtxManageTriggers = 0x2116;
         public const int cmdidMacrosCtxOpenFolder = 0x2210;
     }
 }

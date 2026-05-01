@@ -1,11 +1,16 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using Macros.Engine;
 using Macros.Engine.Player;
 using Macros.Engine.Storage;
 using Macros.Engine.Triggers;
 using Macros.Commands;
+using Macros.Lifecycle;
+using Macros.Options;
+using Macros.Trust;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Threading;
 
@@ -57,6 +62,7 @@ internal sealed class CommandTriggerDispatcher
     private readonly Func<MacroEntry, string?> _sourceLoader;
     private readonly IMacroService? _macroService;
     private readonly TriggerReentranceGuard? _reentranceGuard;
+    private readonly Func<MacroEntry, bool> _trustGate;
 
     /// <summary>
     /// Initializes a new <see cref="CommandTriggerDispatcher"/>.
@@ -86,6 +92,13 @@ internal sealed class CommandTriggerDispatcher
     /// same command (same prefix+name) or depth-exceeded dispatches are suppressed silently.
     /// Pass <see langword="null"/> (default) for backward-compatible behaviour with no
     /// reentrance protection.</param>
+    /// <param name="macroService">Optional service handle used to raise
+    /// <c>TriggeredExecutionStarted</c> / <c>TriggeredExecutionEnded</c> for the status bar.</param>
+    /// <param name="trustGate">Optional override for the per-entry trust check. When
+    /// <see langword="null"/>, defaults to <see cref="TrustGate.IsAllowed"/> against
+    /// <see cref="MacrosOptions.Instance"/> and the active solution path tracked by
+    /// <see cref="SolutionContextTracker.Current"/>. Tests inject a deterministic predicate
+    /// to avoid touching VS-hosted statics.</param>
     public CommandTriggerDispatcher(
         IMacroTriggerRegistry registry,
         IMacroPlayer player,
@@ -95,7 +108,8 @@ internal sealed class CommandTriggerDispatcher
         IMacroFailureTracker? tracker = null,
         Func<MacroEntry, string?>? sourceLoader = null,
         TriggerReentranceGuard? guard = null,
-        IMacroService? macroService = null)
+        IMacroService? macroService = null,
+        Func<MacroEntry, bool>? trustGate = null)
     {
         _registry = registry ?? throw new ArgumentNullException(nameof(registry));
         _player = player ?? throw new ArgumentNullException(nameof(player));
@@ -106,6 +120,7 @@ internal sealed class CommandTriggerDispatcher
         _sourceLoader = sourceLoader ?? DefaultSourceLoader;
         _reentranceGuard = guard;
         _macroService = macroService;
+        _trustGate = trustGate ?? DefaultTrustGate;
     }
 
     /// <summary>
@@ -138,6 +153,16 @@ internal sealed class CommandTriggerDispatcher
         {
             return false;
         }
+
+        // Trust gate: drop repo-scoped matches whose solution is not currently trusted.
+        // The InfoBar still surfaces the entries in the tool window so the user can see
+        // them and choose to trust; only AUTOMATIC trigger-driven dispatch is gated here.
+        var allowed = FilterByTrust(matches);
+        if (allowed.Count == 0)
+        {
+            return false;
+        }
+        matches = allowed;
 
         var key = $"before:{commandName}";
         if (_reentranceGuard != null && !_reentranceGuard.TryEnter(key, out var beforeScope))
@@ -253,6 +278,13 @@ internal sealed class CommandTriggerDispatcher
             return;
         }
 
+        var allowed = FilterByTrust(matches);
+        if (allowed.Count == 0)
+        {
+            return;
+        }
+        matches = allowed;
+
         var key = $"after:{commandName}";
 
         foreach (var match in matches)
@@ -314,6 +346,46 @@ internal sealed class CommandTriggerDispatcher
                     }
                 }
             }).FileAndForget("Macros/AfterCommand");
+        }
+    }
+
+    private IReadOnlyList<TriggerMatch> FilterByTrust(IReadOnlyList<TriggerMatch> matches)
+    {
+        if (matches.Count == 0) return matches;
+
+        List<TriggerMatch>? kept = null;
+        for (int i = 0; i < matches.Count; i++)
+        {
+            var m = matches[i];
+            bool ok;
+            try { ok = _trustGate(m.Entry); }
+            catch { ok = false; }   // a throwing trust gate fails closed.
+
+            if (ok)
+            {
+                kept?.Add(m);
+            }
+            else if (kept is null)
+            {
+                kept = new List<TriggerMatch>(matches.Count);
+                for (int j = 0; j < i; j++) kept.Add(matches[j]);
+            }
+        }
+        return kept ?? matches;
+    }
+
+    private static bool DefaultTrustGate(MacroEntry entry)
+    {
+        try
+        {
+            var soln = SolutionContextTracker.Current?.GetCurrentSolutionPath();
+            return TrustGate.IsAllowed(entry, MacrosOptions.Instance, soln);
+        }
+        catch
+        {
+            // Fail-safe: when option/static state isn't reachable (e.g. unit-test host
+            // without VS settings store), only Global entries are allowed to dispatch.
+            return entry?.Scope == MacroScope.Global;
         }
     }
 

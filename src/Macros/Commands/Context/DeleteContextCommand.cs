@@ -18,7 +18,7 @@ namespace Macros.Commands.Context;
 /// nested class adapts <c>VS.MessageBox</c>, <c>VS.StatusBar</c>, and <c>VS.Windows</c> into
 /// the <see cref="IDeleteCommandUI"/> contract.
 /// </remarks>
-[Command(PackageGuids.CommandSetGuidString, PackageIds.cmdidMacrosCtxDelete)]
+[Command(PackageGuids.guidMacrosPackageCmdSetString, PackageIds.cmdidMacrosCtxDelete)]
 internal sealed class DeleteContextCommand : BaseCommand<DeleteContextCommand>
 {
     /// <inheritdoc />
@@ -30,7 +30,8 @@ internal sealed class DeleteContextCommand : BaseCommand<DeleteContextCommand>
             return;
         }
 
-        var storage = await VS.GetRequiredServiceAsync<IMacroStore, IMacroStore>();
+        var storage = await Package.GetServiceAsync(typeof(IMacroStore)) as IMacroStore
+            ?? throw new InvalidOperationException("IMacroStore is not registered in the package container.");
         await DeleteCoreAsync(current, storage, VsDeleteCommandUI.Instance);
     }
 

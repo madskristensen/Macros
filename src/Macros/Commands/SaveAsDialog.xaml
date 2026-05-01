@@ -4,6 +4,7 @@
                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                    xmlns:vsui="clr-namespace:Microsoft.VisualStudio.PlatformUI;assembly=Microsoft.VisualStudio.Shell.15.0"
                    Title="Save Macro As"
+                   AutomationProperties.Name="Save Macro As"
                    WindowStartupLocation="CenterOwner"
                    ResizeMode="NoResize"
                    ShowInTaskbar="False"
@@ -11,6 +12,19 @@
                    MinWidth="400"
                    HasMinimizeButton="False"
                    HasMaximizeButton="False">
+
+    <!-- Accessibility:
+         - DialogWindow exposes AutomationProperties.Name matching the title.
+         - Name TextBox is labelled by the "Name:" TextBlock via AutomationProperties.LabeledBy
+           so screen readers announce "Name, edit" rather than just "edit".
+         - Scope radio buttons use access keys (_Global, _Repo) and clear Content text.
+         - Tab order follows document order: Name → Global radio → Repo radio → Save → Cancel.
+         - Save button has IsDefault=True (Enter submits) and access key (_Save / Alt+S).
+         - Cancel button has IsCancel=True (Esc cancels) and access key (_Cancel / Alt+C).
+         - Validation TextBlock uses AutomationProperties.LiveSetting="Polite" so screen
+           readers announce errors without interrupting the user.
+         - Initial focus moves to NameTextBox in the Loaded handler (code-behind).
+    -->
 
     <vsui:DialogWindow.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis" />
@@ -31,6 +45,7 @@
 
         <!-- Row 0: Name label + TextBox -->
         <TextBlock Grid.Row="0" Grid.Column="0"
+                   x:Name="NameLabel"
                    Text="Name:"
                    VerticalAlignment="Center"
                    Margin="0,0,8,8"
@@ -38,6 +53,7 @@
         <TextBox Grid.Row="0" Grid.Column="1"
                  x:Name="NameTextBox"
                  Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}"
+                 AutomationProperties.LabeledBy="{Binding ElementName=NameLabel}"
                  MinWidth="280"
                  Margin="0,0,0,8"
                  Foreground="{DynamicResource {x:Static vsui:EnvironmentColors.ComboBoxTextBrushKey}}"
@@ -52,14 +68,16 @@
                    Foreground="{DynamicResource {x:Static vsui:EnvironmentColors.DialogTextBrushKey}}" />
         <StackPanel Grid.Row="1" Grid.Column="1" Margin="0,0,0,8">
             <StackPanel Orientation="Horizontal">
-                <RadioButton Content="Global"
+                <RadioButton Content="_Global"
                              IsChecked="{Binding IsGlobal, Mode=TwoWay}"
+                             AutomationProperties.Name="Global scope"
                              Margin="0,0,16,0"
                              VerticalAlignment="Center"
                              Foreground="{DynamicResource {x:Static vsui:EnvironmentColors.DialogTextBrushKey}}" />
-                <RadioButton Content="Repo (this solution)"
+                <RadioButton Content="_Repo (this solution)"
                              IsChecked="{Binding IsRepo, Mode=TwoWay}"
                              IsEnabled="{Binding IsRepoEnabled}"
+                             AutomationProperties.Name="Repo scope"
                              ToolTipService.ShowOnDisabled="True"
                              ToolTip="{Binding RepoTooltip}"
                              VerticalAlignment="Center"
@@ -67,6 +85,7 @@
             </StackPanel>
             <TextBlock Margin="0,8,0,0"
                        Text="{Binding PathPreview}"
+                       AutomationProperties.Name="Save path preview"
                        FontStyle="Italic"
                        Foreground="{DynamicResource {x:Static vsui:EnvironmentColors.ToolWindowTextBrushKey}}"
                        Opacity="0.7" />
@@ -77,6 +96,8 @@
                    Text="{Binding ValidationMessage}"
                    TextWrapping="Wrap"
                    Margin="0,0,0,4"
+                   AutomationProperties.LiveSetting="Polite"
+                   AutomationProperties.Name="Validation message"
                    Foreground="{DynamicResource {x:Static vsui:EnvironmentColors.ToolWindowTextBrushKey}}"
                    Visibility="{Binding HasValidationMessage, Converter={StaticResource BoolToVis}}" />
 
@@ -86,14 +107,16 @@
         <StackPanel Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="2"
                     Orientation="Horizontal"
                     HorizontalAlignment="Right">
-            <Button Content="Save"
+            <Button Content="_Save"
                     IsDefault="True"
                     IsEnabled="{Binding CanSave}"
+                    AutomationProperties.Name="Save"
                     MinWidth="75"
                     Margin="0,0,8,0"
                     Click="SaveButton_Click" />
-            <Button Content="Cancel"
+            <Button Content="_Cancel"
                     IsCancel="True"
+                    AutomationProperties.Name="Cancel"
                     MinWidth="75"
                     Click="CancelButton_Click" />
         </StackPanel>

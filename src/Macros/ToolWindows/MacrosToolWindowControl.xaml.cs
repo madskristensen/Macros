@@ -93,6 +93,42 @@ public partial class MacrosToolWindowControl : UserControl
         }
     }
 
+    /// <summary>
+    /// Keyboard alternative to right-click: pressing the Apps (context menu) key or
+    /// Shift+F10 on a focused macro row opens the same VSCT context menu the mouse handler
+    /// shows. Without this, screen-reader and keyboard-only users would have no way to
+    /// reach the per-row Edit / Rename / Delete commands the M3 wave wired up.
+    /// </summary>
+    private void MacroRow_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Apps && !(e.Key == Key.F10 && (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift))
+        {
+            return;
+        }
+
+        ThreadHelper.ThrowIfNotOnUIThread();
+
+        if (sender is FrameworkElement fe && fe.DataContext is MacroItemViewModel item)
+        {
+            MacroSelectionContext.Current = item.Descriptor;
+            try
+            {
+                // Anchor the menu to the bottom-left of the focused row so it appears in a
+                // sensible spot relative to the keyboard's "current item" rather than the
+                // last mouse position.
+                Point screen = fe.PointToScreen(new Point(0, fe.ActualHeight));
+                ShowContextMenuAtScreen(screen);
+            }
+            catch (Exception)
+            {
+                // Same defensive swallow as the mouse handler — a missing IVsUIShell during
+                // hosted tests must not crash the tool window.
+            }
+
+            e.Handled = true;
+        }
+    }
+
     private static void ShowContextMenuAtScreen(Point screen)
     {
         ThreadHelper.ThrowIfNotOnUIThread();
@@ -105,7 +141,7 @@ public partial class MacrosToolWindowControl : UserControl
 
         var pts = new[] { new POINTS { x = (short)screen.X, y = (short)screen.Y } };
 
-        Guid cmdSetGuid = new(PackageGuids.CommandSetGuidString);
+        Guid cmdSetGuid = PackageGuids.guidMacrosPackageCmdSet;
         uiShell.ShowContextMenu(
             dwCompRole: 0,
             rclsidActive: ref cmdSetGuid,

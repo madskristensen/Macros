@@ -2,6 +2,7 @@ using System;
 using System.ComponentModel.Composition;
 using System.Threading;
 using Community.VisualStudio.Toolkit;
+using Macros;
 using Macros.Engine;
 using Microsoft.VisualStudio.Text.Editor;
 using Microsoft.VisualStudio.Threading;
@@ -86,7 +87,12 @@ internal sealed class TextEditObserverProvider : IWpfTextViewCreationListener
         {
             try
             {
-                var resolved = await VS.GetRequiredServiceAsync<IMacroService, IMacroService>();
+                var package = MacrosPackage.Instance
+                    ?? throw new InvalidOperationException(
+                        "MacrosPackage is not initialized — cannot resolve IMacroService.");
+                var resolved = await package.GetServiceAsync(typeof(IMacroService)) as IMacroService
+                    ?? throw new InvalidOperationException(
+                        "IMacroService is not registered in the package container.");
                 Volatile.Write(ref s_service, resolved);
             }
             catch (Exception ex)

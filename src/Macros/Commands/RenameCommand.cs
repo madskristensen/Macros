@@ -10,7 +10,7 @@ namespace Macros.Commands;
 /// Stub handler for <c>Macros: Rename</c>. Disabled until M3 introduces the macro list and a
 /// selection model the command can act on.
 /// </summary>
-[Command(PackageGuids.CommandSetGuidString, PackageIds.cmdidMacrosRename)]
+[Command(PackageGuids.guidMacrosPackageCmdSetString, PackageIds.cmdidMacrosRename)]
 internal sealed class RenameCommand : BaseCommand<RenameCommand>
 {
     /// <inheritdoc />

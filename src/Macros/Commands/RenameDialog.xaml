@@ -4,6 +4,7 @@
                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                    xmlns:vsui="clr-namespace:Microsoft.VisualStudio.PlatformUI;assembly=Microsoft.VisualStudio.Shell.15.0"
                    Title="Rename Macro"
+                   AutomationProperties.Name="Rename Macro"
                    WindowStartupLocation="CenterOwner"
                    ResizeMode="NoResize"
                    ShowInTaskbar="False"
@@ -11,6 +12,18 @@
                    MinWidth="380"
                    HasMinimizeButton="False"
                    HasMaximizeButton="False">
+
+    <!-- Accessibility:
+         - DialogWindow exposes AutomationProperties.Name matching the title.
+         - New name TextBox is labelled by the "New name:" TextBlock via
+           AutomationProperties.LabeledBy so screen readers announce a useful field name.
+         - Tab order follows document order: New name → Rename → Cancel.
+         - Rename button has IsDefault=True (Enter submits) and access key (_Rename / Alt+R).
+         - Cancel button has IsCancel=True (Esc cancels) and access key (_Cancel / Alt+C).
+         - Validation TextBlock uses AutomationProperties.LiveSetting="Polite" so screen
+           readers announce errors without interrupting.
+         - Initial focus moves to NewNameTextBox in the Loaded handler (code-behind).
+    -->
 
     <vsui:DialogWindow.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis" />
@@ -37,6 +50,7 @@
 
         <!-- Row 1: New name TextBox -->
         <TextBlock Grid.Row="1" Grid.Column="0"
+                   x:Name="NewNameLabel"
                    Text="New name:"
                    VerticalAlignment="Center"
                    Margin="0,0,8,8"
@@ -44,6 +58,7 @@
         <TextBox Grid.Row="1" Grid.Column="1"
                  x:Name="NewNameTextBox"
                  Text="{Binding NewName, UpdateSourceTrigger=PropertyChanged}"
+                 AutomationProperties.LabeledBy="{Binding ElementName=NewNameLabel}"
                  MinWidth="260"
                  Margin="0,0,0,8"
                  Foreground="{DynamicResource {x:Static vsui:EnvironmentColors.ComboBoxTextBrushKey}}"
@@ -55,6 +70,8 @@
                    Text="{Binding ValidationMessage}"
                    TextWrapping="Wrap"
                    Margin="0,0,0,4"
+                   AutomationProperties.LiveSetting="Polite"
+                   AutomationProperties.Name="Validation message"
                    Foreground="{DynamicResource {x:Static vsui:EnvironmentColors.ToolWindowTextBrushKey}}"
                    Visibility="{Binding HasValidationMessage, Converter={StaticResource BoolToVis}}" />
 
@@ -64,14 +81,16 @@
         <StackPanel Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="2"
                     Orientation="Horizontal"
                     HorizontalAlignment="Right">
-            <Button Content="Rename"
+            <Button Content="_Rename"
                     IsDefault="True"
                     IsEnabled="{Binding CanRename}"
+                    AutomationProperties.Name="Rename"
                     MinWidth="75"
                     Margin="0,0,8,0"
                     Click="RenameButton_Click" />
-            <Button Content="Cancel"
+            <Button Content="_Cancel"
                     IsCancel="True"
+                    AutomationProperties.Name="Cancel"
                     MinWidth="75"
                     Click="CancelButton_Click" />
         </StackPanel>

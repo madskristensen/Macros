@@ -19,28 +19,66 @@ namespace Macros.Commands;
 /// constraint.
 /// </para>
 /// </remarks>
-[Command(PackageGuids.CommandSetGuidString, PackageIds.cmdidMacrosRecord)]
+[Command(PackageGuids.guidMacrosPackageCmdSetString, PackageIds.cmdidMacrosRecord)]
 internal sealed class RecordCommand : BaseCommand<RecordCommand>
 {
     private IMacroService? _service;
+    private bool _resolveStarted;
 
-    /// <inheritdoc />
-    protected override async Task InitializeCompletedAsync()
+    /// <summary>
+    /// Lazily resolves <see cref="IMacroService"/> on first use and caches the result.
+    /// Uses the package container directly instead of <c>ServiceProvider.GlobalProvider</c>,
+    /// which does not reliably surface promoted custom services after <c>SetSite</c> returns.
+    /// </summary>
+    private async Task<IMacroService> GetServiceAsync()
     {
-        _service = await VS.GetRequiredServiceAsync<IMacroService, IMacroService>();
+        if (_service is not null) return _service;
+        return _service = await Package.GetServiceAsync(typeof(IMacroService)) as IMacroService
+            ?? throw new InvalidOperationException(
+                "IMacroService is not registered in the package container.");
+    }
+
+    /// <summary>
+    /// Kicks off background resolution the first time VS queries the command's status, so the
+    /// menu/toolbar button can transition from disabled to enabled without the user having to
+    /// click first. Fire-and-forget on the package's <see cref="JoinableTaskFactory"/>; any
+    /// failure is logged and the flag reset so a future query retries.
+    /// </summary>
+    private void EnsureResolveStarted()
+    {
+        if (_service is not null || _resolveStarted) return;
+        _resolveStarted = true;
+        Package.JoinableTaskFactory.RunAsync(async () =>
+        {
+            try
+            {
+                await GetServiceAsync();
+            }
+            catch (Exception ex)
+            {
+                _resolveStarted = false;
+                await ex.LogAsync();
+            }
+        }).FileAndForget("Macros/RecordCommand/ServiceResolve");
     }
 
     /// <inheritdoc />
     protected override async Task ExecuteAsync(OleMenuCmdEventArgs e)
     {
-        if (_service is null)
+        IMacroService service;
+        try
         {
+            service = await GetServiceAsync();
+        }
+        catch (Exception ex)
+        {
+            await ex.LogAsync();
             return;
         }
 
         try
         {
-            await _service.StartRecordingAsync();
+            await service.StartRecordingAsync();
         }
         catch (InvalidOperationException)
         {
@@ -52,6 +90,7 @@ internal sealed class RecordCommand : BaseCommand<RecordCommand>
     /// <inheritdoc />
     protected override void BeforeQueryStatus(EventArgs e)
     {
+        EnsureResolveStarted();
         Command.Enabled = _service is { State: MacroState.Idle };
     }
 }

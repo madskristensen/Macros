@@ -825,12 +825,13 @@ public sealed class FileSystemMacroStore : IMacroStore, IDisposable
             int stepCount = ParseStepCount(headerText);
             return (stepCount, Array.Empty<TriggerBinding>());
         }
-        catch (IOException)
+        catch (Exception)
         {
-            return (0, Array.Empty<TriggerBinding>());
-        }
-        catch (UnauthorizedAccessException)
-        {
+            // Any failure reading or parsing the header (IO, access, decoder errors,
+            // exotic file system quirks) degrades to defaults rather than dropping the
+            // entry from the listing. The user still sees the macro in the tool window
+            // — they just don't get the step count / trigger badges until they fix the
+            // file. A throw here would propagate to ListAsync and crash the whole panel.
             return (0, Array.Empty<TriggerBinding>());
         }
     }

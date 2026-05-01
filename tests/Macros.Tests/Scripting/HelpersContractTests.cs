@@ -182,6 +182,7 @@ public sealed class HelpersContractTests
     [InlineData(nameof(Helpers.ExecuteCommandAsync))]
     [InlineData(nameof(Helpers.RunCommandAsync))]
     [InlineData(nameof(Helpers.WaitAsync))]
+    [InlineData(nameof(Helpers.OpenFileAsync))]
     public void Helpers_AllVerbsAreStaticAsync(string methodName)
     {
         MethodInfo? method = typeof(Helpers).GetMethod(methodName, BindingFlags.Public | BindingFlags.Static);
@@ -197,6 +198,7 @@ public sealed class HelpersContractTests
     [InlineData(nameof(Helpers.ExecuteCommandAsync))]
     [InlineData(nameof(Helpers.RunCommandAsync))]
     [InlineData(nameof(Helpers.WaitAsync))]
+    [InlineData(nameof(Helpers.OpenFileAsync))]
     public void Helpers_AllVerbsAcceptOptionalCancellationToken(string methodName)
     {
         MethodInfo method = typeof(Helpers).GetMethod(methodName, BindingFlags.Public | BindingFlags.Static)!;
@@ -206,7 +208,7 @@ public sealed class HelpersContractTests
     }
 
     [Fact]
-    public void Helpers_PublicSurfaceIsExactlyTheSixVerbs()
+    public void Helpers_PublicSurfaceIsExactlyTheSevenVerbs()
     {
         // Lock the surface so accidentally adding a public method without updating the codegen
         // contract fails the test loudly.
@@ -218,6 +220,7 @@ public sealed class HelpersContractTests
             nameof(Helpers.ExecuteCommandAsync),
             nameof(Helpers.RunCommandAsync),
             nameof(Helpers.WaitAsync),
+            nameof(Helpers.OpenFileAsync),
         };
 
         var actual = typeof(Helpers)

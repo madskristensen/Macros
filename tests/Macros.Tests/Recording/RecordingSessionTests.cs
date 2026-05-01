@@ -220,6 +220,66 @@ public sealed class RecordingSessionTests
     }
 
     [Fact]
+    public async Task OnFileOpen_WhileCapturing_AppendsFileOpenStep()
+    {
+        var svc = CreateService();
+        await svc.StartRecordingAsync();
+        var session = svc.CurrentSession!;
+
+        session.OnFileOpen(@"C:\projects\MyFile.cs");
+
+        Assert.Equal(1, session.Count);
+        var steps = session.DrainAndStop();
+        var only = Assert.IsType<RecordedStep.FileOpenStep>(steps[0]);
+        Assert.Equal(@"C:\projects\MyFile.cs", only.Path);
+    }
+
+    [Fact]
+    public void OnFileOpen_WhenNotCapturing_IsNoOp()
+    {
+        var svc = CreateService();
+        var session = new RecordingSession(svc);
+        Assert.False(session.IsCapturing);
+
+        session.OnFileOpen(@"C:\projects\MyFile.cs");
+
+        Assert.Empty(session.Steps);
+    }
+
+    [Fact]
+    public async Task OnFileOpen_EmptyOrNullPath_IsNoOp()
+    {
+        var svc = CreateService();
+        await svc.StartRecordingAsync();
+        var session = svc.CurrentSession!;
+
+        session.OnFileOpen("");
+        session.OnFileOpen(null!);
+
+        Assert.Equal(0, session.Count);
+    }
+
+    [Fact]
+    public async Task OnFileOpen_FlushesAggregatorPending_BeforeRecordingFileOpen()
+    {
+        // A pending CommandStep in the aggregator should be committed when a
+        // FileOpenStep arrives (aggregator rule: non-TextEditStep always flushes pending).
+        var svc = CreateService();
+        await svc.StartRecordingAsync();
+        var session = svc.CurrentSession!;
+
+        session.OnCommand(SampleGroup, 1, "Edit.Copy");
+        session.OnFileOpen(@"C:\projects\MyFile.cs");
+
+        // After a FileOpenStep pushes through, the pending CommandStep is flushed.
+        // DrainAndStop flushes the FileOpenStep itself.
+        var steps = session.DrainAndStop();
+        Assert.Equal(2, steps.Count);
+        Assert.IsType<RecordedStep.CommandStep>(steps[0]);
+        Assert.IsType<RecordedStep.FileOpenStep>(steps[1]);
+    }
+
+    [Fact]
     public async Task ReplayGuard_IsReplaying_DoesNotLeakToParallelChain()
     {
         // Both tasks are started from the current context (depth=0). Task A enters its own

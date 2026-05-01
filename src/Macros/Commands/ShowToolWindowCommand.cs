@@ -10,7 +10,7 @@ namespace Macros.Commands;
 /// Handler for the <c>View &gt; Other Windows &gt; Macros</c> command. Shows (creating if
 /// necessary) the <see cref="MacrosToolWindow"/> dock pane.
 /// </summary>
-[Command(PackageGuids.CommandSetGuidString, PackageIds.cmdidMacrosShowWindow)]
+[Command(PackageGuids.guidMacrosPackageCmdSetString, PackageIds.cmdidMacrosShowWindow)]
 internal sealed class ShowToolWindowCommand : BaseCommand<ShowToolWindowCommand>
 {
     /// <inheritdoc />

@@ -7,7 +7,24 @@
              mc:Ignorable="d"
              Background="{DynamicResource {x:Static vsui:EnvironmentColors.ToolWindowBackgroundBrushKey}}"
              Foreground="{DynamicResource {x:Static vsui:EnvironmentColors.ToolWindowTextBrushKey}}"
+             AutomationProperties.Name="Trusted solutions options"
              d:DesignHeight="400" d:DesignWidth="600">
+
+  <!-- Accessibility:
+       - UserControl carries AutomationProperties.Name so the Tools > Options page reads as
+         "Trusted solutions options" in screen readers.
+       - The Trusted / Blocked column headers (TextBlocks) are referenced by the matching
+         ListBoxes via AutomationProperties.LabeledBy, so each list announces a meaningful
+         role + name.
+       - Move buttons (→ / ←) carry both AutomationProperties.Name (Narrator label) and a
+         ToolTip (mouse hint) because their Content is a non-readable arrow glyph.
+       - Action buttons use access keys (_Add Trusted…, Add _Blocked…, _Remove) so Alt+T /
+         Alt+B / Alt+R reach them without leaving the keyboard.
+       - Tab order follows document order: Trusted list → Move-to-Blocked → Move-to-Trusted
+         → Blocked list → Add Trusted → Add Blocked → Remove.
+       - All colours come from EnvironmentColors so high-contrast themes inherit correctly.
+  -->
+
   <Grid Margin="8">
     <Grid.RowDefinitions>
       <RowDefinition Height="Auto"/>
@@ -22,11 +39,13 @@
 
     <!-- Column headers -->
     <TextBlock Grid.Row="0" Grid.Column="0"
+               x:Name="TrustedHeader"
                Text="Trusted Solutions"
                FontWeight="SemiBold"
                Foreground="{DynamicResource {x:Static vsui:EnvironmentColors.ToolWindowTextBrushKey}}"
                Margin="0,0,0,4"/>
     <TextBlock Grid.Row="0" Grid.Column="2"
+               x:Name="BlockedHeader"
                Text="Blocked Solutions"
                FontWeight="SemiBold"
                Foreground="{DynamicResource {x:Static vsui:EnvironmentColors.ToolWindowTextBrushKey}}"
@@ -36,6 +55,7 @@
     <ListBox Grid.Row="1" Grid.Column="0"
              x:Name="TrustedList"
              SelectionMode="Extended"
+             AutomationProperties.LabeledBy="{Binding ElementName=TrustedHeader}"
              Background="{DynamicResource {x:Static vsui:EnvironmentColors.ToolWindowBackgroundBrushKey}}"
              Foreground="{DynamicResource {x:Static vsui:EnvironmentColors.ToolWindowTextBrushKey}}"
              BorderBrush="{DynamicResource {x:Static vsui:EnvironmentColors.ToolWindowBorderBrushKey}}"
@@ -48,11 +68,13 @@
       <Button x:Name="MoveToBlockedButton"
               Content="→"
               ToolTip="Move selected to Blocked"
+              AutomationProperties.Name="Move selected to Blocked"
               Width="32" Margin="0,0,0,8"
               Click="MoveToBlocked_Click"/>
       <Button x:Name="MoveToTrustedButton"
               Content="←"
               ToolTip="Move selected to Trusted"
+              AutomationProperties.Name="Move selected to Trusted"
               Width="32"
               Click="MoveToTrusted_Click"/>
     </StackPanel>
@@ -61,6 +83,7 @@
     <ListBox Grid.Row="1" Grid.Column="2"
              x:Name="BlockedList"
              SelectionMode="Extended"
+             AutomationProperties.LabeledBy="{Binding ElementName=BlockedHeader}"
              Background="{DynamicResource {x:Static vsui:EnvironmentColors.ToolWindowBackgroundBrushKey}}"
              Foreground="{DynamicResource {x:Static vsui:EnvironmentColors.ToolWindowTextBrushKey}}"
              BorderBrush="{DynamicResource {x:Static vsui:EnvironmentColors.ToolWindowBorderBrushKey}}"
@@ -72,15 +95,18 @@
                 HorizontalAlignment="Right"
                 Margin="0,8,0,0">
       <Button x:Name="AddTrustedButton"
-              Content="Add Trusted…"
+              Content="_Add Trusted…"
+              AutomationProperties.Name="Add trusted solution"
               MinWidth="90" Margin="0,0,8,0"
               Click="AddTrusted_Click"/>
       <Button x:Name="AddBlockedButton"
-              Content="Add Blocked…"
+              Content="Add _Blocked…"
+              AutomationProperties.Name="Add blocked solution"
               MinWidth="90" Margin="0,0,8,0"
               Click="AddBlocked_Click"/>
       <Button x:Name="RemoveButton"
-              Content="Remove"
+              Content="_Remove"
+              AutomationProperties.Name="Remove selected entries"
               MinWidth="70"
               Click="Remove_Click"/>
     </StackPanel>

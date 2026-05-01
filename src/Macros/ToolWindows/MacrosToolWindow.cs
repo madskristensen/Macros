@@ -1,12 +1,16 @@
 // Wired in MacrosPackage.InitializeAsync.
 
 using System;
+using System.ComponentModel.Design;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using Community.VisualStudio.Toolkit;
+using Microsoft.VisualStudio;
 using Microsoft.VisualStudio.Imaging;
+using Microsoft.VisualStudio.Shell;
+using Microsoft.VisualStudio.Shell.Interop;
 
 namespace Macros.ToolWindows;
 
@@ -60,9 +64,96 @@ public sealed class MacrosToolWindow : BaseToolWindow<MacrosToolWindow>
         public Pane()
         {
             // Generic Record icon stands in until M5 polish swaps it for a custom Macros moniker.
-            // (KnownMonikers.Recording was removed in the 17.0 image catalog; Record is the closest
-            // semantically-equivalent built-in glyph.)
             BitmapImageMoniker = KnownMonikers.Record;
+
+            // Wire the VSCT-defined tool window toolbar (Record / Stop / Refresh).
+            ToolBar = new CommandID(PackageGuids.guidMacrosPackageCmdSet, PackageIds.MacrosToolWindowToolbar);
+        }
+
+        // ── Native VS search ────────────────────────────────────────────────────────────
+
+        /// <summary>Enables the native VS search bar in the tool window chrome.</summary>
+        public override bool SearchEnabled => true;
+
+        /// <inheritdoc />
+        public override IVsSearchTask CreateSearch(
+            uint dwCookie,
+            IVsSearchQuery pSearchQuery,
+            IVsSearchCallback pSearchCallback)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            if (pSearchQuery is null || pSearchCallback is null)
+                return null!;
+
+            // Capture the search string on the UI thread to avoid accessing the COM
+            // IVsSearchQuery interface from the background thread in OnStartSearch.
+            string searchString = pSearchQuery.SearchString;
+
+            var vm = GetViewModel();
+            if (vm is null)
+                return null!;
+
+            return new MacroSearchTask(dwCookie, pSearchQuery, pSearchCallback, vm, searchString);
+        }
+
+        /// <inheritdoc />
+        public override void ClearSearch()
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+            GetViewModel()?.SetFilter(null);
+        }
+
+        private MacrosToolWindowViewModel? GetViewModel()
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+            return (Content as MacrosToolWindowControl)?.DataContext as MacrosToolWindowViewModel;
+        }
+
+        // ── Search task ─────────────────────────────────────────────────────────────────
+
+        private sealed class MacroSearchTask : VsSearchTask
+        {
+            private readonly MacrosToolWindowViewModel _vm;
+            private readonly string _searchString;
+
+            public MacroSearchTask(
+                uint dwCookie,
+                IVsSearchQuery pSearchQuery,
+                IVsSearchCallback pSearchCallback,
+                MacrosToolWindowViewModel vm,
+                string searchString)
+                : base(dwCookie, pSearchQuery, pSearchCallback)
+            {
+                _vm = vm;
+                _searchString = searchString;
+            }
+
+            /// <summary>
+            /// Runs on a background thread. Pushes the query string to the VM filter and
+            /// reports completion. The VM filter is synchronous so no progress reporting is
+            /// needed; we switch to the main thread for the ObservableCollection mutation.
+            /// </summary>
+            protected override void OnStartSearch()
+            {
+                ErrorCode = VSConstants.S_OK;
+                string filter = _searchString;
+
+                ThreadHelper.JoinableTaskFactory.Run(async () =>
+                {
+                    await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                    _vm.SetFilter(filter);
+                });
+
+                SearchResults = 1;
+                base.OnStartSearch();
+            }
+
+            protected override void OnStopSearch()
+            {
+                SearchResults = 0;
+            }
         }
     }
 }
+

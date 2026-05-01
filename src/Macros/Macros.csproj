@@ -2,6 +2,7 @@
 
   <PropertyGroup>
     <TargetFramework>net48</TargetFramework>
+    <LangVersion>latest</LangVersion>
     <UseWPF>true</UseWPF>
 
     <!-- VSIX settings -->
@@ -47,23 +48,18 @@
     </VSCTCompile>
   </ItemGroup>
 
-  <!-- Auto-generated VSCommandTable.cs (use Update because SDK auto-globs *.cs) -->
+  <!-- Auto-generated VSCommandTable.cs is included by SDK auto-glob. Add metadata to nest under .vsct. -->
   <ItemGroup>
+    <Compile Update="source.extension.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>source.extension.vsixmanifest</DependentUpon>
+    </Compile>
     <Compile Update="VSCommandTable.cs">
       <AutoGen>True</AutoGen>
       <DesignTime>True</DesignTime>
       <DependentUpon>VSCommandTable.vsct</DependentUpon>
     </Compile>
-    <!-- Per the comment at the top of PackageIds.cs, the VsctGenerator only runs inside the
-         VS IDE; dotnet build relies on the hand-maintained PackageGuids.cs / PackageIds.cs
-         mirror instead. When VS does regenerate VSCommandTable.cs (e.g. during interactive
-         development), it duplicates those types and breaks the build. Excluding the generated
-         file from compilation keeps the source file present on disk for VS while letting the
-         hand-authored mirror remain canonical at build time. -->
-    <Compile Remove="VSCommandTable.cs" />
-    <None Include="VSCommandTable.cs">
-      <DependentUpon>VSCommandTable.vsct</DependentUpon>
-    </None>
   </ItemGroup>
 
   <!-- .NET Framework assemblies not covered by NuGet -->
@@ -79,7 +75,7 @@
       <IncludeAssets>compile; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
     <PackageReference Include="Community.VisualStudio.VSCT" Version="16.0.29.6" PrivateAssets="all" />
-    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Scripting" Version="4.11.0" />
+
     <PackageReference Include="Microsoft.VisualStudio.Threading.Analyzers" Version="17.13.61" PrivateAssets="all" />
     <PackageReference Include="Microsoft.VSSDK.BuildTools" Version="18.5.40034">
       <PrivateAssets>all</PrivateAssets>

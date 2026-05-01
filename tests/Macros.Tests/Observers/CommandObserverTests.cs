@@ -344,7 +344,7 @@ public sealed class CommandObserverTests
             dispatchBefore: (_, _) => { dispatcherCalled = true; return true; },
             serviceAccessor: () => service);
 
-        var macrosCommandSet = new Guid(PackageGuids.CommandSetGuidString);
+        var macrosCommandSet = PackageGuids.guidMacrosPackageCmdSet;
         var result = Exec(observer, macrosCommandSet, 0x0100u);
 
         Assert.Equal(OLECMDERR_E_NOTSUPPORTED, result);
@@ -370,6 +370,45 @@ public sealed class CommandObserverTests
         Assert.Equal(OLECMDERR_E_NOTSUPPORTED, result);
         Assert.Empty(sink.Recorded);
         Assert.False(dispatcherCalled, "Phase B must not run for noise commands");
+    }
+
+    [Fact]
+    public void SkipList_VSStd2KCmdId_1627_IsNoise_NeverRecorded()
+    {
+        // GUID_VSStd2KCmdId/1627 is the editor window-focus-sync command that fires on every
+        // document tab activation. It pollutes recordings with opaque GUID/ID lines and has no
+        // replay value — verify it is filtered by the noise skip list.
+        var sink = new FakeRecordingSink { IsCapturing = true };
+        var service = new FakeMacroService(currentSession: sink);
+        var observer = new CommandObserver(
+            CreateJtf(),
+            dispatchBefore: null,
+            serviceAccessor: () => service);
+
+        var vsStd2KGuid = new Guid("1496a755-94de-11d0-8c3f-00c04fc2aae2");
+        var result = Exec(observer, vsStd2KGuid, 1627u);
+
+        Assert.Equal(OLECMDERR_E_NOTSUPPORTED, result);
+        Assert.Empty(sink.Recorded);
+    }
+
+    [Fact]
+    public void SkipList_VSStd97_900_IsNoise_NeverRecorded()
+    {
+        // GUID_VSStandardCommandSet97/900 fires when the File > Open dialog is invoked.
+        // The file path is captured via DocumentEvents.Opened instead; suppressing this
+        // raw command avoids a duplicate/unreplayable step in the recording.
+        var sink = new FakeRecordingSink { IsCapturing = true };
+        var service = new FakeMacroService(currentSession: sink);
+        var observer = new CommandObserver(
+            CreateJtf(),
+            dispatchBefore: null,
+            serviceAccessor: () => service);
+
+        var result = Exec(observer, VSConstants.GUID_VSStandardCommandSet97, 900u);
+
+        Assert.Equal(OLECMDERR_E_NOTSUPPORTED, result);
+        Assert.Empty(sink.Recorded);
     }
 
     // ---------------------------------------------------------------------------
@@ -431,6 +470,7 @@ public sealed class CommandObserverTests
         public bool IsCapturing { get; set; }
 
         public List<(Guid Group, uint Id, string? Name)> Recorded { get; } = new();
+        public List<string> OpenedFiles { get; } = new();
 
         public Action<Guid, uint, string?>? OnCommandHook { get; set; }
 
@@ -439,6 +479,8 @@ public sealed class CommandObserverTests
             OnCommandHook?.Invoke(group, id, canonicalName);
             Recorded.Add((group, id, canonicalName));
         }
+
+        public void OnFileOpen(string path) => OpenedFiles.Add(path);
     }
 
     private sealed class FakeMacroService : IMacroService

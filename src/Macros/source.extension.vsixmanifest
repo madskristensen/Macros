@@ -3,10 +3,10 @@
   <Metadata>
     <Identity Id="Macros.MadsKristensen.d13e532a-bd43-40df-ae9f-8d05e54138c7" Version="1.0.0" Language="en-US" Publisher="Mads Kristensen" />
     <DisplayName>Macros for Visual Studio</DisplayName>
-    <Description xml:space="preserve">Record once. Repeat forever — manually or on cue. A modern macro recorder for Visual Studio 2022: capture text edits and command invocations, replay them on demand or auto-trigger on IDE events. Every macro is an executable C# script (.csx) with full IntelliSense.</Description>
+    <Description xml:space="preserve">Record text edits and IDE actions. Replay instantly with hotkeys or trigger on events. Every macro is editable C# script. Modern, powerful, open-source macros for VS 2022.</Description>
     <MoreInfo>https://github.com/MadsKristensen/Macros</MoreInfo>
     <License>LICENSE</License>
-    <Tags>macros, recorder, automation, csharp, productivity</Tags>
+    <Tags>macros, automation, recording, replay, productivity, csharp, scripting, triggers</Tags>
   </Metadata>
   <Installation>
     <InstallationTarget Id="Microsoft.VisualStudio.Community" Version="[17.0,18.0)">
@@ -22,5 +22,6 @@
   <Assets>
     <Asset Type="Microsoft.VisualStudio.VsPackage" d:Source="Project" d:ProjectName="%CurrentProject%" Path="|%CurrentProject%;PkgdefProjectOutputGroup|" />
     <Asset Type="Microsoft.VisualStudio.MefComponent" d:Source="Project" d:ProjectName="%CurrentProject%" Path="|%CurrentProject%|" />
+    <Asset Type="Microsoft.VisualStudio.Vsix" Path="Resources\Icon.png" />
   </Assets>
 </PackageManifest>

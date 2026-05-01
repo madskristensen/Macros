@@ -1,3 +1,4 @@
+using System;
 using System.Threading.Tasks;
 using Community.VisualStudio.Toolkit;
 using Macros.Engine;
@@ -10,7 +11,7 @@ namespace Macros.Commands.Context;
 /// Tool window context-menu handler for "Play". Replays the macro currently held in
 /// <see cref="MacroSelectionContext.Current"/> via <see cref="IMacroService.PlayByNameAsync"/>.
 /// </summary>
-[Command(PackageGuids.CommandSetGuidString, PackageIds.cmdidMacrosCtxPlay)]
+[Command(PackageGuids.guidMacrosPackageCmdSetString, PackageIds.cmdidMacrosCtxPlay)]
 internal sealed class PlayContextCommand : BaseCommand<PlayContextCommand>
 {
     /// <inheritdoc />
@@ -22,7 +23,8 @@ internal sealed class PlayContextCommand : BaseCommand<PlayContextCommand>
             return;
         }
 
-        var service = await VS.GetRequiredServiceAsync<IMacroService, IMacroService>();
+        var service = await Package.GetServiceAsync(typeof(IMacroService)) as IMacroService
+            ?? throw new InvalidOperationException("IMacroService is not registered in the package container.");
         await service.PlayByNameAsync(current.Name, current.Scope);
     }
 }

@@ -14,7 +14,7 @@ namespace Macros.Commands.Context;
 /// scope and deleted from Repo; a conflict (same name already exists in Global) is
 /// resolved by prompting the user to overwrite.
 /// </summary>
-[Command(PackageGuids.CommandSetGuidString, PackageIds.cmdidMacrosCtxMoveToGlobal)]
+[Command(PackageGuids.guidMacrosPackageCmdSetString, PackageIds.cmdidMacrosCtxMoveToGlobal)]
 internal sealed class MoveToGlobalCommand : BaseCommand<MoveToGlobalCommand>
 {
     /// <inheritdoc />
@@ -41,7 +41,8 @@ internal sealed class MoveToGlobalCommand : BaseCommand<MoveToGlobalCommand>
             return;
         }
 
-        var storage = await VS.GetRequiredServiceAsync<IMacroStore, IMacroStore>();
+        var storage = await Package.GetServiceAsync(typeof(IMacroStore)) as IMacroStore
+            ?? throw new InvalidOperationException("IMacroStore is not registered in the package container.");
         try
         {
             var source = await storage.LoadByNameAsync(current.Name, MacroScope.Repo);

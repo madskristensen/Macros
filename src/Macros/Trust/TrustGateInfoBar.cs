@@ -89,7 +89,11 @@ internal sealed class TrustGateInfoBar : IDisposable
     {
         try
         {
-            var solutionPath = _tracker.GetCurrentSolutionDirectory();
+            // Use the full .sln file path as the trust key so what we store via
+            // TrustSolution(...) below matches what TrustGate reads on the dispatcher
+            // hot path. The directory accessor stays in use for repo-folder resolution
+            // elsewhere; the two are intentionally distinct.
+            var solutionPath = _tracker.GetCurrentSolutionPath();
 
             // Always tear down a stale bar before deciding whether a new one is warranted —
             // switching solutions must not leave the prior solution's InfoBar visible.
@@ -135,11 +139,18 @@ internal sealed class TrustGateInfoBar : IDisposable
         }
     }
 
-    private static async Task<System.Collections.Generic.IReadOnlyList<MacroEntry>> TryListRepoMacrosAsync()
+    private async Task<System.Collections.Generic.IReadOnlyList<MacroEntry>> TryListRepoMacrosAsync()
     {
         try
         {
-            var store = await VS.GetRequiredServiceAsync<IMacroStore, IMacroStore>();
+            // Resolve via the package's own service container — NOT VS.GetRequiredServiceAsync.
+            // Promotion to the global container only completes AFTER SetSite; this method
+            // first runs from CheckAndShowAsync inside InitializeAsync, where the global
+            // path would Assumes.Present-throw. The package container is populated
+            // synchronously by AddService(...) at the top of MacrosPackage.InitializeAsync.
+            var store = await _package.GetServiceAsync(typeof(IMacroStore)) as IMacroStore
+                ?? throw new InvalidOperationException(
+                    "IMacroStore is not registered in the package container.");
             return await store.ListAsync(MacroScope.Repo);
         }
         catch

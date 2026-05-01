@@ -61,13 +61,15 @@ internal sealed class UIContextActivator : IDisposable
         var monitor = await package.GetServiceAsync(typeof(SVsShellMonitorSelection)) as IVsMonitorSelection
             ?? throw new InvalidOperationException("SVsShellMonitorSelection service unavailable.");
 
-        var recGuid = new Guid(PackageGuids.RecordingContextGuidString);
+        var recGuid = PackageGuids.guidMacrosRecordingContext;
         monitor.GetCmdUIContextCookie(ref recGuid, out uint recCookie);
 
-        var notRecGuid = new Guid(PackageGuids.NotRecordingContextGuidString);
+        var notRecGuid = PackageGuids.guidMacrosNotRecordingContext;
         monitor.GetCmdUIContextCookie(ref notRecGuid, out uint notRecCookie);
 
-        var service = await VS.GetRequiredServiceAsync<IMacroService, IMacroService>();
+        var service = await package.GetServiceAsync(typeof(IMacroService)) as IMacroService
+            ?? throw new InvalidOperationException(
+                "IMacroService is not registered in the package container.");
 
         // Capture the monitor in a closure; SetCmdUIContext callers are responsible for
         // being on the UI thread (ApplyStateAsync always switches first).

@@ -15,29 +15,61 @@ namespace Macros.Commands;
 /// and routes any failure (compile error, runtime exception, missing source) through
 /// <see cref="MacroErrorRenderer"/> for surfacing in the Output pane, Error List, and InfoBar.
 /// </summary>
-[Command(PackageGuids.CommandSetGuidString, PackageIds.cmdidMacrosPlayLast)]
+[Command(PackageGuids.guidMacrosPackageCmdSetString, PackageIds.cmdidMacrosPlayLast)]
 internal sealed class PlayLastCommand : BaseCommand<PlayLastCommand>
 {
     private IMacroService? _service;
+    private bool _resolveStarted;
 
-    /// <inheritdoc />
-    protected override async Task InitializeCompletedAsync()
+    /// <summary>
+    /// Lazily resolves <see cref="IMacroService"/> on first use and caches the result.
+    /// Uses the package container directly instead of <c>ServiceProvider.GlobalProvider</c>,
+    /// which does not reliably surface promoted custom services after <c>SetSite</c> returns.
+    /// </summary>
+    private async Task<IMacroService> GetServiceAsync()
     {
-        _service = await VS.GetRequiredServiceAsync<IMacroService, IMacroService>();
+        if (_service is not null) return _service;
+        return _service = await Package.GetServiceAsync(typeof(IMacroService)) as IMacroService
+            ?? throw new InvalidOperationException(
+                "IMacroService is not registered in the package container.");
+    }
+
+    private void EnsureResolveStarted()
+    {
+        if (_service is not null || _resolveStarted) return;
+        _resolveStarted = true;
+        Package.JoinableTaskFactory.RunAsync(async () =>
+        {
+            try
+            {
+                await GetServiceAsync();
+            }
+            catch (Exception ex)
+            {
+                _resolveStarted = false;
+                await ex.LogAsync();
+            }
+        }).FileAndForget("Macros/PlayLastCommand/ServiceResolve");
     }
 
     /// <inheritdoc />
     protected override async Task ExecuteAsync(OleMenuCmdEventArgs e)
     {
-        if (_service is null)
+        IMacroService service;
+        try
         {
+            service = await GetServiceAsync();
+        }
+        catch (Exception ex)
+        {
+            await ex.LogAsync();
             return;
         }
 
         MacroPlayResult result;
         try
         {
-            result = await _service.PlayCurrentAsync();
+            result = await service.PlayCurrentAsync();
         }
         catch (InvalidOperationException ex)
         {
@@ -52,7 +84,7 @@ internal sealed class PlayLastCommand : BaseCommand<PlayLastCommand>
 
         if (!result.Success)
         {
-            string name = _service.CurrentMacroName ?? "Macro";
+            string name = service.CurrentMacroName ?? "Macro";
             await MacroErrorRenderer.RenderAsync(result, name);
         }
     }
@@ -60,6 +92,7 @@ internal sealed class PlayLastCommand : BaseCommand<PlayLastCommand>
     /// <inheritdoc />
     protected override void BeforeQueryStatus(EventArgs e)
     {
+        EnsureResolveStarted();
         Command.Enabled = _service is { State: MacroState.Idle } && _service.CurrentMacroSource != null;
     }
 }

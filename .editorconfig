@@ -23,3 +23,8 @@ dotnet_diagnostic.VSTHRD010.severity = warning
 dotnet_diagnostic.VSTHRD100.severity = error
 dotnet_diagnostic.VSTHRD110.severity = warning
 dotnet_diagnostic.VSTHRD200.severity = silent  # async naming — too noisy for VSIX
+
+# CVST005: "command not initialized via reflection sweep" — suppressed because we use
+# explicit BaseCommand<T>.InitializeAsync(this) calls in a private RegisterCommandsAsync()
+# helper instead of the toolkit's reflection-based this.RegisterCommandsAsync() extension.
+dotnet_diagnostic.CVST005.severity = none

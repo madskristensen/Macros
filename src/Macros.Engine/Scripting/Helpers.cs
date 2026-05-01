@@ -187,7 +187,26 @@ public static class Helpers
     }
 
     /// <summary>
-    /// Asynchronously waits the requested number of milliseconds. Recorded macros never emit
+    /// Opens the file at <paramref name="path"/> in the Visual Studio editor, exactly as if
+    /// the user had selected it via File → Open → File… The document is made the active
+    /// editor window. If the file is already open, VS brings its window to the foreground.
+    /// </summary>
+    /// <param name="path">Full absolute path of the file to open. Must not be <see langword="null"/>.</param>
+    /// <param name="cancellation">Token honoured before switching to the UI thread.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="path"/> is <see langword="null"/>.</exception>
+    /// <exception cref="InvalidOperationException">No ambient <see cref="MacroGlobals"/> is set.</exception>
+    public static async Task OpenFileAsync(string path, CancellationToken cancellation = default)
+    {
+        if (path is null) throw new ArgumentNullException(nameof(path));
+        cancellation.ThrowIfCancellationRequested();
+        DTE2 dte = RequireGlobals().DTE;
+
+        await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(cancellation);
+
+        dte.ItemOperations.OpenFile(path);
+    }
+
+    /// <summary>Recorded macros never emit
     /// this — it exists for user-authored scripts that need a deliberate pause (e.g. waiting for
     /// an asynchronous editor command to settle).
     /// </summary>

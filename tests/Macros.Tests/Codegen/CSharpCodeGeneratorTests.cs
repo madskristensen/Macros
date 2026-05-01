@@ -119,6 +119,34 @@ public sealed class CSharpCodeGeneratorTests
     }
 
     [Fact]
+    public void Generate_FileOpenStep_EmitsOpenFileAsync()
+    {
+        var step = new RecordedStep.FileOpenStep(@"C:\projects\MyRepo\src\Foo.cs");
+
+        string src = CSharpCodeGenerator.Generate(new RecordedStep[] { step }, "M", FixedUtc);
+
+        Assert.Contains(@"await OpenFileAsync(@""C:\projects\MyRepo\src\Foo.cs"");", src);
+        Assert.Contains(@"// step 1: open C:\projects\MyRepo\src\Foo.cs", src);
+        Assert.DoesNotContain("RunCommandAsync", src);
+        Assert.DoesNotContain("ExecuteCommandAsync", src);
+        AssertNoSyntaxErrors(src);
+    }
+
+    [Fact]
+    public void Generate_FileOpenStep_PathWithQuote_EscapedAsVerbatimDoubleQuote()
+    {
+        // Edge case: a file path that contains a double-quote character must be doubled in
+        // the verbatim string literal so the emitted .csx still compiles.
+        var step = new RecordedStep.FileOpenStep(@"C:\dir\file""name.cs");
+
+        string src = CSharpCodeGenerator.Generate(new RecordedStep[] { step }, "M", FixedUtc);
+
+        // QuoteVerbatim doubles embedded quotes.
+        Assert.Contains(@"@""C:\dir\file""""name.cs""", src);
+        AssertNoSyntaxErrors(src);
+    }
+
+    [Fact]
     public void Generate_PureDeletion_EmitsDeletionTodoComment()
     {
         var step = new TextEditStep(OldPosition: 5, OldLength: 3, OldText: "abc", NewText: "");
@@ -204,6 +232,7 @@ public sealed class CSharpCodeGeneratorTests
             new RecordedStep.CommandStep(Guid.NewGuid(), 6u, null),
             new TextEditStep(11, 0, "", @"path\to\file"),
             new TextEditStep(20, 5, "hello", "GOODBYE"),
+            new RecordedStep.FileOpenStep(@"C:\projects\file.cs"),
         };
 
         string src = CSharpCodeGenerator.Generate(steps, "Mixed", FixedUtc);

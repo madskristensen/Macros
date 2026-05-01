@@ -1,6 +1,7 @@
-using System.Threading.Tasks;
 using Community.VisualStudio.Toolkit;
+
 using Microsoft.VisualStudio.Shell;
+
 using Task = System.Threading.Tasks.Task;
 
 namespace Macros.Commands.Context;
@@ -14,7 +15,7 @@ namespace Macros.Commands.Context;
 /// syntax highlighting and basic completion. Full script-host context (e.g. #r references,
 /// script globals) may not resolve perfectly — this is an acceptable limitation for M3.
 /// </remarks>
-[Command(PackageGuids.CommandSetGuidString, PackageIds.cmdidMacrosCtxEdit)]
+[Command(PackageGuids.guidMacrosPackageCmdSetString, PackageIds.cmdidMacrosCtxEdit)]
 internal sealed class EditContextCommand : BaseCommand<EditContextCommand>
 {
     /// <inheritdoc />

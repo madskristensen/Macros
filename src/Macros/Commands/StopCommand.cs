@@ -11,29 +11,61 @@ namespace Macros.Commands;
 /// Handler for the <c>Macros: Stop</c> command. Ends the active recording session and discards
 /// the generated source for M1 — M2 will hand the source off to the storage layer.
 /// </summary>
-[Command(PackageGuids.CommandSetGuidString, PackageIds.cmdidMacrosStop)]
+[Command(PackageGuids.guidMacrosPackageCmdSetString, PackageIds.cmdidMacrosStop)]
 internal sealed class StopCommand : BaseCommand<StopCommand>
 {
     private IMacroService? _service;
+    private bool _resolveStarted;
 
-    /// <inheritdoc />
-    protected override async Task InitializeCompletedAsync()
+    /// <summary>
+    /// Lazily resolves <see cref="IMacroService"/> on first use and caches the result.
+    /// Uses the package container directly instead of <c>ServiceProvider.GlobalProvider</c>,
+    /// which does not reliably surface promoted custom services after <c>SetSite</c> returns.
+    /// </summary>
+    private async Task<IMacroService> GetServiceAsync()
     {
-        _service = await VS.GetRequiredServiceAsync<IMacroService, IMacroService>();
+        if (_service is not null) return _service;
+        return _service = await Package.GetServiceAsync(typeof(IMacroService)) as IMacroService
+            ?? throw new InvalidOperationException(
+                "IMacroService is not registered in the package container.");
+    }
+
+    private void EnsureResolveStarted()
+    {
+        if (_service is not null || _resolveStarted) return;
+        _resolveStarted = true;
+        Package.JoinableTaskFactory.RunAsync(async () =>
+        {
+            try
+            {
+                await GetServiceAsync();
+            }
+            catch (Exception ex)
+            {
+                _resolveStarted = false;
+                await ex.LogAsync();
+            }
+        }).FileAndForget("Macros/StopCommand/ServiceResolve");
     }
 
     /// <inheritdoc />
     protected override async Task ExecuteAsync(OleMenuCmdEventArgs e)
     {
-        if (_service is null)
+        IMacroService service;
+        try
         {
+            service = await GetServiceAsync();
+        }
+        catch (Exception ex)
+        {
+            await ex.LogAsync();
             return;
         }
 
         try
         {
             // M1: discard the generated source. M2 will route it through MacroStore.
-            _ = await _service.StopRecordingAsync();
+            _ = await service.StopRecordingAsync();
         }
         catch (InvalidOperationException)
         {
@@ -44,6 +76,7 @@ internal sealed class StopCommand : BaseCommand<StopCommand>
     /// <inheritdoc />
     protected override void BeforeQueryStatus(EventArgs e)
     {
+        EnsureResolveStarted();
         Command.Enabled = _service is { State: MacroState.Recording };
     }
 }

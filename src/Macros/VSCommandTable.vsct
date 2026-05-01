@@ -39,6 +39,17 @@
         </Strings>
       </Menu>
 
+      <!-- Tool window toolbar: hosts Record, Stop, and Refresh directly on the Macros tool
+           window chrome. Record/Stop are placed here via CommandPlacements so they keep
+           their main IDE toolbar placement too. Refresh is native to this toolbar. -->
+      <Menu guid="guidMacrosPackageCmdSet" id="MacrosToolWindowToolbar" type="ToolWindowToolbar">
+        <CommandFlag>DefaultDocked</CommandFlag>
+        <Strings>
+          <ButtonText>Macros Window Toolbar</ButtonText>
+          <CommandName>Macros.ToolWindowToolbar</CommandName>
+        </Strings>
+      </Menu>
+
       <!-- Tool window context menu (m3-context-menu). Shown via IVsUIShell.ShowContextMenu
            from MacrosToolWindowControl on right-click over a macro row. The selected macro
            is supplied through MacroSelectionContext before the menu opens. -->
@@ -55,6 +66,12 @@
         <Parent guid="guidMacrosPackageCmdSet" id="MacrosToolbar" />
       </Group>
 
+      <!-- Group on the tool window toolbar. Record and Stop are placed here via
+           CommandPlacements; Refresh is parented here directly. -->
+      <Group guid="guidMacrosPackageCmdSet" id="MacrosToolWindowToolbarGroup" priority="0x0000">
+        <Parent guid="guidMacrosPackageCmdSet" id="MacrosToolWindowToolbar" />
+      </Group>
+
       <!-- Group 1: primary actions on a single macro row. -->
       <Group guid="guidMacrosPackageCmdSet" id="MacrosContextMenuGroup1" priority="0x0100">
         <Parent guid="guidMacrosPackageCmdSet" id="MacrosToolWindowContextMenu" />
@@ -69,6 +86,8 @@
     <Buttons>
       <Button guid="guidMacrosPackageCmdSet" id="cmdidMacrosRecord" priority="0x0100" type="Button">
         <Parent guid="guidMacrosPackageCmdSet" id="MacrosToolbarGroup" />
+        <Icon guid="ImageCatalogGuid" id="Record" />
+        <CommandFlag>IconIsMoniker</CommandFlag>
         <CommandFlag>DynamicVisibility</CommandFlag>
         <CommandFlag>DefaultInvisible</CommandFlag>
         <Strings>
@@ -79,6 +98,8 @@
 
       <Button guid="guidMacrosPackageCmdSet" id="cmdidMacrosStop" priority="0x0101" type="Button">
         <Parent guid="guidMacrosPackageCmdSet" id="MacrosToolbarGroup" />
+        <Icon guid="ImageCatalogGuid" id="Stop" />
+        <CommandFlag>IconIsMoniker</CommandFlag>
         <CommandFlag>DynamicVisibility</CommandFlag>
         <CommandFlag>DefaultInvisible</CommandFlag>
         <Strings>
@@ -180,6 +201,16 @@
         </Strings>
       </Button>
 
+      <Button guid="guidMacrosPackageCmdSet" id="cmdidMacrosCtxManageTriggers" priority="0x0160" type="Button">
+        <Parent guid="guidMacrosPackageCmdSet" id="MacrosContextMenuGroup1" />
+        <Icon guid="ImageCatalogGuid" id="EventTrigger" />
+        <CommandFlag>IconIsMoniker</CommandFlag>
+        <Strings>
+          <ButtonText>Manage &amp;Triggers...</ButtonText>
+          <CommandName>Macros.Context.ManageTriggers</CommandName>
+        </Strings>
+      </Button>
+
       <Button guid="guidMacrosPackageCmdSet" id="cmdidMacrosCtxOpenFolder" priority="0x0100" type="Button">
         <Parent guid="guidMacrosPackageCmdSet" id="MacrosContextMenuGroup2" />
         <Icon guid="ImageCatalogGuid" id="FolderOpened" />
@@ -189,9 +220,32 @@
           <CommandName>Macros.Context.OpenFolder</CommandName>
         </Strings>
       </Button>
+
+      <!-- Tool window toolbar: Refresh button. Record and Stop are added to the same group
+           via CommandPlacements below so they keep their main IDE toolbar placement too. -->
+      <Button guid="guidMacrosPackageCmdSet" id="cmdidMacrosRefresh" priority="0x0100" type="Button">
+        <Parent guid="guidMacrosPackageCmdSet" id="MacrosToolWindowToolbarGroup" />
+        <Icon guid="ImageCatalogGuid" id="Refresh" />
+        <CommandFlag>IconIsMoniker</CommandFlag>
+        <Strings>
+          <ButtonText>Refresh Macro List</ButtonText>
+          <CommandName>Macros.Refresh</CommandName>
+        </Strings>
+      </Button>
     </Buttons>
 
   </Commands>
+
+  <!-- Place Record and Stop on the tool window toolbar in addition to the main IDE toolbar.
+       CommandPlacements lives outside <Commands> per the VSCT schema. -->
+  <CommandPlacements>
+    <CommandPlacement guid="guidMacrosPackageCmdSet" id="cmdidMacrosRecord" priority="0x0110">
+      <Parent guid="guidMacrosPackageCmdSet" id="MacrosToolWindowToolbarGroup" />
+    </CommandPlacement>
+    <CommandPlacement guid="guidMacrosPackageCmdSet" id="cmdidMacrosStop" priority="0x0111">
+      <Parent guid="guidMacrosPackageCmdSet" id="MacrosToolWindowToolbarGroup" />
+    </CommandPlacement>
+  </CommandPlacements>
 
   <KeyBindings>
     <KeyBinding guid="guidMacrosPackageCmdSet" id="cmdidMacrosRecord" editor="guidVSStd97" key1="R" mod1="Control Shift" />
@@ -205,10 +259,10 @@
 
   <Symbols>
 
-    <!-- Package GUID. Mirrors PackageGuids.PackageGuidString. -->
+    <!-- Package GUID. Mirrors PackageGuids.guidMacrosPackageString. -->
     <GuidSymbol name="guidMacrosPackage" value="{d13e532a-bd43-40df-ae9f-8d05e54138c7}" />
 
-    <!-- Command set GUID. Mirrors PackageGuids.CommandSetGuidString. All menus, groups,
+    <!-- Command set GUID. Mirrors PackageGuids.guidMacrosPackageCmdSetString. All menus, groups,
          and commands for the extension live under this set. -->
     <GuidSymbol name="guidMacrosPackageCmdSet" value="{1f6e8c4b-2d54-4a76-9c2c-9d8b5a7e1d31}">
 
@@ -249,16 +303,17 @@
       <IDSymbol name="cmdidMacrosCtxDelete"          value="0x2113" />
       <IDSymbol name="cmdidMacrosCtxMoveToRepo"      value="0x2114" />
       <IDSymbol name="cmdidMacrosCtxMoveToGlobal"    value="0x2115" />
+      <IDSymbol name="cmdidMacrosCtxManageTriggers"  value="0x2116" />
       <IDSymbol name="cmdidMacrosCtxOpenFolder"      value="0x2210" />
 
     </GuidSymbol>
 
     <!-- UIContext GUID activated while recording. Drives VisibilityConstraints in
-         m1-vsct-visibility. Mirrors PackageGuids.RecordingContextGuidString. -->
+         m1-vsct-visibility. Mirrors PackageGuids.guidMacrosRecordingContextString. -->
     <GuidSymbol name="guidMacrosRecordingContext" value="{f0a5d2c7-7e7c-4a47-bc6f-2c0a5b6f2c80}" />
 
     <!-- Inverse UIContext: active when NOT recording. Drives Record button visibility
-         in m1-vsct-visibility. Mirrors PackageGuids.NotRecordingContextGuidString. -->
+         in m1-vsct-visibility. Mirrors PackageGuids.guidMacrosNotRecordingContextString. -->
     <GuidSymbol name="guidMacrosNotRecordingContext" value="{c8e5a3b1-9f4d-4d87-b5a2-7e1f3a8c2d40}" />
 
   </Symbols>

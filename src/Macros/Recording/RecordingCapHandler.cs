@@ -44,7 +44,14 @@ internal sealed class RecordingCapHandler : IDisposable
     {
         _ = package ?? throw new ArgumentNullException(nameof(package));
 
-        var service = await VS.GetRequiredServiceAsync<IMacroService, IMacroService>();
+        // Resolve via the package's own service container — NOT VS.GetRequiredServiceAsync.
+        // Promotion to the global VS service container only completes AFTER SetSite, so the
+        // global lookup throws Assumes+InternalErrorException during package init. The
+        // package container is populated synchronously by AddService(...) and is queryable
+        // immediately.
+        var service = await package.GetServiceAsync(typeof(IMacroService)) as IMacroService
+            ?? throw new InvalidOperationException(
+                "IMacroService is not registered in the package container.");
         var handler = new RecordingCapHandler(service, package);
         service.RecordingCapReached += handler.OnCapReached;
         return handler;

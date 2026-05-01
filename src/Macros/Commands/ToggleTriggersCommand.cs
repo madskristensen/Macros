@@ -17,7 +17,7 @@ namespace Macros.Commands;
 /// Manual macro invocation is unaffected by this flag; only event-triggered and
 /// command-triggered macros are suppressed.
 /// </remarks>
-[Command(PackageGuids.CommandSetGuidString, PackageIds.cmdidMacrosToggleTriggers)]
+[Command(PackageGuids.guidMacrosPackageCmdSetString, PackageIds.cmdidMacrosToggleTriggers)]
 internal sealed class ToggleTriggersCommand : BaseCommand<ToggleTriggersCommand>
 {
     /// <inheritdoc />

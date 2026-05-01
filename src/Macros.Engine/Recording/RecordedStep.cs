@@ -26,5 +26,13 @@ public abstract record class RecordedStep
     /// </param>
     public sealed record class CommandStep(Guid Group, uint Id, string? Name) : RecordedStep;
 
+    /// <summary>
+    /// A file open captured from the Running Document Table or from a
+    /// <c>File.OpenFile</c> command with a non-empty <c>CustomIn</c> argument.
+    /// Generated code emits <c>await OpenFileAsync(@"…")</c>.
+    /// </summary>
+    /// <param name="Path">The full absolute path of the file that was opened.</param>
+    public sealed record class FileOpenStep(string Path) : RecordedStep;
+
     // TextEditStep — to be added by m2-text-observer.
 }

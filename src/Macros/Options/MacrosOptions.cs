@@ -105,6 +105,9 @@ internal sealed class MacrosOptions : BaseOptionModel<MacrosOptions>
     [Browsable(false)]
     public string BlockedSolutions { get; set; } = "";
 
+    [Browsable(false)]
+    public bool HasShownTriggerHint { get; set; } = false;
+
     // ── Trust helpers ──────────────────────────────────────────────────────
 
     public bool IsSolutionTrusted(string? solutionPath)

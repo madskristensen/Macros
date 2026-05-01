@@ -10,7 +10,7 @@ namespace Macros.Commands;
 /// Stub handler for <c>Macros: Edit</c>. Wired in M1 so the cmdid binding is declared; the real
 /// implementation lands in M3 when the macro list and the .csx editor open path are in place.
 /// </summary>
-[Command(PackageGuids.CommandSetGuidString, PackageIds.cmdidMacrosEdit)]
+[Command(PackageGuids.guidMacrosPackageCmdSetString, PackageIds.cmdidMacrosEdit)]
 internal sealed class EditCommand : BaseCommand<EditCommand>
 {
     /// <inheritdoc />

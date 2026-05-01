@@ -10,7 +10,7 @@ namespace Macros.Commands;
 /// Stub handler for <c>Macros: Delete</c>. Disabled until M3 introduces the macro list and a
 /// selection model the command can act on.
 /// </summary>
-[Command(PackageGuids.CommandSetGuidString, PackageIds.cmdidMacrosDelete)]
+[Command(PackageGuids.guidMacrosPackageCmdSetString, PackageIds.cmdidMacrosDelete)]
 internal sealed class DeleteCommand : BaseCommand<DeleteCommand>
 {
     /// <inheritdoc />

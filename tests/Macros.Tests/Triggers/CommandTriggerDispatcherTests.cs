@@ -334,6 +334,41 @@ public sealed class CommandTriggerDispatcherTests
     }
 
     [Fact]
+    public void DispatchBefore_PlayerThrowsException_RecordsFailure_NoCancelSignal()
+    {
+        // Gap: exercises the catch(Exception) path in DispatchBefore, distinct from the
+        // "player returns a failure result" path tested by DispatchBefore_FailedPlay_*.
+        var entry = MakeEntry("Exploding", SampleCommand);
+        var registry = new FakeRegistry();
+        registry.BeforeMatches[SampleCommand] = new List<TriggerMatch>
+        {
+            new(entry, new TriggerBinding(TriggerKind.BeforeCommand, SampleCommand)),
+        };
+        var player = new FakePlayer
+        {
+            // Return a faulted Task — the dispatcher's async runner will surface this
+            // as an exception that lands in catch(Exception) { _tracker.RecordFailure }.
+            OnPlay = (_, _, _, _) =>
+                Task.FromException<MacroPlayResult>(new InvalidOperationException("player exploded")),
+        };
+        var tracker = new FakeFailureTracker();
+        var cache = CreateNameCache(SampleGroup, SampleId, SampleCommand);
+        var dispatcher = new CommandTriggerDispatcher(
+            registry, player, cache,
+            beforeTimeoutMsProvider: () => 1000,
+            jtf: CreateJtf(),
+            tracker: tracker,
+            sourceLoader: _ => "// source");
+
+        var result = dispatcher.DispatchBefore(SampleGroup, SampleId);
+
+        Assert.False(result, "an exception must NOT raise the cancel signal — fail-safe is to let the command run");
+        Assert.Equal(1, tracker.Failures);
+        Assert.Equal(0, tracker.Successes);
+        Assert.Equal(entry.Path, tracker.LastFailurePath);
+    }
+
+    [Fact]
     public void DispatchBefore_SourceLoaderReturnsNull_RecordsFailure_NoCancelSignal()
     {
         var entry = MakeEntry("MissingFile", SampleCommand);

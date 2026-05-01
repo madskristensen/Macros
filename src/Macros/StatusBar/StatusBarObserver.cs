@@ -55,7 +55,13 @@ internal static class StatusBarObserver
 
         try
         {
-            _service = await VS.GetRequiredServiceAsync<IMacroService, IMacroService>();
+            // Resolve via the package's own service container — NOT VS.GetRequiredServiceAsync.
+            // The global container only sees promoted services AFTER SetSite completes; this
+            // initializer runs DURING SetSite, so VS.GetRequiredServiceAsync<IMacroService>()
+            // would Assumes.Present-throw with "Cannot find an instance of IMacroService".
+            _service = await package.GetServiceAsync(typeof(IMacroService)) as IMacroService
+                ?? throw new InvalidOperationException(
+                    "IMacroService is not registered in the package container.");
             _service.StateChanged += OnStateChanged;
             _service.RecordingStepCountChanged += OnStepCountChanged;
             _service.TriggeredExecutionStarted += OnTriggeredStarted;
