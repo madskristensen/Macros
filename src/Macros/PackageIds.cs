@@ -31,6 +31,7 @@ internal static class PackageIds
     public const int cmdidMacrosRefresh = 0x010B;
     public const int cmdidMacrosMoveToRepo = 0x010C;
     public const int cmdidMacrosMoveToGlobal = 0x010D;
+    public const int cmdidMacrosToggleTriggers = 0x0014;
 
     // Tool window context menu (m3-context-menu). Mirrors the 0x2xxx block at the bottom of
     // VSCommandTable.vsct's GuidSymbol section. IVsUIShell.ShowContextMenu requires the
@@ -42,5 +43,7 @@ internal static class PackageIds
     public const int cmdidMacrosCtxEdit = 0x2111;
     public const int cmdidMacrosCtxRename = 0x2112;
     public const int cmdidMacrosCtxDelete = 0x2113;
+    public const int cmdidMacrosCtxMoveToRepo = 0x2114;
+    public const int cmdidMacrosCtxMoveToGlobal = 0x2115;
     public const int cmdidMacrosCtxOpenFolder = 0x2210;
 }

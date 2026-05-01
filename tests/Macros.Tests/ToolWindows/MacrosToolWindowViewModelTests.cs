@@ -391,6 +391,8 @@ public sealed class MacrosToolWindowViewModelTests
 #pragma warning disable CS0067 // unused — required to satisfy the IMacroService surface
         public event EventHandler? RecordingCapReached;
         public event EventHandler<int>? RecordingStepCountChanged;
+        public event EventHandler<TriggeredExecutionEventArgs>? TriggeredExecutionStarted;
+        public event EventHandler<TriggeredExecutionEventArgs>? TriggeredExecutionEnded;
 #pragma warning restore CS0067
 
         public void RaiseStateChanged(MacroState oldState, MacroState newState)

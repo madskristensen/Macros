@@ -88,7 +88,10 @@ public sealed class MacroServicePlayResultTests
         Assert.Equal(TimeSpan.FromMilliseconds(7), result.Duration);
         Assert.Same(svc.CurrentMacroSource, fake.LastSource);
         Assert.Equal(svc.CurrentMacroName, fake.LastName);
-        Assert.True(fake.LastTrigger?.IsManual);
+        // MacroService forwards null; IMacroPlayer normalises null → ManualMacroTrigger.Instance
+        // (see IMacroPlayer.PlayAsync XML doc + MacroPlayer line ~74). The fake bypasses that
+        // normalisation, so we pin the wire-level contract here.
+        Assert.Null(fake.LastTrigger);
     }
 
     [Fact]

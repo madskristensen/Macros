@@ -175,6 +175,7 @@ public sealed class MacrosPackage : ToolkitPackage
         //     provider above — this closes the M3 deferred TODO that previously left
         //     _solutionDirectory at null forever.
         _solutionTracker = await SolutionContextTracker.InitializeAsync(this);
+        SolutionContextTracker.Current = _solutionTracker;
 
         // 2b. Wire the M4 trust-gate InfoBar. Subscribes to SolutionChanged on the tracker
         //     above and shows an InfoBar at the top of the editor whenever a solution opens

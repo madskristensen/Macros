@@ -18,6 +18,45 @@ namespace Macros.Options;
 /// </remarks>
 internal sealed class MacrosOptions : BaseOptionModel<MacrosOptions>
 {
+    // ── Kill-switch changed notification ────────────────────────────────────
+
+    /// <summary>
+    /// Raised after any <see cref="Save"/> call so that UI components (e.g. the status bar
+    /// observer) can refresh without polling.
+    /// </summary>
+    public static event EventHandler? Changed;
+
+    /// <summary>
+    /// Saves settings to the VS settings store and notifies <see cref="Changed"/> subscribers.
+    /// The notification fires in a <see langword="finally"/> block so the status bar updates
+    /// even when the underlying store write fails (e.g. during tests outside a VS host).
+    /// </summary>
+    public override void Save()
+    {
+        try
+        {
+            base.Save();
+        }
+        finally
+        {
+            Changed?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    /// <inheritdoc cref="Save"/>
+    public override async System.Threading.Tasks.Task SaveAsync()
+    {
+        try
+        {
+            await base.SaveAsync();
+        }
+        finally
+        {
+            Changed?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+
     [Category("General")]
     [DisplayName("First run")]
     [Description("Internal flag — true until the user has seen the first-run InfoBar.")]

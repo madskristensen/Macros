@@ -262,13 +262,10 @@ internal sealed class MacroEventBus : IMacroEventBus
                 var guard = _reentranceGuard;
                 _ = _queue.EnqueueAsync(() =>
                 {
-                    if (guard != null && !guard.TryEnter(key, out var scope))
+                    IDisposable? scope = null;
+                    if (guard != null && !guard.TryEnter(key, out scope))
                     {
-                        return Task.CompletedTask;
-                    }
-                    else
-                    {
-                        scope = null; // guard not in use
+                        return Task.CompletedTask; // suppressed — recursive firing or depth exceeded
                     }
 
                     using (scope)
@@ -284,13 +281,10 @@ internal sealed class MacroEventBus : IMacroEventBus
             }
             else
             {
-                if (_reentranceGuard != null && !_reentranceGuard.TryEnter(key, out var scope))
+                IDisposable? scope = null;
+                if (_reentranceGuard != null && !_reentranceGuard.TryEnter(key, out scope))
                 {
                     continue; // suppressed — recursive firing or depth exceeded
-                }
-                else
-                {
-                    scope = null; // guard not in use
                 }
 
                 using (scope)

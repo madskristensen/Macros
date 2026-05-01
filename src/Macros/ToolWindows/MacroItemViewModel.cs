@@ -26,6 +26,7 @@ public sealed class MacroItemViewModel : INotifyPropertyChanged
 {
     private readonly IMacroService? _service;
     private bool _canInvoke = true;
+    private bool _isShadowed;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MacroItemViewModel"/> class.
@@ -73,6 +74,71 @@ public sealed class MacroItemViewModel : INotifyPropertyChanged
     /// Gets a short human-readable file size for the tertiary row text (e.g. <c>"1.2 KB"</c>).
     /// </summary>
     public string SizeDisplay => FormatBytes(Descriptor.SizeBytes);
+
+    /// <summary>Gets the macro's recorded step count (from <see cref="MacroEntry.StepCount"/>).</summary>
+    public int StepCount => Descriptor.StepCount;
+
+    /// <summary>
+    /// Gets a compact, single-line summary of this macro's triggers, suitable for the
+    /// "Triggers" column. See <see cref="TriggerSummaryFormatter.Summary"/>.
+    /// </summary>
+    public string TriggersSummary => TriggerSummaryFormatter.Summary(Descriptor.Triggers);
+
+    /// <summary>
+    /// Gets the multi-line trigger detail string, suitable for the "Triggers" column tooltip.
+    /// See <see cref="TriggerSummaryFormatter.Detail"/>.
+    /// </summary>
+    public string TriggersDetail => TriggerSummaryFormatter.Detail(Descriptor.Triggers);
+
+    /// <summary>
+    /// Gets a slightly terser variant of <see cref="LastModifiedDisplay"/> tailored for the
+    /// grid's "Modified" column ("just now" / "5m" / "2h" / "yesterday" / "3d" / yyyy-MM-dd).
+    /// </summary>
+    public string ModifiedRelative => FormatModifiedRelative(Descriptor.Modified, DateTimeOffset.UtcNow);
+
+    /// <summary>
+    /// Gets the group label this row belongs to in the tool window's grouped ListView. The
+    /// XAML's <c>PropertyGroupDescription</c> binds to this property, so it is plain text and
+    /// identical to the corresponding <see cref="MacroGroupViewModel.Header"/>.
+    /// </summary>
+    /// <remarks>
+    /// Repo entries are <c>"Repo"</c>; non-shadowed global entries are <c>"Global"</c>;
+    /// shadowed global entries (a global macro of the same name is overridden by a repo
+    /// macro) are <c>"Shadowed Global Macros"</c>.
+    /// </remarks>
+    public string GroupName => Scope == MacroScope.Repo
+        ? "Repo"
+        : (IsShadowed ? "Shadowed Global Macros" : "Global");
+
+    /// <summary>
+    /// Gets or sets a value indicating whether this row represents a global macro that is
+    /// shadowed by a repo macro of the same name. Drives the muted/italic/strikethrough
+    /// styling in the "Shadowed Global Macros" group and changes <see cref="GroupName"/>.
+    /// </summary>
+    public bool IsShadowed
+    {
+        get => _isShadowed;
+        set
+        {
+            if (_isShadowed == value)
+            {
+                return;
+            }
+
+            _isShadowed = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(GroupName));
+            OnPropertyChanged(nameof(ShadowedTooltip));
+        }
+    }
+
+    /// <summary>
+    /// Gets the tooltip text that explains why a row is rendered with shadowed styling.
+    /// <see langword="null"/> when <see cref="IsShadowed"/> is <see langword="false"/>.
+    /// </summary>
+    public string? ShadowedTooltip => IsShadowed
+        ? "Shadowed by repo macro of the same name."
+        : null;
 
     /// <summary>
     /// Gets or sets a value indicating whether the per-row commands are currently invocable.
@@ -163,6 +229,48 @@ public sealed class MacroItemViewModel : INotifyPropertyChanged
         {
             int days = (int)delta.TotalDays;
             return days == 1 ? "1 day ago" : $"{days} days ago";
+        }
+
+        return utc.ToLocalTime().ToString("yyyy-MM-dd", CultureInfo.CurrentCulture);
+    }
+
+    /// <summary>
+    /// Formats a UTC timestamp in the terser "modified column" style: "just now" / "5m" /
+    /// "2h" / "yesterday" / "3d" / yyyy-MM-dd. Distinct from
+    /// <see cref="FormatRelative(DateTimeOffset, DateTimeOffset)"/> which always appends
+    /// "ago" and uses "1 day ago" instead of "yesterday".
+    /// </summary>
+    /// <param name="utc">The timestamp to format.</param>
+    /// <param name="nowUtc">The reference "now" timestamp.</param>
+    internal static string FormatModifiedRelative(DateTimeOffset utc, DateTimeOffset nowUtc)
+    {
+        var delta = nowUtc - utc;
+        if (delta.TotalSeconds < 60)
+        {
+            return "just now";
+        }
+
+        if (delta.TotalMinutes < 60)
+        {
+            int minutes = (int)delta.TotalMinutes;
+            return $"{minutes}m";
+        }
+
+        if (delta.TotalHours < 24)
+        {
+            int hours = (int)delta.TotalHours;
+            return $"{hours}h";
+        }
+
+        if (delta.TotalHours < 48)
+        {
+            return "yesterday";
+        }
+
+        if (delta.TotalDays < 7)
+        {
+            int days = (int)delta.TotalDays;
+            return $"{days}d";
         }
 
         return utc.ToLocalTime().ToString("yyyy-MM-dd", CultureInfo.CurrentCulture);

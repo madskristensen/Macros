@@ -2,6 +2,7 @@ using System;
 using System.Threading.Tasks;
 using Community.VisualStudio.Toolkit;
 using Macros.Engine;
+using Macros.Options;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
 using Task = System.Threading.Tasks.Task;
@@ -31,10 +32,12 @@ internal static class StatusBarObserver
 {
     private const string RecordingText = "Macros: Recording...";
     private const string ReplayingText = "Macros: Replaying...";
+    private const string DisabledText  = "Macros: Triggers disabled";
 
     private static AsyncPackage? _package;
     private static IMacroService? _service;
     private static int _recordingCount;
+    private static TriggeredExecutionEventArgs? _currentTriggeredExecution;
 
     /// <summary>
     /// Resolves <see cref="IMacroService"/>, subscribes to its <see cref="IMacroService.StateChanged"/>
@@ -55,6 +58,12 @@ internal static class StatusBarObserver
             _service = await VS.GetRequiredServiceAsync<IMacroService, IMacroService>();
             _service.StateChanged += OnStateChanged;
             _service.RecordingStepCountChanged += OnStepCountChanged;
+            _service.TriggeredExecutionStarted += OnTriggeredStarted;
+            _service.TriggeredExecutionEnded += OnTriggeredEnded;
+
+            // Subscribe to option changes so the status bar refreshes immediately when
+            // the user toggles DisableAllTriggers from Tools → Options.
+            MacrosOptions.Changed += OnOptionsChanged;
 
             // Push initial state so the bar is correct even if the engine starts non-Idle later
             // (defensive — M1 always boots in Idle).
@@ -92,6 +101,76 @@ internal static class StatusBarObserver
                 await ex.LogAsync();
             }
         }).FileAndForget("macros/statusbar/statechanged");
+    }
+
+    private static void OnTriggeredStarted(object sender, TriggeredExecutionEventArgs e)
+    {
+        _currentTriggeredExecution = e;
+
+        AsyncPackage? package = _package;
+        if (package == null)
+        {
+            return;
+        }
+
+        package.JoinableTaskFactory.RunAsync(async () =>
+        {
+            try
+            {
+                await ApplyTriggeredStatusAsync(e);
+            }
+            catch (Exception ex)
+            {
+                await ex.LogAsync();
+            }
+        }).FileAndForget("macros/statusbar/triggeredstarted");
+    }
+
+    private static void OnTriggeredEnded(object sender, TriggeredExecutionEventArgs e)
+    {
+        _currentTriggeredExecution = null;
+
+        AsyncPackage? package = _package;
+        IMacroService? service = _service;
+        if (package == null || service == null)
+        {
+            return;
+        }
+
+        package.JoinableTaskFactory.RunAsync(async () =>
+        {
+            try
+            {
+                // Revert to state-based text when trigger execution ends.
+                await ApplyStateAsync(service.State);
+            }
+            catch (Exception ex)
+            {
+                await ex.LogAsync();
+            }
+        }).FileAndForget("macros/statusbar/triggeredended");
+    }
+
+    private static void OnOptionsChanged(object? sender, EventArgs e)
+    {
+        AsyncPackage? package = _package;
+        IMacroService? service = _service;
+        if (package == null || service == null)
+        {
+            return;
+        }
+
+        package.JoinableTaskFactory.RunAsync(async () =>
+        {
+            try
+            {
+                await ApplyStateAsync(service.State);
+            }
+            catch (Exception ex)
+            {
+                await ex.LogAsync();
+            }
+        }).FileAndForget("macros/statusbar/optionschanged");
     }
 
     private static void OnStepCountChanged(object sender, int count)
@@ -169,6 +248,15 @@ internal static class StatusBarObserver
 
         // SetText is harmless even if the bar is "frozen" — it just queues; freeze state is owned
         // by other shell components and we deliberately don't fight them for it here.
+
+        // Kill switch overrides all engine state text.
+        if (MacrosOptions.Instance.DisableAllTriggers)
+        {
+            SetAnimation(statusbar, on: false);
+            statusbar.SetText(DisabledText);
+            return;
+        }
+
         switch (state)
         {
             case MacroState.Recording:
@@ -187,6 +275,30 @@ internal static class StatusBarObserver
                 statusbar.SetText(string.Empty);
                 break;
         }
+    }
+
+    private static async Task ApplyTriggeredStatusAsync(TriggeredExecutionEventArgs args)
+    {
+        AsyncPackage? package = _package;
+        if (package == null)
+        {
+            return;
+        }
+
+        await package.JoinableTaskFactory.SwitchToMainThreadAsync(package.DisposalToken);
+
+        if (await package.GetServiceAsync(typeof(SVsStatusbar)) is not IVsStatusbar statusbar)
+        {
+            return;
+        }
+
+        // Display the triggered status: "Macros: [Trigger] {macroName}"
+        // or include the kind: "Macros: [Trigger: BeforeCommand] {macroName}"
+        string text = $"Macros: [Trigger] {args.MacroName}";
+        statusbar.SetText(text);
+        // Note: IVsStatusbar doesn't expose per-text foreground color in a portable way.
+        // Red color would be ideal for visual distinction but is not available consistently
+        // across all VS shell versions. Documented as a gap.
     }
 
     private static void SetAnimation(IVsStatusbar statusbar, bool on)

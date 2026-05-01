@@ -73,6 +73,12 @@ public sealed class FileSystemMacroStore : IMacroStore, IDisposable
     private readonly string _currentPath;
     private readonly Func<string?>? _repoFolderProvider;
 
+    // When false, the global folder + current.csx wiring is unconfigured: every Global
+    // and single-file (current.csx) operation throws InvalidOperationException, and the
+    // global FileSystemWatcher is never started. This is the mode used by the wrapping
+    // RepoMacroStore, which only ever delegates Repo-scoped calls to the inner instance.
+    private readonly bool _globalEnabled;
+
     // Serializes the swap-into-place step for SaveCurrentAsync so concurrent saves can't
     // race File.Replace vs File.Move on the same destination. Writers still produce
     // unique tmp files so the critical section is only the swap.
@@ -135,10 +141,52 @@ public sealed class FileSystemMacroStore : IMacroStore, IDisposable
         _globalNamedFolder = Path.Combine(globalFolder, GlobalNamedSubfolder);
         _currentPath = Path.Combine(globalFolder, CurrentFileName);
         _repoFolderProvider = repoFolderProvider;
+        _globalEnabled = true;
+    }
+
+    /// <summary>
+    /// Initializes a repo-only <see cref="FileSystemMacroStore"/>. Every call against
+    /// <see cref="MacroScope.Global"/> and every single-file (current.csx) API throws
+    /// <see cref="InvalidOperationException"/>; only the per-solution repo folder served
+    /// by <paramref name="repoFolderProvider"/> is reachable. The global FileSystemWatcher
+    /// is never started, which keeps <see cref="LibraryChanged"/> echoes scoped to the
+    /// repo half.
+    /// </summary>
+    /// <remarks>
+    /// This overload exists to back <c>RepoMacroStore</c>: the M4 split into scope-aware
+    /// stores routes Global writes/reads through <c>GlobalMacroStore</c> and Repo
+    /// writes/reads through this repo-only mode, with <c>CompositeMacroStore</c> joining
+    /// the two halves. Marked <see langword="internal"/> because the public surface for
+    /// repo-only construction is <c>RepoMacroStore</c>.
+    /// </remarks>
+    /// <param name="repoFolderProvider">
+    /// Accessor returning the absolute path to the per-solution macros folder, or
+    /// <see langword="null"/> when no solution is open. Invoked on every named-macro
+    /// call so the active solution may change at runtime. When the provider returns
+    /// <see langword="null"/>, repo-scoped operations throw
+    /// <see cref="InvalidOperationException"/>.
+    /// </param>
+    /// <exception cref="ArgumentNullException"><paramref name="repoFolderProvider"/> is null.</exception>
+    internal FileSystemMacroStore(Func<string?> repoFolderProvider)
+    {
+        _repoFolderProvider = repoFolderProvider ?? throw new ArgumentNullException(nameof(repoFolderProvider));
+
+        // Sentinels — every code path that would touch them is gated by _globalEnabled.
+        _globalFolder = string.Empty;
+        _globalNamedFolder = string.Empty;
+        _currentPath = string.Empty;
+        _globalEnabled = false;
     }
 
     /// <inheritdoc />
-    public string CurrentPath => _currentPath;
+    public string CurrentPath
+    {
+        get
+        {
+            EnsureGlobalEnabled();
+            return _currentPath;
+        }
+    }
 
     /// <inheritdoc />
     public event EventHandler<MacroLibraryChangedEventArgs>? LibraryChanged
@@ -161,6 +209,7 @@ public sealed class FileSystemMacroStore : IMacroStore, IDisposable
             throw new ArgumentNullException(nameof(source));
         }
 
+        EnsureGlobalEnabled();
         cancellation.ThrowIfCancellationRequested();
 
         return Task.Run(async () =>
@@ -200,6 +249,7 @@ public sealed class FileSystemMacroStore : IMacroStore, IDisposable
     /// <inheritdoc />
     public Task<string?> LoadCurrentAsync(CancellationToken cancellation = default)
     {
+        EnsureGlobalEnabled();
         cancellation.ThrowIfCancellationRequested();
 
         return Task.Run<string?>(() =>
@@ -220,6 +270,7 @@ public sealed class FileSystemMacroStore : IMacroStore, IDisposable
     /// <inheritdoc />
     public Task<bool> DeleteCurrentAsync(CancellationToken cancellation = default)
     {
+        EnsureGlobalEnabled();
         cancellation.ThrowIfCancellationRequested();
 
         return Task.Run(() =>
@@ -292,7 +343,14 @@ public sealed class FileSystemMacroStore : IMacroStore, IDisposable
         cancellation.ThrowIfCancellationRequested();
 
         var combined = new List<MacroEntry>();
-        combined.AddRange(await ListAsync(MacroScope.Global, cancellation).ConfigureAwait(false));
+
+        // Global scope is optional in repo-only mode (RepoMacroStore wraps us). Skipping
+        // it there keeps ListAllAsync usable as a "give me everything you have" query
+        // without the caller having to special-case construction mode.
+        if (_globalEnabled)
+        {
+            combined.AddRange(await ListAsync(MacroScope.Global, cancellation).ConfigureAwait(false));
+        }
 
         // Repo scope is optional: silently skip if no solution is open so callers can
         // call this from a no-solution startup without special-casing.
@@ -623,6 +681,7 @@ public sealed class FileSystemMacroStore : IMacroStore, IDisposable
         switch (scope)
         {
             case MacroScope.Global:
+                EnsureGlobalEnabled();
                 return _globalNamedFolder;
             case MacroScope.Repo:
                 if (!TryGetRepoFolder(out var repo))
@@ -632,6 +691,15 @@ public sealed class FileSystemMacroStore : IMacroStore, IDisposable
                 return repo!;
             default:
                 throw new ArgumentOutOfRangeException(nameof(scope), scope, "Unknown macro scope.");
+        }
+    }
+
+    private void EnsureGlobalEnabled()
+    {
+        if (!_globalEnabled)
+        {
+            throw new InvalidOperationException(
+                "This FileSystemMacroStore was constructed in repo-only mode; global / current.csx operations are not available.");
         }
     }
 
@@ -890,7 +958,7 @@ public sealed class FileSystemMacroStore : IMacroStore, IDisposable
     {
         lock (_watcherSync)
         {
-            if (_globalWatcher == null && Directory.Exists(_globalNamedFolder))
+            if (_globalEnabled && _globalWatcher == null && Directory.Exists(_globalNamedFolder))
             {
                 _globalWatcher = StartWatcher(_globalNamedFolder, MacroScope.Global);
             }

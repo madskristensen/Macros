@@ -37,8 +37,13 @@ public sealed class MacroGroupViewModel : INotifyPropertyChanged
     /// </summary>
     /// <param name="header">Display label rendered as the section title (e.g. <c>"Global"</c>).</param>
     /// <param name="scope">The on-disk scope this group represents.</param>
+    /// <param name="isShadowed">
+    /// When <see langword="true"/>, this group represents the "Shadowed Global Macros"
+    /// section — globals that are overridden by a same-named repo macro. Drives the muted
+    /// row styling in the XAML.
+    /// </param>
     /// <exception cref="ArgumentException"><paramref name="header"/> is null or whitespace.</exception>
-    public MacroGroupViewModel(string header, MacroScope scope)
+    public MacroGroupViewModel(string header, MacroScope scope, bool isShadowed = false)
     {
         if (string.IsNullOrWhiteSpace(header))
         {
@@ -47,6 +52,7 @@ public sealed class MacroGroupViewModel : INotifyPropertyChanged
 
         Header = header;
         Scope = scope;
+        IsShadowed = isShadowed;
         Items = new ObservableCollection<MacroItemViewModel>();
         VisibleItems = new ObservableCollection<MacroItemViewModel>();
         Items.CollectionChanged += OnItemsChanged;
@@ -57,6 +63,13 @@ public sealed class MacroGroupViewModel : INotifyPropertyChanged
 
     /// <summary>Gets the on-disk scope this group represents.</summary>
     public MacroScope Scope { get; }
+
+    /// <summary>
+    /// Gets a value indicating whether this group represents the shadowed-global section
+    /// (a global macro overridden by a repo macro of the same name). Used by the XAML to
+    /// distinguish the two <see cref="MacroScope.Global"/> sections.
+    /// </summary>
+    public bool IsShadowed { get; }
 
     /// <summary>Gets the unfiltered list of macro view-models in this section.</summary>
     public ObservableCollection<MacroItemViewModel> Items { get; }

@@ -129,6 +129,12 @@ public sealed class MacroService : IMacroService
     public event EventHandler<int>? RecordingStepCountChanged;
 
     /// <inheritdoc />
+    public event EventHandler<TriggeredExecutionEventArgs>? TriggeredExecutionStarted;
+
+    /// <inheritdoc />
+    public event EventHandler<TriggeredExecutionEventArgs>? TriggeredExecutionEnded;
+
+    /// <inheritdoc />
     public int CurrentRecordingMaxSteps => CurrentSession?.MaxSteps ?? int.MaxValue;
 
     /// <inheritdoc />
@@ -443,6 +449,16 @@ public sealed class MacroService : IMacroService
     private void RaiseStateChanged(MacroState oldState, MacroState newState)
     {
         StateChanged?.Invoke(this, new MacroStateChangedEventArgs(oldState, newState));
+    }
+
+    internal void RaiseTriggeredStarted(TriggeredExecutionEventArgs e)
+    {
+        TriggeredExecutionStarted?.Invoke(this, e);
+    }
+
+    internal void RaiseTriggeredEnded(TriggeredExecutionEventArgs e)
+    {
+        TriggeredExecutionEnded?.Invoke(this, e);
     }
 
     private void OnSessionCapReached(object? sender, EventArgs e)

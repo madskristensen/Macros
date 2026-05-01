@@ -279,6 +279,21 @@ internal sealed class FakeMacroService : IMacroService
         remove => _recordingStepCountChanged -= value;
     }
 
+    private EventHandler<TriggeredExecutionEventArgs>? _triggeredExecutionStarted;
+    private EventHandler<TriggeredExecutionEventArgs>? _triggeredExecutionEnded;
+
+    public event EventHandler<TriggeredExecutionEventArgs>? TriggeredExecutionStarted
+    {
+        add => _triggeredExecutionStarted += value;
+        remove => _triggeredExecutionStarted -= value;
+    }
+
+    public event EventHandler<TriggeredExecutionEventArgs>? TriggeredExecutionEnded
+    {
+        add => _triggeredExecutionEnded += value;
+        remove => _triggeredExecutionEnded -= value;
+    }
+
     public int CurrentRecordingMaxSteps => int.MaxValue;
 
     public string? CurrentMacroPath => null;

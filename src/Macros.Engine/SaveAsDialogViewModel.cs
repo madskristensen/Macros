@@ -52,6 +52,7 @@ internal sealed class SaveAsDialogViewModel : INotifyPropertyChanged
             if (_name == value) return;
             _name = value;
             OnPropertyChanged(nameof(Name));
+            OnPropertyChanged(nameof(PathPreview));
             Validate(value);
         }
     }
@@ -67,24 +68,49 @@ internal sealed class SaveAsDialogViewModel : INotifyPropertyChanged
             if (_scope == value) return;
             _scope = value;
             OnPropertyChanged(nameof(Scope));
-            OnPropertyChanged(nameof(IsGlobalScope));
-            OnPropertyChanged(nameof(IsRepoScope));
+            OnPropertyChanged(nameof(IsGlobal));
+            OnPropertyChanged(nameof(IsRepo));
+            OnPropertyChanged(nameof(PathPreview));
             Validate(_name);
         }
     }
 
     /// <summary>Convenience bool for two-way RadioButton binding (Global).</summary>
-    public bool IsGlobalScope
+    public bool IsGlobal
     {
         get => _scope == MacroScope.Global;
         set { if (value) Scope = MacroScope.Global; }
     }
 
     /// <summary>Convenience bool for two-way RadioButton binding (Repo).</summary>
-    public bool IsRepoScope
+    public bool IsRepo
     {
         get => _scope == MacroScope.Repo;
         set { if (value) Scope = MacroScope.Repo; }
+    }
+
+    /// <summary>Tooltip for the Repo radio button. Explains why it is disabled when no solution is open.</summary>
+    public string RepoTooltip => IsRepoEnabled
+        ? "Save in this solution's .vs/Macros folder"
+        : "Open a solution to save here";
+
+    /// <summary>Shows where the macro file will be written. Updates live as Name or Scope changes.</summary>
+    public string PathPreview
+    {
+        get
+        {
+            if (string.IsNullOrEmpty(_name))
+                return "(enter a name)";
+            try
+            {
+                return _storage.GetMacroPath(_name, _scope);
+            }
+            catch (InvalidOperationException)
+            {
+                // Repo scope with no solution — fall back to global path for display.
+                return _storage.GetMacroPath(_name, MacroScope.Global);
+            }
+        }
     }
 
     /// <summary>

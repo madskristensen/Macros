@@ -44,6 +44,7 @@ internal sealed class MacroTriggerRegistry : IMacroTriggerRegistry
     private readonly IMacroStore _store;
     private readonly JoinableTaskFactory _jtf;
     private readonly Func<bool>? _disableAllTriggersProvider;
+    private readonly IMacroFailureTracker? _failureTracker;
 
     private readonly object _sync = new();
 
@@ -86,17 +87,24 @@ internal sealed class MacroTriggerRegistry : IMacroTriggerRegistry
     /// <c>() =&gt; MacrosOptions.Instance.DisableAllTriggers</c>. Tests pass <see langword="null"/>
     /// to keep the kill-switch off, or supply a captured-variable lambda to flip it on demand.
     /// </param>
+    /// <param name="failureTracker">
+    /// Optional <see cref="IMacroFailureTracker"/>. When supplied, lookups filter out any macro
+    /// whose path has been auto-disabled. Pass <see langword="null"/> to disable the feature
+    /// (tests and production code that hasn't wired the tracker yet both work correctly).
+    /// </param>
     /// <exception cref="ArgumentNullException">
     /// <paramref name="store"/> or <paramref name="jtf"/> is <see langword="null"/>.
     /// </exception>
     public MacroTriggerRegistry(
         IMacroStore store,
         JoinableTaskFactory jtf,
-        Func<bool>? disableAllTriggersProvider = null)
+        Func<bool>? disableAllTriggersProvider = null,
+        IMacroFailureTracker? failureTracker = null)
     {
         _store = store ?? throw new ArgumentNullException(nameof(store));
         _jtf = jtf ?? throw new ArgumentNullException(nameof(jtf));
         _disableAllTriggersProvider = disableAllTriggersProvider;
+        _failureTracker = failureTracker;
 
         _store.LibraryChanged += OnLibraryChanged;
 
@@ -170,15 +178,32 @@ internal sealed class MacroTriggerRegistry : IMacroTriggerRegistry
                 return EmptyMatches;
             }
 
-            // Hand back a defensive snapshot so callers can iterate without worrying about
-            // a concurrent rebuild swapping the underlying list out from under them.
-            return list.ToArray();
+            // Filter out auto-disabled macros (if tracker is wired), then hand back a
+            // defensive snapshot so callers can iterate without worrying about a concurrent
+            // rebuild swapping the underlying list out from under them.
+            if (_failureTracker is null)
+                return list.ToArray();
+
+            var filtered = new List<TriggerMatch>(list.Count);
+            foreach (var m in list)
+            {
+                if (!_failureTracker.IsAutoDisabled(m.Entry.Path))
+                    filtered.Add(m);
+            }
+            return filtered.Count == list.Count ? list.ToArray() : filtered.ToArray();
         }
     }
 
     /// <inheritdoc />
     public async Task RefreshAsync(CancellationToken cancellation = default)
     {
+        // Bail out cheap if we're already disposed — the semaphore below would otherwise
+        // throw ObjectDisposedException.
+        lock (_sync)
+        {
+            if (_disposed) return;
+        }
+
         // Take the gate so concurrent refresh requests serialize. The gate also doubles as
         // the disposal guard — a refresh entered before Dispose() will complete; one entered
         // after observes _disposed and bails out.

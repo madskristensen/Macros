@@ -103,6 +103,17 @@
         </Strings>
       </Button>
 
+      <!-- Kill-switch toggle (m4-kill-switch). Appears as a checked toolbar button;
+           checked state = triggers are disabled. -->
+      <Button guid="guidMacrosPackageCmdSet" id="cmdidMacrosToggleTriggers" priority="0x0130" type="Button">
+        <Parent guid="guidMacrosPackageCmdSet" id="MacrosToolbarGroup" />
+        <CommandFlag>DynamicVisibility</CommandFlag>
+        <Strings>
+          <ButtonText>Toggle All Triggers</ButtonText>
+          <CommandName>Macros.ToggleTriggers</CommandName>
+        </Strings>
+      </Button>
+
       <!-- Tool window context menu buttons (m3-context-menu). Each acts on the macro stored
            in MacroSelectionContext.Current at right-click time. KnownMonikers IDs come from
            Microsoft.VisualStudio.Imaging.KnownMonikers; ImageCatalogGuid is the well-known
@@ -144,6 +155,28 @@
         <Strings>
           <ButtonText>&amp;Delete</ButtonText>
           <CommandName>Macros.Context.Delete</CommandName>
+        </Strings>
+      </Button>
+
+      <Button guid="guidMacrosPackageCmdSet" id="cmdidMacrosCtxMoveToRepo" priority="0x0150" type="Button">
+        <Parent guid="guidMacrosPackageCmdSet" id="MacrosContextMenuGroup1" />
+        <Icon guid="ImageCatalogGuid" id="MoveToFolder" />
+        <CommandFlag>IconIsMoniker</CommandFlag>
+        <CommandFlag>DynamicVisibility</CommandFlag>
+        <Strings>
+          <ButtonText>Move to &amp;Repo</ButtonText>
+          <CommandName>Macros.Context.MoveToRepo</CommandName>
+        </Strings>
+      </Button>
+
+      <Button guid="guidMacrosPackageCmdSet" id="cmdidMacrosCtxMoveToGlobal" priority="0x0151" type="Button">
+        <Parent guid="guidMacrosPackageCmdSet" id="MacrosContextMenuGroup1" />
+        <Icon guid="ImageCatalogGuid" id="MoveToFolder" />
+        <CommandFlag>IconIsMoniker</CommandFlag>
+        <CommandFlag>DynamicVisibility</CommandFlag>
+        <Strings>
+          <ButtonText>Move to &amp;Global</ButtonText>
+          <CommandName>Macros.Context.MoveToGlobal</CommandName>
         </Strings>
       </Button>
 
@@ -202,6 +235,8 @@
       <IDSymbol name="cmdidMacrosRefresh"            value="0x010B" />
       <IDSymbol name="cmdidMacrosMoveToRepo"         value="0x010C" />
       <IDSymbol name="cmdidMacrosMoveToGlobal"       value="0x010D" />
+      <!-- M4 kill-switch toggle (m4-kill-switch). -->
+      <IDSymbol name="cmdidMacrosToggleTriggers"     value="0x0014" />
 
       <!-- Tool window context menu (m3-context-menu). Lives in its own 0x2xxx range so it
            cannot collide with the M1 placeholders above and so the symbols cluster together. -->
@@ -212,6 +247,8 @@
       <IDSymbol name="cmdidMacrosCtxEdit"            value="0x2111" />
       <IDSymbol name="cmdidMacrosCtxRename"          value="0x2112" />
       <IDSymbol name="cmdidMacrosCtxDelete"          value="0x2113" />
+      <IDSymbol name="cmdidMacrosCtxMoveToRepo"      value="0x2114" />
+      <IDSymbol name="cmdidMacrosCtxMoveToGlobal"    value="0x2115" />
       <IDSymbol name="cmdidMacrosCtxOpenFolder"      value="0x2210" />
 
     </GuidSymbol>

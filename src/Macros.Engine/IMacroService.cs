@@ -73,6 +73,18 @@ public interface IMacroService
     event EventHandler<int>? RecordingStepCountChanged;
 
     /// <summary>
+    /// Raised immediately before a macro begins executing as a result of a trigger.
+    /// Provides context about the trigger that initiated the execution.
+    /// </summary>
+    event EventHandler<TriggeredExecutionEventArgs>? TriggeredExecutionStarted;
+
+    /// <summary>
+    /// Raised immediately after a triggered macro has finished executing or failed.
+    /// Complements <see cref="TriggeredExecutionStarted"/>.
+    /// </summary>
+    event EventHandler<TriggeredExecutionEventArgs>? TriggeredExecutionEnded;
+
+    /// <summary>
     /// Gets the <see cref="RecordingSession.MaxSteps"/> of the active recording session,
     /// or <see cref="int.MaxValue"/> if no session is active. Safe to call from any thread.
     /// </summary>

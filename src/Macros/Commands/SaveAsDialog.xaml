@@ -44,27 +44,32 @@
                  Background="{DynamicResource {x:Static vsui:EnvironmentColors.ComboBoxBackgroundBrushKey}}"
                  BorderBrush="{DynamicResource {x:Static vsui:EnvironmentColors.ComboBoxBorderBrushKey}}" />
 
-        <!-- Row 1: Scope label + RadioButtons -->
+        <!-- Row 1: Scope label + RadioButtons + path preview -->
         <TextBlock Grid.Row="1" Grid.Column="0"
                    Text="Scope:"
-                   VerticalAlignment="Center"
-                   Margin="0,0,8,8"
+                   VerticalAlignment="Top"
+                   Margin="0,4,8,8"
                    Foreground="{DynamicResource {x:Static vsui:EnvironmentColors.DialogTextBrushKey}}" />
-        <StackPanel Grid.Row="1" Grid.Column="1"
-                    Orientation="Horizontal"
-                    Margin="0,0,0,8">
-            <RadioButton Content="Global"
-                         IsChecked="{Binding IsGlobalScope, Mode=TwoWay}"
-                         Margin="0,0,16,0"
-                         VerticalAlignment="Center"
-                         Foreground="{DynamicResource {x:Static vsui:EnvironmentColors.DialogTextBrushKey}}" />
-            <RadioButton Content="Repo"
-                         IsChecked="{Binding IsRepoScope, Mode=TwoWay}"
-                         IsEnabled="{Binding IsRepoEnabled}"
-                         ToolTipService.ShowOnDisabled="True"
-                         ToolTip="Repo scope requires an open solution."
-                         VerticalAlignment="Center"
-                         Foreground="{DynamicResource {x:Static vsui:EnvironmentColors.DialogTextBrushKey}}" />
+        <StackPanel Grid.Row="1" Grid.Column="1" Margin="0,0,0,8">
+            <StackPanel Orientation="Horizontal">
+                <RadioButton Content="Global"
+                             IsChecked="{Binding IsGlobal, Mode=TwoWay}"
+                             Margin="0,0,16,0"
+                             VerticalAlignment="Center"
+                             Foreground="{DynamicResource {x:Static vsui:EnvironmentColors.DialogTextBrushKey}}" />
+                <RadioButton Content="Repo (this solution)"
+                             IsChecked="{Binding IsRepo, Mode=TwoWay}"
+                             IsEnabled="{Binding IsRepoEnabled}"
+                             ToolTipService.ShowOnDisabled="True"
+                             ToolTip="{Binding RepoTooltip}"
+                             VerticalAlignment="Center"
+                             Foreground="{DynamicResource {x:Static vsui:EnvironmentColors.DialogTextBrushKey}}" />
+            </StackPanel>
+            <TextBlock Margin="0,8,0,0"
+                       Text="{Binding PathPreview}"
+                       FontStyle="Italic"
+                       Foreground="{DynamicResource {x:Static vsui:EnvironmentColors.ToolWindowTextBrushKey}}"
+                       Opacity="0.7" />
         </StackPanel>
 
         <!-- Row 2: Validation message (hidden when empty) -->

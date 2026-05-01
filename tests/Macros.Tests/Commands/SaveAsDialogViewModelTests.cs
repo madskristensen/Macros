@@ -170,7 +170,7 @@ public sealed class SaveAsDialogViewModelTests
     }
 
     [Fact]
-    public void IsGlobalScope_IsRepoScope_ReflectScope()
+    public void IsGlobal_IsRepo_ReflectScope()
     {
         var mock = new Mock<IMacroStore>(MockBehavior.Strict);
         mock.Setup(s => s.IsValidName(It.IsAny<string>())).Returns(true);
@@ -182,12 +182,131 @@ public sealed class SaveAsDialogViewModelTests
         vm.Name = "test";
 
         vm.Scope = MacroScope.Global;
-        Assert.True(vm.IsGlobalScope);
-        Assert.False(vm.IsRepoScope);
+        Assert.True(vm.IsGlobal);
+        Assert.False(vm.IsRepo);
 
         vm.Scope = MacroScope.Repo;
-        Assert.False(vm.IsGlobalScope);
-        Assert.True(vm.IsRepoScope);
+        Assert.False(vm.IsGlobal);
+        Assert.True(vm.IsRepo);
+    }
+
+    [Fact]
+    public void IsGlobal_DefaultTrue_IsRepo_DefaultFalse()
+    {
+        var mock = new Mock<IMacroStore>(MockBehavior.Strict);
+        mock.Setup(s => s.IsValidName(It.IsAny<string>())).Returns(true);
+
+        var vm = new SaveAsDialogViewModel(AnySource, mock.Object, hasRepo: true);
+
+        Assert.True(vm.IsGlobal);
+        Assert.False(vm.IsRepo);
+    }
+
+    [Fact]
+    public void SetIsRepo_True_ChangesScopeToRepo_RaisesEvent()
+    {
+        var mock = new Mock<IMacroStore>(MockBehavior.Strict);
+        mock.Setup(s => s.IsValidName(It.IsAny<string>())).Returns(true);
+        mock.Setup(s => s.GetMacroPath(It.IsAny<string>(), It.IsAny<MacroScope>()))
+            .Returns<string, MacroScope>((n, _) =>
+                Path.Combine(Path.GetTempPath(), n + ".csx"));
+
+        var vm = new SaveAsDialogViewModel(AnySource, mock.Object, hasRepo: true);
+        vm.Name = "mymacro";
+
+        var fired = new System.Collections.Generic.List<string>();
+        vm.PropertyChanged += (_, e) => fired.Add(e.PropertyName!);
+
+        vm.IsRepo = true;
+
+        Assert.Equal(MacroScope.Repo, vm.Scope);
+        Assert.Contains(nameof(vm.IsRepo), fired);
+        Assert.Contains(nameof(vm.IsGlobal), fired);
+    }
+
+    [Fact]
+    public void PathPreview_EmptyName_ShowsPlaceholder()
+    {
+        var mock = new Mock<IMacroStore>(MockBehavior.Strict);
+
+        var vm = new SaveAsDialogViewModel(AnySource, mock.Object, hasRepo: false);
+
+        Assert.Equal("(enter a name)", vm.PathPreview);
+    }
+
+    [Fact]
+    public void PathPreview_ReflectsNameAndScope()
+    {
+        var globalPath = Path.Combine("C:", "Users", "appdata", "global", "mymacro.csx");
+        var repoPath = Path.Combine("C:", "solution", ".vs", "Macros", "mymacro.csx");
+
+        var mock = new Mock<IMacroStore>(MockBehavior.Strict);
+        mock.Setup(s => s.IsValidName("mymacro")).Returns(true);
+        mock.Setup(s => s.GetMacroPath("mymacro", MacroScope.Global)).Returns(globalPath);
+        mock.Setup(s => s.GetMacroPath("mymacro", MacroScope.Repo)).Returns(repoPath);
+
+        var vm = new SaveAsDialogViewModel(AnySource, mock.Object, hasRepo: true);
+        vm.Name = "mymacro";
+
+        vm.Scope = MacroScope.Global;
+        Assert.Equal(globalPath, vm.PathPreview);
+
+        vm.Scope = MacroScope.Repo;
+        Assert.Equal(repoPath, vm.PathPreview);
+    }
+
+    [Fact]
+    public void PathPreview_WhenRepoDisabledAndRepoScopeAttempted_ShowsGlobalPath()
+    {
+        var globalPath = Path.Combine("C:", "Users", "appdata", "global", "mymacro.csx");
+
+        var mock = new Mock<IMacroStore>(MockBehavior.Strict);
+        mock.Setup(s => s.IsValidName("mymacro")).Returns(true);
+        mock.Setup(s => s.GetMacroPath("mymacro", MacroScope.Global)).Returns(globalPath);
+
+        // No repo: setting Repo scope is silently blocked, PathPreview should show global
+        var vm = new SaveAsDialogViewModel(AnySource, mock.Object, hasRepo: false);
+        vm.Name = "mymacro";
+        vm.Scope = MacroScope.Repo; // blocked
+
+        Assert.Equal(MacroScope.Global, vm.Scope);
+        Assert.Equal(globalPath, vm.PathPreview);
+    }
+
+    [Fact]
+    public void PathPreview_ChangesWhenNameChanges()
+    {
+        var mock = new Mock<IMacroStore>(MockBehavior.Strict);
+        mock.Setup(s => s.IsValidName(It.IsAny<string>())).Returns(true);
+        mock.Setup(s => s.GetMacroPath(It.IsAny<string>(), MacroScope.Global))
+            .Returns<string, MacroScope>((n, _) => @"C:\macros\" + n + ".csx");
+
+        var vm = new SaveAsDialogViewModel(AnySource, mock.Object, hasRepo: false);
+
+        var fired = new System.Collections.Generic.List<string>();
+        vm.PropertyChanged += (_, e) => fired.Add(e.PropertyName!);
+
+        vm.Name = "alpha";
+        Assert.Contains(nameof(vm.PathPreview), fired);
+        Assert.EndsWith("alpha.csx", vm.PathPreview);
+    }
+
+    [Fact]
+    public void RepoTooltip_WhenRepoEnabled_ShowsSavePath()
+    {
+        var mock = new Mock<IMacroStore>(MockBehavior.Strict);
+        var vm = new SaveAsDialogViewModel(AnySource, mock.Object, hasRepo: true);
+
+        Assert.Contains("solution", vm.RepoTooltip, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void RepoTooltip_WhenRepoDisabled_ShowsOpenSolution()
+    {
+        var mock = new Mock<IMacroStore>(MockBehavior.Strict);
+        var vm = new SaveAsDialogViewModel(AnySource, mock.Object, hasRepo: false);
+
+        Assert.Contains("Open a solution", vm.RepoTooltip, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
