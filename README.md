@@ -40,21 +40,21 @@ Requires **Visual Studio 2022** (17.10+) on Windows.
 
 ## Documentation
 
-- **[Getting Started](https://github.com/MadsKristensen/Macros/blob/main/docs/getting-started.md)** — 60-second setup, hotkeys, save your first macro.
-- **[Recording](https://github.com/MadsKristensen/Macros/blob/main/docs/recording.md)** — What gets captured, step aggregation, the current slot.
-- **[Replaying](https://github.com/MadsKristensen/Macros/blob/main/docs/replaying.md)** — Play Last, tool window, error handling.
-- **[C# Scripting Reference](https://github.com/MadsKristensen/Macros/blob/main/docs/csx-reference.md)** — Helpers API, MacroGlobals, code examples.
-- **[Triggers](https://github.com/MadsKristensen/Macros/blob/main/docs/triggers.md)** — @trigger directive, all event/command types, filters, examples.
-- **[Scopes](https://github.com/MadsKristensen/Macros/blob/main/docs/scopes.md)** — Global vs Repo macros, storage, team sharing.
-- **[Security](https://github.com/MadsKristensen/Macros/blob/main/docs/security.md)** — Trust gate, auto-disable, why macros are code.
-- **[Troubleshooting](https://github.com/MadsKristensen/Macros/blob/main/docs/troubleshooting.md)** — Common issues and fixes.
-- **[Architecture](https://github.com/MadsKristensen/Macros/blob/main/docs/architecture.md)** — For contributors: how it works under the hood.
+- **[Getting Started](docs/getting-started.md)** — 60-second setup, hotkeys, save your first macro.
+- **[Recording](docs/recording.md)** — What gets captured, step aggregation, the current slot.
+- **[Replaying](docs/replaying.md)** — Play Last, tool window, error handling.
+- **[C# Scripting Reference](docs/csx-reference.md)** — Helpers API, MacroGlobals, code examples.
+- **[Triggers](docs/triggers.md)** — @trigger directive, all event/command types, filters, examples.
+- **[Scopes](docs/scopes.md)** — Global vs Repo macros, storage, team sharing.
+- **[Security](docs/security.md)** — Trust gate, auto-disable, why macros are code.
+- **[Troubleshooting](docs/troubleshooting.md)** — Common issues and fixes.
+- **[Architecture](docs/architecture.md)** — For contributors: how it works under the hood.
 
 ## Contributing
 
 Issues, ideas, and PRs welcome on [GitHub](https://github.com/MadsKristensen/Macros).
 
-- **New to the codebase?** See [Building from source](https://github.com/MadsKristensen/Macros/blob/main/docs/architecture.md#building-from-source).
+- **New to the codebase?** See [Building from source](docs/architecture.md#building-from-source).
 - **Extending VS?** Check the [Community.VisualStudio.Toolkit](https://github.com/VsixCommunity/Community.VisualStudio.Toolkit) docs.
 
 ## License

@@ -216,13 +216,16 @@ public sealed class CompositeStoreIntegrationTests : IDisposable
         var externalFile = Path.Combine(namedFolder, "ExternallyAdded.csx");
         File.WriteAllText(externalFile, "// external");
 
-        // Wait for the 200 ms debounce + buffer.
-        await Task.Delay(400);
+        // Poll for the debounced event. CI runners (especially Windows) can take far
+        // longer than the 200 ms debounce window to deliver FileSystemWatcher
+        // notifications under load — a fixed Task.Delay was flaky and would fall
+        // through with captured.Count == 0.
+        Assert.True(
+            await WaitForAsync(() => { lock (captured) return captured.Count > 0; }, TimeSpan.FromSeconds(3)),
+            "Expected at least one LibraryChanged event after external file write.");
 
         lock (captured)
         {
-            Assert.True(captured.Count > 0,
-                "Expected at least one LibraryChanged event after external file write.");
             Assert.Contains(captured, e =>
                 e.Kind == MacroLibraryChangeKind.Added &&
                 e.Name == "ExternallyAdded" &&
@@ -249,16 +252,42 @@ public sealed class CompositeStoreIntegrationTests : IDisposable
         var externalFile = Path.Combine(_repoRoot, "RepoExternal.csx");
         File.WriteAllText(externalFile, "// external-repo");
 
-        await Task.Delay(400);
+        // Poll for the debounced event. CI runners (especially Windows) can take far
+        // longer than the 200 ms debounce window to deliver FileSystemWatcher
+        // notifications under load — a fixed Task.Delay was flaky and would fall
+        // through with captured.Count == 0.
+        Assert.True(
+            await WaitForAsync(() => { lock (captured) return captured.Count > 0; }, TimeSpan.FromSeconds(3)),
+            "Expected at least one LibraryChanged event after external repo file write.");
 
         lock (captured)
         {
-            Assert.True(captured.Count > 0,
-                "Expected at least one LibraryChanged event after external repo file write.");
             Assert.Contains(captured, e =>
                 e.Kind == MacroLibraryChangeKind.Added &&
                 e.Name == "RepoExternal" &&
                 e.Scope == MacroScope.Repo);
         }
+    }
+
+    /// <summary>
+    /// Polls <paramref name="predicate"/> until it returns <see langword="true"/> or
+    /// <paramref name="timeout"/> elapses. Used in place of fixed <see cref="Task.Delay(int)"/>
+    /// when waiting for FileSystemWatcher events: the underlying notifications can take
+    /// significantly longer than the 200 ms debounce window to deliver on loaded CI runners.
+    /// </summary>
+    private static async Task<bool> WaitForAsync(Func<bool> predicate, TimeSpan timeout)
+    {
+        var deadline = DateTime.UtcNow + timeout;
+        while (DateTime.UtcNow < deadline)
+        {
+            if (predicate())
+            {
+                return true;
+            }
+
+            await Task.Delay(30).ConfigureAwait(false);
+        }
+
+        return predicate();
     }
 }

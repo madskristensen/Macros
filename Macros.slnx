@@ -1,23 +1,12 @@
 <Solution>
-  <Configurations>
-    <Platform Name="Any CPU" />
-    <BuildType Name="Debug" />
-    <BuildType Name="Release" />
-  </Configurations>
   <Folder Name="/src/">
     <Project Path="src/Macros/Macros.csproj" Id="a0e61803-d161-4346-ab14-0ab07fd7bc78">
-      <Deploy Solution="Debug|Any CPU" />
+      <Deploy Solution="Debug|*" />
     </Project>
     <Project Path="src/Macros.Engine/Macros.Engine.csproj" Id="cfdf1cb9-1d97-43e9-92e4-5802f517adfa" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Macros.Tests/Macros.Tests.csproj" Id="606fe0fb-0039-4270-bfa4-6d4d315c2426" />
     <Project Path="tests/Macros.IntegrationTests/Macros.IntegrationTests.csproj" Id="4ad1d0b5-9d55-4e71-8f82-1d59aac7a07b" />
-  </Folder>
-  <Folder Name="/docs/">
-    <File Path="README.md" />
-    <File Path="LICENSE" />
-    <File Path=".editorconfig" />
-    <File Path="Directory.Build.props" />
   </Folder>
 </Solution>
