@@ -2,18 +2,23 @@ using System;
 using System.Runtime.InteropServices;
 using System.Threading;
 using Community.VisualStudio.Toolkit;
+using EnvDTE;
 using EnvDTE80;
 using Macros.Engine;
 using Macros.Engine.Player;
 using Macros.Engine.Scripting;
 using Macros.Engine.Storage;
+using Macros.Engine.Triggers;
 using Macros.Commands;
+using Macros.Lifecycle;
 using Macros.Observers;
 using Macros.Onboarding;
 using Macros.Options;
 using Macros.Recording;
 using Macros.StatusBar;
 using Macros.ToolWindows;
+using Macros.Triggers;
+using Macros.Trust;
 using Macros.UIContexts;
 using Microsoft.VisualStudio;
 using Microsoft.VisualStudio.Shell;
@@ -58,13 +63,35 @@ public sealed class MacrosPackage : ToolkitPackage
     private uint _commandObserverCookie;
     private UIContextActivator? _uiContextActivator;
     private RecordingCapHandler? _recordingCapHandler;
+    private MacroTriggerRegistry? _triggerRegistry;
+    private CommandTriggerDispatcher? _commandTriggerDispatcher;
+    private MacroEventBus? _eventBus;
+    // CommandEvents is a COM object the shell only weak-references through our subscription;
+    // GC'ing the wrapper detaches the event handlers and silently breaks AfterCommand
+    // dispatch. Store it on the package field so it lives as long as we do.
+    private EnvDTE.CommandEvents? _commandEvents;
+    private _dispCommandEvents_AfterExecuteEventHandler? _afterExecuteHandler;
     private readonly ScriptCompilationCache _scriptCache = new();
 
-    // Active solution directory. Read by the repo-folder provider passed to
-    // FileSystemMacroStore; updated from solution-open / solution-close events
-    // (wired in m3-storage-watcher). Field is updated via Volatile.Write so the
-    // background-thread reader sees a fresh value without taking a lock.
-    private string? _solutionDirectory;
+    // Solution open / close listener. Owned by the package so its toolkit event
+    // subscriptions stay rooted; disposed on package shutdown. Wires the active
+    // solution directory into the repo-folder provider passed to RepoMacroStore,
+    // closing the M3 deferred TODO that read
+    // "TODO(m3-storage-watcher or m3-tool-window): wire solution events".
+    private SolutionContextTracker? _solutionTracker;
+
+    // Scope-restricted stores fronted by the M4 CompositeMacroStore. The composite owns
+    // both children for disposal (ownsChildren: true) — keeping references here lets the
+    // dispose path tear them down deterministically and lets test hooks observe them.
+    private GlobalMacroStore? _globalMacroStore;
+    private RepoMacroStore? _repoMacroStore;
+    private CompositeMacroStore? _compositeMacroStore;
+
+    // M4 trust gate: surfaces an InfoBar on solution open whenever the active solution
+    // contains repo macros with auto-run triggers and the user has neither trusted nor
+    // blocked it yet. Owned on a field so the SolutionChanged subscription stays rooted
+    // and is unwired deterministically on package dispose.
+    private TrustGateInfoBar? _trustGateInfoBar;
 
     /// <inheritdoc />
     protected override async Task InitializeAsync(CancellationToken cancellationToken, IProgress<ServiceProgressData> progress)
@@ -82,24 +109,32 @@ public sealed class MacrosPackage : ToolkitPackage
         //
         //    The same storage instance is re-exposed as IMacroStore so the M3 tool window VM
         //    can enumerate / watch the named-macro library independently of the engine. Lazy<T>
-        //    guarantees a single backing FileSystemMacroStore no matter which service is
-        //    resolved first (the resolves cross threads via the VS service container).
+        //    guarantees a single backing store no matter which service is resolved first
+        //    (the resolves cross threads via the VS service container).
+        //
+        //    M4: the storage is now a CompositeMacroStore routing between a GlobalMacroStore
+        //    (rooted at MacrosPaths.ResolveGlobalFolder) and a RepoMacroStore (rooted at the
+        //    active solution's .vs\Macros folder via _solutionTracker). The composite owns
+        //    both halves for disposal; the field references survive on the package so tests
+        //    and the dispose path can observe / tear them down deterministically.
         var sharedStorage = new Lazy<IMacroStore>(
             () =>
             {
                 var folder = MacrosPaths.ResolveGlobalFolder(MacrosOptions.Instance.GlobalMacrosFolder);
                 // The repo-folder accessor must be cheap and non-blocking — it's invoked on
-                // every named-macro call. We cache the active solution's directory in
-                // _solutionDirectory and update it from solution-open / solution-close
-                // events; the wiring lives in m3-storage-watcher (next todo). Until then
-                // the field stays null and repo-scoped storage operations throw cleanly,
-                // which is the right UX while no UI surface targets repo scope yet.
-                // TODO(m3-storage-watcher): subscribe to VS.Events.SolutionEvents.OnAfterOpenSolution /
-                //                            OnAfterCloseSolution to update _solutionDirectory.
-                Func<string?> repoProvider = () => MacrosPaths.ResolveRepoFolder(
-                    Volatile.Read(ref _solutionDirectory),
-                    MacrosOptions.Instance.RepoMacrosFolderName ?? "Macros");
-                return new FileSystemMacroStore(folder, repoProvider);
+                // every named-macro call. SolutionContextTracker (constructed below) caches
+                // the active solution's directory and updates it from solution-open /
+                // solution-close events. When no solution is open the provider returns
+                // null and repo-scoped storage operations throw cleanly; the composite's
+                // ListAllAsync silently degrades to global-only in that case so the tool
+                // window can render a no-solution startup without special-casing.
+                var global = new GlobalMacroStore(folder);
+                var repo = new RepoMacroStore(() => _solutionTracker?.GetCurrentRepoMacrosFolder());
+                _globalMacroStore = global;
+                _repoMacroStore = repo;
+                var composite = new CompositeMacroStore(global, repo, ownsChildren: true);
+                _compositeMacroStore = composite;
+                return composite;
             },
             isThreadSafe: true);
 
@@ -119,9 +154,33 @@ public sealed class MacrosPackage : ToolkitPackage
             },
             promote: true);
 
+        // Register IMacroEventBus with the kill-switch provider so VS event triggers
+        // honour DisableAllTriggers without requiring a registry rebuild.
+        var reentranceGuard = new TriggerReentranceGuard();
+        _eventBus = new MacroEventBus(isDisabledProvider: () => MacrosOptions.Instance.DisableAllTriggers, guard: reentranceGuard);
+        this.AddService(
+            typeof(IMacroEventBus),
+            (_, _, _) => Task.FromResult<object>(_eventBus),
+            promote: true);
+
         // 2. Register command handlers (scans this assembly for BaseCommand<T> subclasses with
         //    [Command] attributes and wires them to the IMenuCommandService).
         await this.RegisterCommandsAsync();
+
+        // 2a. Initialize the solution tracker BEFORE any consumer touches the shared storage
+        //     (the trigger registry below resolves sharedStorage.Value, which lazily builds
+        //     the CompositeMacroStore and reads _solutionTracker to wire the repo half).
+        //     The tracker subscribes to VS.Events.SolutionEvents.OnAfterOpenSolution /
+        //     OnAfterCloseSolution and is read on every named-macro call by the repo-folder
+        //     provider above — this closes the M3 deferred TODO that previously left
+        //     _solutionDirectory at null forever.
+        _solutionTracker = await SolutionContextTracker.InitializeAsync(this);
+
+        // 2b. Wire the M4 trust-gate InfoBar. Subscribes to SolutionChanged on the tracker
+        //     above and shows an InfoBar at the top of the editor whenever a solution opens
+        //     that carries repo macros with auto-run triggers and is neither trusted nor
+        //     blocked. Triggers stay dormant until the user makes a choice.
+        _trustGateInfoBar = await TrustGateInfoBar.InitializeAsync(this, _solutionTracker);
 
         // 3. Register IMacroPlayer so the play infrastructure has a resolvable producer.
         //    ScriptCompilationCache is package-lifetime (single instance on _scriptCache) so
@@ -136,17 +195,65 @@ public sealed class MacrosPackage : ToolkitPackage
             promote: true);
 
         // 4. Register the priority command target so CommandObserver sees every shell command
-        //    before any focused target gets it. The observer is strictly passive — see
-        //    CommandObserver.Exec for the OLECMDERR_E_NOTSUPPORTED contract.
+        //    before any focused target gets it. The observer normally returns
+        //    OLECMDERR_E_NOTSUPPORTED so the chain continues; the only exception is when a
+        //    BeforeCommand macro vetoes the command via Trigger.CancelCommand().
         //    Registration must happen on the UI thread; AllowsBackgroundLoading means we may
         //    still be on the threadpool here.
         await JoinableTaskFactory.SwitchToMainThreadAsync(cancellationToken);
+
+        // Construct the trigger registry over the shared store so the dispatcher can probe
+        // O(1) per command. The kill-switch hook funnels MacrosOptions.DisableAllTriggers
+        // back into the registry without taking a project reference on the options DLL.
+        _triggerRegistry = new MacroTriggerRegistry(
+            sharedStorage.Value,
+            JoinableTaskFactory,
+            disableAllTriggersProvider: () => MacrosOptions.Instance.DisableAllTriggers);
+
+        // Construct the dispatcher. The MacroPlayer here is a fresh instance — we cannot
+        // resolve via VS.GetRequiredServiceAsync from inside the package's own
+        // InitializeAsync without risking a deadlock against the service container that
+        // hasn't finished registering us yet. The script cache and DTE are shared with the
+        // proffered IMacroPlayer service so cache hits are still cross-instance.
+        var dispatcherPlayer = new MacroPlayer(JoinableTaskFactory, _scriptCache, dte);
+        _commandTriggerDispatcher = new CommandTriggerDispatcher(
+            _triggerRegistry,
+            dispatcherPlayer,
+            CommandNameCache.Instance,
+            beforeTimeoutMsProvider: () => MacrosOptions.Instance.BeforeCommandTimeoutMs,
+            JoinableTaskFactory,
+            tracker: null /* m4-auto-disable wires this */,
+            guard: reentranceGuard);
+
         _priorityCommandTarget = await GetServiceAsync(typeof(SVsRegisterPriorityCommandTarget)) as IVsRegisterPriorityCommandTarget;
         if (_priorityCommandTarget is not null)
         {
-            var observer = new CommandObserver(JoinableTaskFactory);
+            var observer = new CommandObserver(JoinableTaskFactory, _commandTriggerDispatcher);
             _priorityCommandTarget.RegisterPriorityCommandTarget(0u, observer, out _commandObserverCookie);
         }
+
+        // Subscribe to DTE.Events.CommandEvents.AfterExecute so AfterCommand triggers fire
+        // once the real command handler has completed. The priority command target's Exec
+        // runs strictly BEFORE the handler and has no completion callback, so we can't
+        // dispatch AfterCommand from the same code path. The CommandEvents wrapper must be
+        // stored on a field — letting it GC silently detaches the subscription.
+        _commandEvents = dte.Events.CommandEvents;
+        _afterExecuteHandler = (string guid, int id, object input, object output) =>
+        {
+            try
+            {
+                if (Guid.TryParse(guid, out var g))
+                {
+                    _commandTriggerDispatcher?.DispatchAfter(g, (uint)id);
+                }
+            }
+            catch
+            {
+                // AfterExecute fires from the shell; a throw here would tear down the COM
+                // event source and silently disable AfterCommand for the rest of the session.
+            }
+        };
+        _commandEvents.AfterExecute += _afterExecuteHandler;
 
         // 4. Register tool windows (scans this assembly for BaseToolWindow<T> subclasses).
         this.RegisterToolWindows();
@@ -192,10 +299,47 @@ public sealed class MacrosPackage : ToolkitPackage
             _uiContextActivator?.Dispose();
             _recordingCapHandler?.Dispose();
             UnregisterCommandObserver();
+            UnsubscribeCommandEvents();
+            _triggerRegistry?.Dispose();
+            _eventBus?.Dispose();
+            _trustGateInfoBar?.Dispose();
+            _solutionTracker?.Dispose();
+            // Composite owns both children — disposing it tears down the global + repo
+            // FileSystemMacroStore halves (and their watchers / semaphores) in one shot.
+            _compositeMacroStore?.Dispose();
         }
 
         base.Dispose(disposing);
     }
+
+    /// <summary>
+    /// Test / future-composite hook: the M4 GlobalMacroStore wrapped by the
+    /// <see cref="CompositeMacroStore"/>. Returns <see langword="null"/> until the lazy
+    /// shared storage has been realized (i.e. a consumer has resolved
+    /// <see cref="IMacroStore"/> or the trigger registry has been built).
+    /// </summary>
+    internal GlobalMacroStore? GlobalMacroStore => _globalMacroStore;
+
+    /// <summary>
+    /// Test / future-composite hook: the M4 RepoMacroStore wrapped by the
+    /// <see cref="CompositeMacroStore"/>. The store's repo-folder provider is wired through
+    /// <see cref="SolutionTracker"/> so it tracks the active solution in real time. Returns
+    /// <see langword="null"/> until the lazy shared storage has been realized.
+    /// </summary>
+    internal RepoMacroStore? RepoMacroStore => _repoMacroStore;
+
+    /// <summary>
+    /// Test / future-composite hook: the M4 <see cref="Macros.Engine.Storage.CompositeMacroStore"/>
+    /// that fronts both scope-aware halves and is registered as <see cref="IMacroStore"/>.
+    /// Returns <see langword="null"/> until the lazy shared storage has been realized.
+    /// </summary>
+    internal CompositeMacroStore? CompositeMacroStore => _compositeMacroStore;
+
+    /// <summary>
+    /// Test / future-composite hook: the solution-lifecycle tracker. Returns
+    /// <see langword="null"/> until <see cref="InitializeAsync"/> has run.
+    /// </summary>
+    internal SolutionContextTracker? SolutionTracker => _solutionTracker;
 
     /// <summary>
     /// Unregisters the <see cref="CommandObserver"/> priority command target if one was
@@ -223,5 +367,30 @@ public sealed class MacrosPackage : ToolkitPackage
 
         _priorityCommandTarget = null;
         _commandObserverCookie = 0u;
+    }
+
+    /// <summary>
+    /// Detaches the <c>CommandEvents.AfterExecute</c> subscription added during
+    /// <see cref="InitializeAsync"/>. Defensive against a partially-initialised package
+    /// (subscription field is <see langword="null"/> when the DTE wiring failed early).
+    /// </summary>
+    private void UnsubscribeCommandEvents()
+    {
+        ThreadHelper.ThrowIfNotOnUIThread();
+
+        if (_commandEvents is not null && _afterExecuteHandler is not null)
+        {
+            try
+            {
+                _commandEvents.AfterExecute -= _afterExecuteHandler;
+            }
+            catch
+            {
+                // Shutdown path: DTE may already have been torn down by the shell.
+            }
+        }
+
+        _commandEvents = null;
+        _afterExecuteHandler = null;
     }
 }
