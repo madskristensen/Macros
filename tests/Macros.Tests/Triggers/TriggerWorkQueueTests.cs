@@ -166,4 +166,5 @@ public sealed class TriggerWorkQueueTests : IDisposable
 
         Assert.True(workCompleted);
     }
+
 }

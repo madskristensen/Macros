@@ -1,10 +1,11 @@
+using Macros.Engine.Storage;
+
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Threading;
 using System.Threading.Tasks;
-using Macros.Engine.Storage;
+
 using Xunit;
 
 namespace Macros.Tests.Integration;

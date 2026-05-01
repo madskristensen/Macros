@@ -82,6 +82,17 @@
     </PackageReference>
   </ItemGroup>
 
+  <!-- Package satellite resource (VSPackage.resources) consumed by the VS shell to look up
+       string resource IDs referenced from package attributes such as ProvideKeyBindingTable.
+       LogicalName must be exactly "VSPackage.resources" (no root namespace prefix) so the
+       shell can find it; SDK-style projects otherwise prepend the root namespace. -->
+  <ItemGroup>
+    <EmbeddedResource Update="VSPackage.resx">
+      <ManifestResourceName>VSPackage</ManifestResourceName>
+      <MergeWithCTO>true</MergeWithCTO>
+    </EmbeddedResource>
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\Macros.Engine\Macros.Engine.csproj" />
   </ItemGroup>

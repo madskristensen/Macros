@@ -810,20 +810,14 @@ public sealed class FileSystemMacroStore : IMacroStore, IDisposable
     /// counter and <c>// @trigger</c> directives. Failures degrade to defaults so a
     /// malformed file never crashes enumeration.
     /// </summary>
-    /// <remarks>
-    /// TODO(m4-trigger-directive-parser): the parser wave wires
-    /// <c>TriggerDirectiveParser.Parse(headerText)</c> in here so each <c>// @trigger</c>
-    /// line becomes a <see cref="TriggerBinding"/> with parsed filters. Until then this
-    /// method returns an empty trigger list — every entry collapses to the default
-    /// <see cref="TriggerBinding.Manual"/> badge in the tool window.
-    /// </remarks>
     private static (int StepCount, IReadOnlyList<TriggerBinding> Triggers) ParseHeader(string path)
     {
         try
         {
             string headerText = ReadHeaderText(path);
             int stepCount = ParseStepCount(headerText);
-            return (stepCount, Array.Empty<TriggerBinding>());
+            var triggers = TriggerDirectiveParser.Parse(headerText);
+            return (stepCount, triggers);
         }
         catch (Exception)
         {
@@ -832,7 +826,7 @@ public sealed class FileSystemMacroStore : IMacroStore, IDisposable
             // entry from the listing. The user still sees the macro in the tool window
             // — they just don't get the step count / trigger badges until they fix the
             // file. A throw here would propagate to ListAsync and crash the whole panel.
-            return (0, Array.Empty<TriggerBinding>());
+            return (0, new[] { TriggerBinding.Manual });
         }
     }
 

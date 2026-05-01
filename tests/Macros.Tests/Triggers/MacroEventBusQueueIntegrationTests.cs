@@ -99,7 +99,8 @@ public sealed class MacroEventBusQueueIntegrationTests : IDisposable
 
             bus.Subscribe("Integration.Fired", evt =>
             {
-                lock (receivedLock) received.Add((int)evt.Payload["Value"]);
+                var value = Assert.IsType<int>(evt.Payload["Value"]);
+                lock (receivedLock) received.Add(value);
             });
 
             for (int i = 0; i < 5; i++)

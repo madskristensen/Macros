@@ -24,6 +24,9 @@ namespace Macros
 
         public const string guidMacrosNotRecordingContextString = "c8e5a3b1-9f4d-4d87-b5a2-7e1f3a8c2d40";
         public static Guid guidMacrosNotRecordingContext = new Guid(guidMacrosNotRecordingContextString);
+
+        public const string guidMacrosToolWindowString = "a4c1b2d8-3e5f-4a6b-9c7d-8e0f1a2b3c4d";
+        public static Guid guidMacrosToolWindow = new Guid(guidMacrosToolWindowString);
     }
 
     /// <summary>

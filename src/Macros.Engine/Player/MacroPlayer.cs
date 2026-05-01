@@ -21,18 +21,16 @@ namespace Macros.Engine.Player;
 
 /// <summary>
 /// Default <see cref="IMacroPlayer"/>. Compiles macro source via
-/// <see cref="ScriptCompilationCache"/>, runs the resulting <see cref="Script{TResult}"/> on
-/// the Visual Studio UI thread with a fresh <see cref="MacroGlobals"/>, and reports the
-/// outcome as a <see cref="MacroPlayResult"/>.
+/// <see cref="ScriptCompilationCache"/>, runs the resulting <see cref="Script{TResult}"/> with
+/// a fresh <see cref="MacroGlobals"/>, and reports the outcome as a
+/// <see cref="MacroPlayResult"/>.
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>Threading.</b> Compilation is CPU-bound and runs on the threadpool (so
-/// <see cref="JoinableTaskFactory"/> never blocks the UI for a 200-500&#160;ms first-time
-/// compile). Execution then hops to the UI thread because <see cref="Helpers"/> verbs touch
-/// DTE / IVsUIShell synchronously after their own <c>SwitchToMainThreadAsync</c>; starting
-/// playback on the UI thread keeps the first helper call fast and avoids surprising
-/// double-hops.
+/// <b>Threading.</b> Compilation is CPU-bound and runs on the threadpool. Script execution is
+/// also started from a background context so macro playback does not pin the Visual Studio UI
+/// thread for the full lifetime of the script. Individual helper verbs in
+/// <see cref="Helpers"/> still switch to the UI thread only when they need DTE / shell access.
 /// </para>
 /// <para>
 /// <b>ReplayGuard.</b> The <c>using (ReplayGuard.Enter())</c> scope wraps the entire
@@ -113,8 +111,9 @@ internal sealed class MacroPlayer : IMacroPlayer
             return new MacroPlayResult(false, FormatDiagnostics(diagnostics), null, stopwatch.Elapsed);
         }
 
-        // ── Phase 2: marshal to UI thread and execute. ────────────────────────────────
-        await _jtf.SwitchToMainThreadAsync(cancellation);
+        // ── Phase 2: execute from a background context. ───────────────────────────────
+        // The macro script can still hop to the UI thread through Helpers.*Async methods,
+        // but long-running awaits (Task.Delay, I/O, etc.) no longer keep VS pinned.
 
         var ctx = new MacroContext(
             macroName,
@@ -127,7 +126,12 @@ internal sealed class MacroPlayer : IMacroPlayer
             Helpers.CurrentGlobals.Value = globals;
             try
             {
-                _ = await script.RunAsync(globals, cancellation).ConfigureAwait(true);
+                JoinableTask runTask = _jtf.RunAsync(async () =>
+                {
+                    _ = await script.RunAsync(globals, cancellation).ConfigureAwait(false);
+                });
+
+                await runTask.Task.ConfigureAwait(false);
                 return new MacroPlayResult(true, null, null, stopwatch.Elapsed);
             }
             catch (CompilationErrorException cex)

@@ -58,6 +58,13 @@ namespace Macros;
 [ProvideService(typeof(IMacroEventBus), IsAsyncQueryable = true)]
 [ProvideService(typeof(IMacroPlayer), IsAsyncQueryable = true)]
 [ProvideMenuResource("Menus.ctmenu", 1)]
+// Registers the Macros tool window as a key-binding scope. The GUID matches
+// MacrosToolWindow.Pane so VSCT key bindings declared with editor="guidMacrosToolWindow"
+// (Enter -> Play, F2 -> Rename) are recognized as scoped bindings; without this attribute
+// the shell does not know about the scope and therefore won't auto-render the gesture
+// text on the Play / Rename context menu items. Resource ID 1000 points to the "Macros"
+// scope name in VSPackage.resx (shown in Tools > Options > Environment > Keyboard).
+[ProvideKeyBindingTable("a4c1b2d8-3e5f-4a6b-9c7d-8e0f1a2b3c4d", 1000)]
 [ProvideToolWindow(typeof(MacrosToolWindow.Pane),
     Style = VsDockStyle.Tabbed,
     Window = WindowGuids.SolutionExplorer)]

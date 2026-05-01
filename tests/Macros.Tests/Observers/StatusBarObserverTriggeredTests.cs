@@ -24,9 +24,23 @@ public sealed class StatusBarObserverTriggeredTests
         public string? CurrentMacroPath => null;
         public int CurrentRecordingMaxSteps => int.MaxValue;
 
-        public event EventHandler<MacroStateChangedEventArgs>? StateChanged;
-        public event EventHandler? RecordingCapReached;
-        public event EventHandler<int>? RecordingStepCountChanged;
+        public event EventHandler<MacroStateChangedEventArgs>? StateChanged
+        {
+            add { }
+            remove { }
+        }
+
+        public event EventHandler? RecordingCapReached
+        {
+            add { }
+            remove { }
+        }
+
+        public event EventHandler<int>? RecordingStepCountChanged
+        {
+            add { }
+            remove { }
+        }
         public event EventHandler<TriggeredExecutionEventArgs>? TriggeredExecutionStarted;
         public event EventHandler<TriggeredExecutionEventArgs>? TriggeredExecutionEnded;
 

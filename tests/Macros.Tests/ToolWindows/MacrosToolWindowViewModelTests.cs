@@ -341,6 +341,7 @@ public sealed class MacrosToolWindowViewModelTests
             _files.TryGetValue((scope, name), out var entry);
             return Task.FromResult<MacroEntry?>(entry);
         }
+
     }
 
     private sealed class ThrowingStorage : IMacroStore

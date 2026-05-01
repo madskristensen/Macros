@@ -2,6 +2,7 @@ using System;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using Community.VisualStudio.Toolkit;
 using Macros.Commands.Context;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
@@ -98,35 +99,82 @@ public partial class MacrosToolWindowControl : UserControl
     /// Shift+F10 on a focused macro row opens the same VSCT context menu the mouse handler
     /// shows. Without this, screen-reader and keyboard-only users would have no way to
     /// reach the per-row Edit / Rename / Delete commands the M3 wave wired up.
+    ///
+    /// Also routes the row's "default action" keys directly to their commands:
+    ///   * Enter -> Play   (matches the VSCT KeyBinding gesture text on the menu item)
+    ///   * F2    -> Rename (matches the Solution Explorer / file rename convention)
+    /// We invoke the commands here rather than relying on the VSCT KeyBinding alone
+    /// because the WPF ListView swallows Enter/F2 before the IDE keyboard chain sees them.
     /// </summary>
     private void MacroRow_PreviewKeyDown(object sender, KeyEventArgs e)
     {
-        if (e.Key != Key.Apps && !(e.Key == Key.F10 && (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift))
+        if (!(sender is FrameworkElement fe) || !(fe.DataContext is MacroItemViewModel item))
+        {
+            return;
+        }
+
+        bool isEnter = e.Key == Key.Enter && Keyboard.Modifiers == ModifierKeys.None;
+        bool isF2 = e.Key == Key.F2 && Keyboard.Modifiers == ModifierKeys.None;
+        bool isContextMenu = e.Key == Key.Apps
+            || (e.Key == Key.F10 && (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift);
+
+        if (!isEnter && !isF2 && !isContextMenu)
         {
             return;
         }
 
         ThreadHelper.ThrowIfNotOnUIThread();
 
-        if (sender is FrameworkElement fe && fe.DataContext is MacroItemViewModel item)
+        // Enter -> Play the selected macro (default row action).
+        if (isEnter)
         {
             MacroSelectionContext.Current = item.Descriptor;
-            try
-            {
-                // Anchor the menu to the bottom-left of the focused row so it appears in a
-                // sensible spot relative to the keyboard's "current item" rather than the
-                // last mouse position.
-                Point screen = fe.PointToScreen(new Point(0, fe.ActualHeight));
-                ShowContextMenuAtScreen(screen);
-            }
-            catch (Exception)
-            {
-                // Same defensive swallow as the mouse handler — a missing IVsUIShell during
-                // hosted tests must not crash the tool window.
-            }
-
+            ExecuteContextCommand(PackageIds.cmdidMacrosCtxPlay);
             e.Handled = true;
+            return;
         }
+
+        // F2 -> Rename the selected macro.
+        if (isF2)
+        {
+            MacroSelectionContext.Current = item.Descriptor;
+            ExecuteContextCommand(PackageIds.cmdidMacrosCtxRename);
+            e.Handled = true;
+            return;
+        }
+
+        MacroSelectionContext.Current = item.Descriptor;
+        try
+        {
+            // Anchor the menu to the bottom-left of the focused row so it appears in a
+            // sensible spot relative to the keyboard's "current item" rather than the
+            // last mouse position.
+            Point screen = fe.PointToScreen(new Point(0, fe.ActualHeight));
+            ShowContextMenuAtScreen(screen);
+        }
+        catch (Exception)
+        {
+            // Same defensive swallow as the mouse handler — a missing IVsUIShell during
+            // hosted tests must not crash the tool window.
+        }
+
+        e.Handled = true;
+    }
+
+    private static void ExecuteContextCommand(int commandId)
+    {
+        // Fire-and-forget: VS.Commands.ExecuteAsync hops to the UI thread internally and
+        // returns once the command target accepts the invocation. Failures (no handler,
+        // command unavailable) must never crash the tool window, so the continuation
+        // logs and swallows.
+        _ = VS.Commands.ExecuteAsync(PackageGuids.guidMacrosPackageCmdSet, commandId)
+            .ContinueWith(t =>
+            {
+                if (t.Exception is not null)
+                {
+                    _ = t.Exception.LogAsync();
+                }
+            }, System.Threading.Tasks.TaskScheduler.Default);
     }
 
     private static void ShowContextMenuAtScreen(Point screen)

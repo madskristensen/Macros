@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Macros.Engine.Storage;
+using Macros.Engine.Triggers;
 using Xunit;
 
 namespace Macros.Tests.Storage;
@@ -98,6 +99,37 @@ public sealed class HeaderParseTests : IDisposable
 
         var entry = Assert.Single(list);
         Assert.Equal(0, entry.StepCount);
+    }
+
+    [Fact]
+    public async Task ListAsync_ParsesTriggerDirectives_FromHeader()
+    {
+        var store = new FileSystemMacroStore(_root);
+        await store.SaveAsAsync(
+            "Triggered",
+            "// Steps: 1\n// @trigger Selection.SelectionChanged\nawait Task.CompletedTask;\n",
+            MacroScope.Global,
+            overwrite: true);
+
+        var list = await store.ListAsync(MacroScope.Global);
+
+        var entry = Assert.Single(list);
+        var trigger = Assert.Single(entry.Triggers);
+        Assert.Equal(TriggerKind.VsEvent, trigger.Kind);
+        Assert.Equal("Selection.SelectionChanged", trigger.Name);
+    }
+
+    [Fact]
+    public async Task ListAsync_NoTriggerDirectives_DefaultsToManualBinding()
+    {
+        var store = new FileSystemMacroStore(_root);
+        await store.SaveAsAsync("ManualOnly", "// Steps: 1\nawait Task.CompletedTask;\n", MacroScope.Global, overwrite: true);
+
+        var list = await store.ListAsync(MacroScope.Global);
+
+        var entry = Assert.Single(list);
+        var trigger = Assert.Single(entry.Triggers);
+        Assert.Equal(TriggerKind.Manual, trigger.Kind);
     }
 
     [Fact]

@@ -20,7 +20,6 @@ public sealed class CompositeMacroStoreTests : IDisposable
     private readonly string _tempRoot;
     private readonly string _globalRoot;
     private readonly string _repoRoot;
-    private string? _repoOverride;
 
     public CompositeMacroStoreTests()
     {
@@ -46,7 +45,7 @@ public sealed class CompositeMacroStoreTests : IDisposable
 
     private GlobalMacroStore NewGlobal() => new(_globalRoot);
 
-    private RepoMacroStore NewRepo() => new(() => _repoOverride ?? _repoRoot);
+    private RepoMacroStore NewRepo() => new(() => _repoRoot);
 
     private CompositeMacroStore NewComposite(bool ownsChildren = true)
         => new(NewGlobal(), NewRepo(), ownsChildren);

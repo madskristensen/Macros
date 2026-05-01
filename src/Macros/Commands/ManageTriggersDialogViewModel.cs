@@ -88,6 +88,8 @@ internal sealed class ManageTriggersDialogViewModel : INotifyPropertyChanged
             _newTriggerKind = value;
             OnPropertyChanged(nameof(NewTriggerKind));
             OnPropertyChanged(nameof(IsNameRequired));
+            OnPropertyChanged(nameof(IsVsEvent));
+            OnPropertyChanged(nameof(IsCommandName));
             OnPropertyChanged(nameof(AreFiltersAvailable));
             Validate();
         }
@@ -156,6 +158,13 @@ internal sealed class ManageTriggersDialogViewModel : INotifyPropertyChanged
 
     /// <summary>True for kinds that need a name field (everything except <see cref="TriggerKind.Manual"/>).</summary>
     public bool IsNameRequired => _newTriggerKind != TriggerKind.Manual;
+
+    /// <summary>True when the user is composing a <see cref="TriggerKind.VsEvent"/> binding (drives the event picker visibility).</summary>
+    public bool IsVsEvent => _newTriggerKind == TriggerKind.VsEvent;
+
+    /// <summary>True when the user is composing a command-bound trigger (drives the plain command-name TextBox visibility).</summary>
+    public bool IsCommandName =>
+        _newTriggerKind == TriggerKind.BeforeCommand || _newTriggerKind == TriggerKind.AfterCommand;
 
     /// <summary>True for kinds that accept a filter expression (only <see cref="TriggerKind.VsEvent"/>).</summary>
     public bool AreFiltersAvailable => _newTriggerKind == TriggerKind.VsEvent;

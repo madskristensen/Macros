@@ -2,7 +2,6 @@
 
 [![Build](https://github.com/MadsKristensen/Macros/actions/workflows/build.yml/badge.svg)](https://github.com/MadsKristensen/Macros/actions/workflows/build.yml)
 [![Version](https://img.shields.io/badge/version-1.0--preview-blue)](https://github.com/MadsKristensen/Macros/releases)
-[![Marketplace](https://img.shields.io/badge/marketplace-coming%20soon-lightgrey)](https://marketplace.visualstudio.com/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 > **Record once. Repeat forever — manually or on cue.**

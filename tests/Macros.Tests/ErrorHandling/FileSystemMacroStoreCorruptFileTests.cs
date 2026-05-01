@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using Macros.Engine.Storage;
+using Macros.Engine.Triggers;
 using Xunit;
 
 namespace Macros.Tests.ErrorHandling;
@@ -49,7 +50,8 @@ public sealed class FileSystemMacroStoreCorruptFileTests : IDisposable
         var entry = Assert.Single(list);
         Assert.Equal("broken", entry.Name);
         Assert.Equal(0, entry.StepCount);
-        Assert.Empty(entry.Triggers);
+        var trigger = Assert.Single(entry.Triggers);
+        Assert.Equal(TriggerKind.Manual, trigger.Kind);
     }
 
     [Fact]

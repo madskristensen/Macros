@@ -1,3 +1,9 @@
+using Macros.Engine;
+using Macros.Engine.Storage;
+using Macros.Mvvm;
+
+using Microsoft.VisualStudio.Shell;
+
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -8,10 +14,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Data;
 using System.Windows.Input;
-using Community.VisualStudio.Toolkit;
-using Macros.Engine;
-using Macros.Engine.Storage;
-using Macros.Mvvm;
 
 namespace Macros.ToolWindows;
 
@@ -136,6 +138,8 @@ public sealed class MacrosToolWindowViewModel : INotifyPropertyChanged, IDisposa
     /// </summary>
     public static async Task<MacrosToolWindowViewModel> CreateAsync()
     {
+        await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
         // Resolve via the package's own service container — NOT VS.GetRequiredServiceAsync.
         // The tool window can be auto-restored on shell startup before the global service
         // container has finished promoting our services; the package container is populated
@@ -152,7 +156,8 @@ public sealed class MacrosToolWindowViewModel : INotifyPropertyChanged, IDisposa
             ?? throw new InvalidOperationException(
                 "IMacroService is not registered in the package container.");
 
-        var vm = new MacrosToolWindowViewModel(storage, service, SynchronizationContext.Current);
+        var uiSync = SynchronizationContext.Current;
+        var vm = new MacrosToolWindowViewModel(storage, service, uiSync);
         await vm.LoadAsync();
         return vm;
     }
@@ -297,7 +302,7 @@ public sealed class MacrosToolWindowViewModel : INotifyPropertyChanged, IDisposa
         lock (_gate)
         {
 #pragma warning disable VSTHRD003 // The TCS is owned by this VM; awaiting it from tests is the
-                                  // intended synchronisation primitive and cannot deadlock.
+            // intended synchronisation primitive and cannot deadlock.
             return _nextLoadTcs.Task;
 #pragma warning restore VSTHRD003
         }
@@ -599,9 +604,9 @@ public sealed class MacrosToolWindowViewModel : INotifyPropertyChanged, IDisposa
         }
 
 #pragma warning disable VSTHRD001 // SynchronizationContext.Post is the documented contract for
-                                  // pushing work to the WPF dispatcher captured at construction
-                                  // time. We deliberately don't depend on JoinableTaskFactory
-                                  // here so the VM stays unit-testable without a JTF.
+        // pushing work to the WPF dispatcher captured at construction
+        // time. We deliberately don't depend on JoinableTaskFactory
+        // here so the VM stays unit-testable without a JTF.
         _uiSync.Post(_ => action(), null);
 #pragma warning restore VSTHRD001
     }

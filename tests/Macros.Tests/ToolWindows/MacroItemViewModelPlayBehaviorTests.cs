@@ -146,4 +146,5 @@ public sealed class MacroItemViewModelPlayBehaviorTests
         Assert.Null(vm.LastPlayTask);
         Assert.False(rendererCalled);
     }
+
 }

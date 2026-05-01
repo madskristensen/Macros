@@ -65,34 +65,24 @@ public static class KnownEvents
                 return list.AsReadOnly();
             }
 
-            var eventsInstance = eventsProp.GetValue(null);
-            if (eventsInstance == null)
-            {
-                return list.AsReadOnly();
-            }
+            // Enumerate the categories by their *declared property type*, not by reading
+            // the property values. Toolkit categories such as BuildEvents and SolutionEvents
+            // call into VS services (AdviseUpdateSolutionEvents, …) inside their
+            // constructors; calling the property getter here would (a) throw or hang
+            // outside of a UI-thread context — silently dropping the category from the
+            // catalog — and (b) leak a permanent VS-service subscription just to read
+            // metadata. The bus instantiates each category lazily on first Subscribe.
+            var eventsType = eventsProp.PropertyType;
 
-            foreach (var catProp in eventsInstance.GetType()
-                .GetProperties(BindingFlags.Public | BindingFlags.Instance))
+            foreach (var catProp in eventsType.GetProperties(BindingFlags.Public | BindingFlags.Instance))
             {
-                object? catInstance;
-                try
-                {
-                    catInstance = catProp.GetValue(eventsInstance);
-                }
-                catch
-                {
-                    // A category that throws on access is unusable; skip it rather than
-                    // failing the whole discovery pass.
-                    continue;
-                }
-
-                if (catInstance == null)
+                var catType = catProp.PropertyType;
+                if (catType == null || !catType.IsClass)
                 {
                     continue;
                 }
 
                 var category = StripEventsSuffix(catProp.Name);
-                var catType = catInstance.GetType();
 
                 foreach (var ev in catType.GetEvents(BindingFlags.Public | BindingFlags.Instance))
                 {
@@ -128,11 +118,26 @@ public static class KnownEvents
             return typeof(EventArgs);
         }
 
-        // EventHandler<T> → T; plain Action / EventHandler → EventArgs.
-        if (handlerType.IsGenericType
-            && handlerType.GetGenericTypeDefinition() == typeof(EventHandler<>))
+        // EventHandler<T> → T. The Community.VisualStudio.Toolkit also exposes events as
+        // Action<T> / Action<T1, T2> (e.g. `event Action<Project>? ProjectBuildStarted`);
+        // surface the first generic arg in those cases too. Plain EventHandler / Action
+        // fall back to EventArgs.
+        if (handlerType.IsGenericType)
         {
-            return handlerType.GetGenericArguments()[0];
+            var def = handlerType.GetGenericTypeDefinition();
+            var args = handlerType.GetGenericArguments();
+            if (def == typeof(EventHandler<>) && args.Length >= 1)
+            {
+                return args[0];
+            }
+            if (args.Length >= 1
+                && (def == typeof(Action<>)
+                    || def == typeof(Action<,>)
+                    || def == typeof(Action<,,>)
+                    || def == typeof(Action<,,,>)))
+            {
+                return args[0];
+            }
         }
 
         return typeof(EventArgs);

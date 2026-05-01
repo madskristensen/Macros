@@ -3,8 +3,10 @@
                    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                    xmlns:vsui="clr-namespace:Microsoft.VisualStudio.PlatformUI;assembly=Microsoft.VisualStudio.Shell.15.0"
+                   xmlns:toolkit="clr-namespace:Community.VisualStudio.Toolkit;assembly=Community.VisualStudio.Toolkit"
                    xmlns:local="clr-namespace:Macros.Commands"
                    xmlns:triggers="clr-namespace:Macros.Engine.Triggers;assembly=Macros.Engine"
+                   toolkit:Themes.UseVsTheme="True"
                    Title="Manage Triggers"
                    AutomationProperties.Name="Manage Triggers"
                    WindowStartupLocation="CenterOwner"
@@ -42,7 +44,7 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="12" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
@@ -50,20 +52,17 @@
         <TextBlock Grid.Row="0"
                    Text="{Binding MacroName, StringFormat='Triggers for {0}'}"
                    FontWeight="Bold"
-                   Margin="0,0,0,8"
-                   Foreground="{DynamicResource {x:Static vsui:EnvironmentColors.DialogTextBrushKey}}" />
+                   Margin="0,0,0,8" />
 
         <!-- Row 1: ListBox of current bindings + per-row Remove button -->
         <Border Grid.Row="1"
                 BorderThickness="1"
-                BorderBrush="{DynamicResource {x:Static vsui:EnvironmentColors.ComboBoxBorderBrushKey}}"
+                BorderBrush="{DynamicResource {x:Static vsui:EnvironmentColors.PanelBorderBrushKey}}"
                 Margin="0,0,0,8">
             <ListBox ItemsSource="{Binding Bindings}"
                      AutomationProperties.Name="Trigger bindings"
                      BorderThickness="0"
-                     HorizontalContentAlignment="Stretch"
-                     Background="{DynamicResource {x:Static vsui:EnvironmentColors.ToolWindowBackgroundBrushKey}}"
-                     Foreground="{DynamicResource {x:Static vsui:EnvironmentColors.ToolWindowTextBrushKey}}">
+                     HorizontalContentAlignment="Stretch">
                 <ListBox.ItemTemplate>
                     <DataTemplate DataType="{x:Type local:TriggerBindingViewModel}">
                         <Grid>
@@ -75,8 +74,7 @@
                                        Text="{Binding DisplaySummary}"
                                        ToolTip="{Binding DisplayDetail}"
                                        VerticalAlignment="Center"
-                                       Margin="4,2"
-                                       Foreground="{DynamicResource {x:Static vsui:EnvironmentColors.ToolWindowTextBrushKey}}" />
+                                       Margin="4,2" />
                             <Button Grid.Column="1"
                                     Content="Remove"
                                     Command="{Binding RemoveCommand}"
@@ -92,7 +90,7 @@
         <!-- Row 2: Add new trigger panel -->
         <Border Grid.Row="2"
                 BorderThickness="1"
-                BorderBrush="{DynamicResource {x:Static vsui:EnvironmentColors.ComboBoxBorderBrushKey}}"
+                BorderBrush="{DynamicResource {x:Static vsui:EnvironmentColors.PanelBorderBrushKey}}"
                 Padding="8">
             <Grid>
                 <Grid.RowDefinitions>
@@ -110,16 +108,14 @@
                 <TextBlock Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="3"
                            Text="Add trigger"
                            FontWeight="Bold"
-                           Margin="0,0,0,6"
-                           Foreground="{DynamicResource {x:Static vsui:EnvironmentColors.DialogTextBrushKey}}" />
+                           Margin="0,0,0,6" />
 
                 <!-- Kind picker -->
                 <TextBlock Grid.Row="1" Grid.Column="0"
                            x:Name="KindLabel"
                            Text="Kind:"
                            VerticalAlignment="Center"
-                           Margin="0,0,8,4"
-                           Foreground="{DynamicResource {x:Static vsui:EnvironmentColors.DialogTextBrushKey}}" />
+                           Margin="0,0,8,4" />
                 <ComboBox Grid.Row="1" Grid.Column="1"
                           x:Name="KindCombo"
                           SelectedValuePath="Tag"
@@ -145,17 +141,29 @@
                            Text="Name:"
                            VerticalAlignment="Center"
                            Margin="0,0,8,4"
-                           Visibility="{Binding IsNameRequired, Converter={StaticResource BoolToVis}}"
-                           Foreground="{DynamicResource {x:Static vsui:EnvironmentColors.DialogTextBrushKey}}" />
+                           Visibility="{Binding IsNameRequired, Converter={StaticResource BoolToVis}}" />
+                <!-- Event picker: editable ComboBox seeded from KnownEvents (VS.Events catalog).
+                     IsEditable lets the user type a custom event name; IsTextSearchEnabled
+                     filters the dropdown as they type. Visible only when Kind == VsEvent. -->
+                <ComboBox Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2"
+                          x:Name="EventNameCombo"
+                          ItemsSource="{Binding KnownEvents}"
+                          DisplayMemberPath="CanonicalName"
+                          TextSearch.TextPath="CanonicalName"
+                          IsEditable="True"
+                          IsTextSearchEnabled="True"
+                          StaysOpenOnEdit="True"
+                          Text="{Binding NewTriggerName, UpdateSourceTrigger=PropertyChanged}"
+                          AutomationProperties.LabeledBy="{Binding ElementName=NameLabel}"
+                          Visibility="{Binding IsVsEvent, Converter={StaticResource BoolToVis}}"
+                          Margin="0,0,0,4" />
+                <!-- Plain command-name TextBox: used for BeforeCommand / AfterCommand. -->
                 <TextBox Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2"
                          x:Name="NameTextBox"
                          Text="{Binding NewTriggerName, UpdateSourceTrigger=PropertyChanged}"
                          AutomationProperties.LabeledBy="{Binding ElementName=NameLabel}"
-                         Visibility="{Binding IsNameRequired, Converter={StaticResource BoolToVis}}"
-                         Margin="0,0,0,4"
-                         Foreground="{DynamicResource {x:Static vsui:EnvironmentColors.ComboBoxTextBrushKey}}"
-                         Background="{DynamicResource {x:Static vsui:EnvironmentColors.ComboBoxBackgroundBrushKey}}"
-                         BorderBrush="{DynamicResource {x:Static vsui:EnvironmentColors.ComboBoxBorderBrushKey}}" />
+                         Visibility="{Binding IsCommandName, Converter={StaticResource BoolToVis}}"
+                         Margin="0,0,0,4" />
 
                 <!-- Filters input (only meaningful for VsEvent) -->
                 <TextBlock Grid.Row="3" Grid.Column="0"
@@ -163,16 +171,12 @@
                            Text="Filters:"
                            VerticalAlignment="Center"
                            Margin="0,0,8,0"
-                           Visibility="{Binding AreFiltersAvailable, Converter={StaticResource BoolToVis}}"
-                           Foreground="{DynamicResource {x:Static vsui:EnvironmentColors.DialogTextBrushKey}}" />
+                           Visibility="{Binding AreFiltersAvailable, Converter={StaticResource BoolToVis}}" />
                 <TextBox Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="2"
                          Text="{Binding NewTriggerFilters, UpdateSourceTrigger=PropertyChanged}"
                          AutomationProperties.LabeledBy="{Binding ElementName=FiltersLabel}"
                          Visibility="{Binding AreFiltersAvailable, Converter={StaticResource BoolToVis}}"
-                         ToolTip="Optional. Format: key=value and key2=value2"
-                         Foreground="{DynamicResource {x:Static vsui:EnvironmentColors.ComboBoxTextBrushKey}}"
-                         Background="{DynamicResource {x:Static vsui:EnvironmentColors.ComboBoxBackgroundBrushKey}}"
-                         BorderBrush="{DynamicResource {x:Static vsui:EnvironmentColors.ComboBoxBorderBrushKey}}" />
+                         ToolTip="Optional. Format: key=value and key2=value2" />
             </Grid>
         </Border>
 
@@ -180,17 +184,16 @@
         <TextBlock Grid.Row="3"
                    Text="{Binding ValidationMessage}"
                    TextWrapping="Wrap"
-                   Margin="0,4,0,0"
+                   Margin="0,6,0,0"
                    AutomationProperties.LiveSetting="Polite"
                    AutomationProperties.Name="Validation message"
-                   Foreground="{DynamicResource {x:Static vsui:EnvironmentColors.ToolWindowTextBrushKey}}"
                    Visibility="{Binding HasValidationMessage, Converter={StaticResource BoolToVis}}" />
 
         <!-- Row 4: Save / Cancel buttons -->
         <StackPanel Grid.Row="4"
                     Orientation="Horizontal"
                     HorizontalAlignment="Right"
-                    Margin="0,8,0,0">
+                    Margin="0,10,0,0">
             <Button Content="_Save"
                     IsDefault="True"
                     AutomationProperties.Name="Save"

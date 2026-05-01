@@ -32,7 +32,6 @@
 
     <Menus>
       <Menu guid="guidMacrosPackageCmdSet" id="MacrosToolbar" type="Toolbar">
-        <CommandFlag>DefaultDocked</CommandFlag>
         <Strings>
           <ButtonText>Macros</ButtonText>
           <CommandName>Macros</CommandName>
@@ -43,7 +42,6 @@
            window chrome. Record/Stop are placed here via CommandPlacements so they keep
            their main IDE toolbar placement too. Refresh is native to this toolbar. -->
       <Menu guid="guidMacrosPackageCmdSet" id="MacrosToolWindowToolbar" type="ToolWindowToolbar">
-        <CommandFlag>DefaultDocked</CommandFlag>
         <Strings>
           <ButtonText>Macros Window Toolbar</ButtonText>
           <CommandName>Macros.ToolWindowToolbar</CommandName>
@@ -250,6 +248,18 @@
   <KeyBindings>
     <KeyBinding guid="guidMacrosPackageCmdSet" id="cmdidMacrosRecord" editor="guidVSStd97" key1="R" mod1="Control Shift" />
     <KeyBinding guid="guidMacrosPackageCmdSet" id="cmdidMacrosPlayLast" editor="guidVSStd97" key1="P" mod1="Control Shift" />
+
+    <!-- Tool window scoped bindings (m3-context-menu polish):
+         * Enter  -> Play   (default row activation; surfaces "Enter" as the gesture
+                            text on the Play context menu item).
+         * F2     -> Rename (matches Solution Explorer / file rename convention).
+         The editor scope is guidMacrosToolWindow (the Macros tool window pane GUID),
+         registered with the shell via [ProvideKeyBindingTable] on MacrosPackage so VS
+         knows about the scope and auto-renders the gesture next to the matching menu
+         items. The actual key handling happens in MacrosToolWindowControl.MacroRow_PreviewKeyDown
+         because WPF list rows swallow Enter/F2 before the IDE keyboard chain sees them. -->
+    <KeyBinding guid="guidMacrosPackageCmdSet" id="cmdidMacrosCtxPlay" editor="guidMacrosToolWindow" key1="VK_RETURN" />
+    <KeyBinding guid="guidMacrosPackageCmdSet" id="cmdidMacrosCtxRename" editor="guidMacrosToolWindow" key1="VK_F2" />
   </KeyBindings>
 
   <VisibilityConstraints>
@@ -315,6 +325,11 @@
     <!-- Inverse UIContext: active when NOT recording. Drives Record button visibility
          in m1-vsct-visibility. Mirrors PackageGuids.guidMacrosNotRecordingContextString. -->
     <GuidSymbol name="guidMacrosNotRecordingContext" value="{c8e5a3b1-9f4d-4d87-b5a2-7e1f3a8c2d40}" />
+
+    <!-- Editor/scope GUID for tool-window-scoped key bindings. Matches the
+         MacrosToolWindow.Pane class GUID so KeyBindings under this scope activate only
+         when the Macros tool window has focus. -->
+    <GuidSymbol name="guidMacrosToolWindow" value="{a4c1b2d8-3e5f-4a6b-9c7d-8e0f1a2b3c4d}" />
 
   </Symbols>
 

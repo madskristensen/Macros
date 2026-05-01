@@ -570,7 +570,11 @@ public sealed class PerformanceBenchmarks
 
         public string CurrentPath => "X:\\perf\\current.csx";
 
-        public event EventHandler<MacroLibraryChangedEventArgs>? LibraryChanged;
+        public event EventHandler<MacroLibraryChangedEventArgs>? LibraryChanged
+        {
+            add { }
+            remove { }
+        }
 
         public void Add(MacroScope scope, string name)
         {
