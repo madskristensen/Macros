@@ -10,11 +10,7 @@
     <PackageReference Include="Community.VisualStudio.Toolkit.17" Version="17.0.549" ExcludeAssets="Runtime">
       <IncludeAssets>compile; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
-    <!-- ExcludeAssets="runtime": VS already loads these Roslyn scripting assemblies into its app
-         domain (C# Interactive, Roslyn workspaces, etc.). Bundling them in the VSIX would inflate
-         it by ~1.4 MB without functional benefit. The test project re-adds the package without
-         this restriction so the runtime DLLs are available during test runs. -->
-    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Scripting" Version="4.11.0" ExcludeAssets="runtime" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Scripting" Version="4.11.0" />
     <PackageReference Include="Microsoft.VisualStudio.Threading.Analyzers" Version="17.13.61" PrivateAssets="all" />
     <!--<PackageReference Include="Microsoft.VisualStudio.SDK" Version="17.10.40171" ExcludeAssets="Runtime">
       <IncludeAssets>compile; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
