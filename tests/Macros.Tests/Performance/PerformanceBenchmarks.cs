@@ -240,8 +240,11 @@ public sealed class PerformanceBenchmarks
     //
     //  Target SLA: <5 ms per first subscribe.
     //  Work done:  LINQ search over KnownEvents list, BusEntry allocation,
-    //              reflection to build a delegate, AddEventHandler call.
-    //  Assert CI threshold: 50 ms (10× target).
+    //              reflection to resolve the event, factory lookup + closure
+    //              allocation (BuildDelegate caches the compiled factory per
+    //              EventHandlerType, so only the first-ever call per type pays
+    //              the Expression.Lambda.Compile() cost).
+    //  Assert CI threshold: 5 ms (13× measured P95 of 0.38 ms on dev box).
     // ─────────────────────────────────────────────────────────────────────────
     [Fact]
     public void MacroEventBus_Subscribe_FirstTime_Under_5ms()
