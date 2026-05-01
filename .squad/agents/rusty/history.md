@@ -90,3 +90,31 @@ Details (see `.squad/decisions.md` and `rusty-triggers-and-scope.md`):
 - Save As scope picker (Global/Repo); Repo disabled when no solution open
 
 **Coordinator delta:** Added Trigger Type selector to Manage Triggers dialog (dropdown: Event / BeforeCommand / AfterCommand) to make macro intent explicit and improve discoverability.
+
+---
+
+## Learnings
+
+### 2026-05-01 — Wave 1: emit `#load` + add `SkipIntelliSenseShimSourceResolver`
+
+**Codegen change (`CSharpCodeGenerator.cs`):**
+- Added `private const string IntelliSenseLoadDirective = "#load \".intellisense/Macros.Intellisense.csx\""` — single source of truth for the shim filename.
+- `EmitReferenceDirectives` now emits the `#load` block (with an explanatory comment) _before_ the `#r` directives. The `#r` comment was updated to note they are for external dotnet-script consumers only.
+- Class doc-comment updated: 4-item output contract expanded to 5 items, with (2) describing the new `#load` shim directive and its runtime-stripping guarantee.
+
+**Golden file (`tests/Macros.Tests/Codegen/golden/sample.csx`):**
+- Updated to match the new `EmitReferenceDirectives` output — both the `#load` line and the revised `#r` comment block.
+
+**Player change (`MacroPlayer.cs`):**
+- Added `SkipIntelliSenseShimSourceResolver : SourceReferenceResolver` — a private sealed nested class that:
+  - Matches by **filename only** (case-insensitive, `OrdinalIgnoreCase`), tolerates any path prefix.
+  - Returns a sentinel string from `ResolveReference`; `OpenRead` on that sentinel returns an empty `MemoryStream`.
+  - Delegates all non-shim paths to `SourceFileResolver(ImmutableArray<string>.Empty, null)` so user `#load "other.csx"` continues to work.
+  - Handles null `path` defensively (returns null rather than forwarding null to `SourceFileResolver`).
+- Wired into `BuildScriptOptions` via `.WithSourceResolver(SkipIntelliSenseShimSourceResolver.Instance)`.
+
+**Tests (`MacroPlayerShimSkipTests.cs`):**
+- 5 new tests covering: shim absent from disk still succeeds, real globals not shadowed, non-shim load fails on missing file, arbitrary prefix path short-circuited, mixed-case filename short-circuited.
+- All 25 codegen + shim skip tests green.
+
+**Key invariant:** The shim filename `Macros.Intellisense.csx` must stay in sync between `CSharpCodeGenerator.IntelliSenseLoadDirective` and `SkipIntelliSenseShimSourceResolver.ShimFileName`. Danny's `IntelliSenseShimWriter` holds a parallel constant for the writer side.

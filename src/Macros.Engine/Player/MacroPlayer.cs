@@ -161,6 +161,7 @@ internal sealed class MacroPlayer : IMacroPlayer
     private static ScriptOptions BuildScriptOptions() =>
         ScriptOptions.Default
             .WithMetadataResolver(InteropAwareMetadataResolver.Instance)
+            .WithSourceResolver(SkipIntelliSenseShimSourceResolver.Instance)
             .WithReferences(
                 // Macros.Engine — Helpers, MacroContext, ReplayGuard.
                 typeof(MacroGlobals).Assembly,
@@ -251,6 +252,63 @@ internal sealed class MacroPlayer : IMacroPlayer
             {
                 map[name] = location;
             }
+        }
+    }
+
+    /// <summary>
+    /// Returns empty source for <c>#load</c> directives that point at the IntelliSense
+    /// shim (<c>Macros.Intellisense.csx</c>). The shim exists for the editor — its global
+    /// stubs (<c>DTE = null!</c>, etc.) would shadow the real <see cref="MacroGlobals"/>
+    /// at runtime if compiled in. All other <c>#load</c> directives are forwarded to
+    /// <see cref="SourceFileResolver"/> so user-authored multi-file scripts keep working.
+    /// </summary>
+    private sealed class SkipIntelliSenseShimSourceResolver : SourceReferenceResolver
+    {
+        public static readonly SkipIntelliSenseShimSourceResolver Instance = new();
+
+        private const string ShimFileName = "Macros.Intellisense.csx";
+
+        private static readonly SourceFileResolver Inner = new(ImmutableArray<string>.Empty, baseDirectory: null);
+
+        private SkipIntelliSenseShimSourceResolver() { }
+
+        public override string? NormalizePath(string path, string? baseFilePath) =>
+            Inner.NormalizePath(path, baseFilePath);
+
+        public override string? ResolveReference(string path, string? baseFilePath)
+        {
+            if (path is not null && IsShim(path))
+            {
+                // Returning the sentinel means OpenRead will be called with this exact
+                // string, which we satisfy with an empty stream.
+                return SentinelPath;
+            }
+
+            return path is null ? null : Inner.ResolveReference(path, baseFilePath);
+        }
+
+        public override Stream OpenRead(string resolvedPath)
+        {
+            if (resolvedPath == SentinelPath)
+            {
+                return new MemoryStream(Array.Empty<byte>(), writable: false);
+            }
+
+            return Inner.OpenRead(resolvedPath);
+        }
+
+        public override int GetHashCode() => 0;
+        public override bool Equals(object? other) => other is SkipIntelliSenseShimSourceResolver;
+
+        private const string SentinelPath = "<<macros-intellisense-shim>>";
+
+        private static bool IsShim(string path)
+        {
+            // Tolerate forward and back slashes, any prefix.
+            // Match the file name only — the shim lives in different absolute paths
+            // depending on whether the macro store is global or repo.
+            var fileName = Path.GetFileName(path);
+            return string.Equals(fileName, ShimFileName, StringComparison.OrdinalIgnoreCase);
         }
     }
 
