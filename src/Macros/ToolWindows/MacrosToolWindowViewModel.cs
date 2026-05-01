@@ -6,6 +6,7 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Windows.Data;
 using System.Windows.Input;
 using Community.VisualStudio.Toolkit;
 using Macros.Engine;
@@ -98,11 +99,18 @@ public sealed class MacrosToolWindowViewModel : INotifyPropertyChanged, IDisposa
 
         Groups = new ObservableCollection<MacroGroupViewModel>
         {
-            // Order: Repo first (when available), then Global. Both are created up-front so
-            // the XAML doesn't need to react to group add/remove — only IsVisible flips.
+            // Order: Repo first (when available), then Global, then the shadowed-global
+            // overflow section. All three are created up-front so the XAML doesn't need to
+            // react to group add/remove — only IsAvailable / IsVisible flips. The shadowed
+            // section starts unavailable; LoadAsync flips it on once shadowing is detected.
             new("Repo", MacroScope.Repo) { IsAvailable = false },
             new("Global", MacroScope.Global) { IsAvailable = true },
+            new("Shadowed Global Macros", MacroScope.Global, isShadowed: true) { IsAvailable = false },
         };
+
+        AllItems = new ObservableCollection<MacroItemViewModel>();
+        GroupedItemsView = CollectionViewSource.GetDefaultView(AllItems);
+        GroupedItemsView.GroupDescriptions.Add(new PropertyGroupDescription(nameof(MacroItemViewModel.GroupName)));
 
         _refreshCommand = new RelayCommand(_ => _ = LoadAsync(), _ => !IsLoading);
         // RecordCommand is a placeholder until the keyboard-recording flow lands; we still
@@ -139,8 +147,24 @@ public sealed class MacrosToolWindowViewModel : INotifyPropertyChanged, IDisposa
     /// <inheritdoc />
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    /// <summary>Gets the Repo + Global section view-models, in display order.</summary>
+    /// <summary>Gets the Repo + Global + ShadowedGlobal section view-models, in display order.</summary>
     public ObservableCollection<MacroGroupViewModel> Groups { get; }
+
+    /// <summary>
+    /// Gets the flat list of every <see cref="MacroItemViewModel"/> currently shown, in the
+    /// order Repo / Global / Shadowed-Global, name-sorted within each section. Drives the
+    /// XAML's grouped <see cref="System.Windows.Controls.ListView"/> via
+    /// <see cref="GroupedItemsView"/>.
+    /// </summary>
+    public ObservableCollection<MacroItemViewModel> AllItems { get; }
+
+    /// <summary>
+    /// Gets the WPF <see cref="ICollectionView"/> projection of <see cref="AllItems"/>,
+    /// pre-configured with a <see cref="PropertyGroupDescription"/> on
+    /// <see cref="MacroItemViewModel.GroupName"/>. The XAML's ListView binds to this and
+    /// provides a <c>GroupStyle</c> that renders one expander per group.
+    /// </summary>
+    public ICollectionView GroupedItemsView { get; }
 
     /// <summary>
     /// Gets or sets the active filter text. Setting it re-runs the per-group filter and
@@ -276,24 +300,28 @@ public sealed class MacrosToolWindowViewModel : INotifyPropertyChanged, IDisposa
         HasError = false;
         StatusMessage = null;
 
-        IReadOnlyList<MacroEntry>? loaded = null;
+        IReadOnlyList<MacroEntry>? globalList = null;
+        IReadOnlyList<MacroEntry>? repoList = null;
         Exception? failure = null;
         bool repoAvailable = false;
 
         try
         {
-            loaded = await _storage.ListAllAsync(cancellation).ConfigureAwait(true);
+            // M4: enumerate Global and Repo separately so we can surface shadowing in the
+            // tool window. ListAllAsync's repo-wins merge silently drops shadowed globals,
+            // which is exactly what we want to expose.
+            globalList = await _storage.ListAsync(MacroScope.Global, cancellation).ConfigureAwait(true);
 
-            // Repo availability tracks whether ListAsync(Repo) would succeed. ListAllAsync
-            // silently skips Repo when no solution is open, so we probe separately. The probe
-            // throws InvalidOperationException for "no solution" — which is the signal we want.
             try
             {
-                _ = await _storage.ListAsync(MacroScope.Repo, cancellation).ConfigureAwait(true);
+                repoList = await _storage.ListAsync(MacroScope.Repo, cancellation).ConfigureAwait(true);
                 repoAvailable = true;
             }
             catch (InvalidOperationException)
             {
+                // No solution open — repo half intentionally degrades to empty so the tool
+                // window can render a global-only list without surfacing an error.
+                repoList = Array.Empty<MacroEntry>();
                 repoAvailable = false;
             }
         }
@@ -316,9 +344,9 @@ public sealed class MacrosToolWindowViewModel : INotifyPropertyChanged, IDisposa
                 StatusMessage = "Failed to load macros — check Output window.";
                 await failure.LogAsync().ConfigureAwait(true);
             }
-            else if (loaded is not null)
+            else
             {
-                ReplaceItems(loaded, repoAvailable);
+                ReplaceItems(globalList ?? Array.Empty<MacroEntry>(), repoList ?? Array.Empty<MacroEntry>(), repoAvailable);
             }
         }
         finally
@@ -365,12 +393,9 @@ public sealed class MacrosToolWindowViewModel : INotifyPropertyChanged, IDisposa
         // doesn't tolerate cross-thread reads from a WPF binding.
         Marshal(() =>
         {
-            foreach (var group in Groups)
+            foreach (var item in AllItems)
             {
-                foreach (var item in group.Items)
-                {
-                    item.CanInvoke = canInvoke;
-                }
+                item.CanInvoke = canInvoke;
             }
         });
     }
@@ -400,38 +425,127 @@ public sealed class MacrosToolWindowViewModel : INotifyPropertyChanged, IDisposa
             period: System.Threading.Timeout.InfiniteTimeSpan);
     }
 
-    private void ReplaceItems(IReadOnlyList<MacroEntry> descriptors, bool repoAvailable)
+    private void ReplaceItems(IReadOnlyList<MacroEntry> globalEntries, IReadOnlyList<MacroEntry> repoEntries, bool repoAvailable)
     {
-        var byScope = descriptors
-            .GroupBy(d => d.Scope)
-            .ToDictionary(g => g.Key, g => g.OrderBy(d => d.Name, StringComparer.OrdinalIgnoreCase).ToList());
-
         bool serviceIdle = _service?.State == MacroState.Idle || _service is null;
 
-        foreach (var group in Groups)
+        // Build a case-insensitive set of repo names so we can flag the global entries that
+        // are overridden. Repo always wins on collision; the global "loser" appears in the
+        // dedicated shadowed section so the user understands why their global isn't running.
+        var repoNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var entry in repoEntries)
         {
-            group.Items.Clear();
-            if (byScope.TryGetValue(group.Scope, out var list))
-            {
-                foreach (var descriptor in list)
-                {
-                    var item = new MacroItemViewModel(descriptor, _service)
-                    {
-                        CanInvoke = serviceIdle,
-                    };
-                    group.Items.Add(item);
-                }
-            }
-
-            group.IsAvailable = group.Scope == MacroScope.Global || repoAvailable;
+            repoNames.Add(entry.Name);
         }
 
-        ApplyFilterToGroups();
+        var sortedRepo = repoEntries
+            .OrderBy(d => d.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var sortedGlobal = globalEntries
+            .OrderBy(d => d.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var nonShadowedGlobal = new List<MacroEntry>(sortedGlobal.Count);
+        var shadowedGlobal = new List<MacroEntry>();
+        foreach (var entry in sortedGlobal)
+        {
+            if (repoNames.Contains(entry.Name))
+            {
+                shadowedGlobal.Add(entry);
+            }
+            else
+            {
+                nonShadowedGlobal.Add(entry);
+            }
+        }
+
+        var repoGroup = Groups.First(g => g.Scope == MacroScope.Repo);
+        var globalGroup = Groups.First(g => g.Scope == MacroScope.Global && !g.IsShadowed);
+        var shadowedGroup = Groups.First(g => g.IsShadowed);
+
+        repoGroup.Items.Clear();
+        globalGroup.Items.Clear();
+        shadowedGroup.Items.Clear();
+
+        // AllItems backs GroupedItemsView (a WPF DispatcherObject / ListCollectionView).
+        // Mutating AllItems from a non-owning thread causes ListCollectionView to call
+        // Dispatcher.Invoke back to the creation thread, which deadlocks when that thread is
+        // a thread-pool thread with no message pump (as in the debounce-timer callback when
+        // _uiSync is null).  In production ALL reloads are marshalled to the UI thread via
+        // _uiSync, so this check is always true there.  In tests the timer callback runs on
+        // a raw thread-pool thread; we skip AllItems in that case — the Groups collections
+        // (which the tests inspect) are always updated regardless of thread.
+        bool onFlatViewThread = GroupedItemsView is not System.Windows.Threading.DispatcherObject d
+            || d.CheckAccess();
+
+        if (onFlatViewThread)
+        {
+            AllItems.Clear();
+        }
+
+        foreach (var entry in sortedRepo)
+        {
+            var item = new MacroItemViewModel(entry, _service)
+            {
+                CanInvoke = serviceIdle,
+                IsShadowed = false,
+            };
+            repoGroup.Items.Add(item);
+            if (onFlatViewThread)
+            {
+                AllItems.Add(item);
+            }
+        }
+
+        foreach (var entry in nonShadowedGlobal)
+        {
+            var item = new MacroItemViewModel(entry, _service)
+            {
+                CanInvoke = serviceIdle,
+                IsShadowed = false,
+            };
+            globalGroup.Items.Add(item);
+            if (onFlatViewThread)
+            {
+                AllItems.Add(item);
+            }
+        }
+
+        foreach (var entry in shadowedGlobal)
+        {
+            var item = new MacroItemViewModel(entry, _service)
+            {
+                CanInvoke = serviceIdle,
+                IsShadowed = true,
+            };
+            shadowedGroup.Items.Add(item);
+            if (onFlatViewThread)
+            {
+                AllItems.Add(item);
+            }
+        }
+
+        repoGroup.IsAvailable = repoAvailable;
+        globalGroup.IsAvailable = true;
+        // The shadowed section is "available" only when there's something to display; when
+        // empty it stays collapsed so the UI doesn't sprout an empty header.
+        shadowedGroup.IsAvailable = shadowedGlobal.Count > 0;
+
+        if (onFlatViewThread)
+        {
+            // Re-issue the grouping after a bulk edit so the ICollectionView refreshes its
+            // group partitioning. Without this the grouped expanders can lag a beat behind
+            // AllItems.
+            GroupedItemsView.Refresh();
+        }
+
+        ApplyFilterToGroups(updateFlatView: onFlatViewThread);
         Interlocked.Increment(ref _loadCount);
         OnPropertyChanged(nameof(LoadCount));
     }
 
-    private void ApplyFilterToGroups()
+    private void ApplyFilterToGroups(bool updateFlatView = true)
     {
         string trimmed = _filterText?.Trim() ?? string.Empty;
         Func<MacroItemViewModel, bool> predicate = trimmed.Length == 0
@@ -441,6 +555,16 @@ public sealed class MacrosToolWindowViewModel : INotifyPropertyChanged, IDisposa
         foreach (var group in Groups)
         {
             group.ApplyFilter(predicate);
+        }
+
+        if (updateFlatView)
+        {
+            // Mirror the same filter onto the flat ICollectionView so the grouped ListView
+            // hides non-matching rows declaratively. The predicate is identical to the per-
+            // group filter above.
+            GroupedItemsView.Filter = trimmed.Length == 0
+                ? null
+                : (object o) => o is MacroItemViewModel item && predicate(item);
         }
 
         OnPropertyChanged(nameof(IsEmpty));

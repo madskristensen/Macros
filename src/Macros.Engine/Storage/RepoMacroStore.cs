@@ -25,8 +25,9 @@ namespace Macros.Engine.Storage;
 /// call. The provider returns the absolute path of the per-solution macros folder, or
 /// <see langword="null"/> when no solution is open. Repo writes against a
 /// <see langword="null"/> provider throw <see cref="InvalidOperationException"/>; repo reads
-/// silently return empty / <see langword="null"/> so UI surfaces can render a
-/// no-solution-open state without special casing.
+/// (<see cref="ListAsync"/>, <see cref="LoadByNameAsync"/>, <see cref="DeleteAsync"/>) also
+/// throw <see cref="InvalidOperationException"/> — operating on a non-existent solution is
+/// a caller error the UI layer must guard against before invoking repo-scoped methods.
 /// </para>
 /// <para>
 /// Implementation is intentionally a thin wrapper around a repo-only-mode

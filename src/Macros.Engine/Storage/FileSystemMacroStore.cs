@@ -165,6 +165,15 @@ public sealed class FileSystemMacroStore : IMacroStore, IDisposable
     /// call so the active solution may change at runtime. When the provider returns
     /// <see langword="null"/>, repo-scoped operations throw
     /// <see cref="InvalidOperationException"/>.
+    /// <para>
+    /// NOTE: The <see cref="FileSystemWatcher"/> for the repo folder binds to the path
+    /// returned by the <em>first</em> invocation of this provider (see
+    /// <c>EnsureWatchersStarted</c>). If the provider returns a different path later
+    /// (e.g., user switches solutions), the watcher does <em>not</em> restart —
+    /// named-macro operations route correctly but external file changes in the new path
+    /// won't raise <see cref="LibraryChanged"/>. Track via
+    /// <c>m5-watcher-restart-on-solution-change</c>.
+    /// </para>
     /// </param>
     /// <exception cref="ArgumentNullException"><paramref name="repoFolderProvider"/> is null.</exception>
     internal FileSystemMacroStore(Func<string?> repoFolderProvider)
@@ -954,6 +963,20 @@ public sealed class FileSystemMacroStore : IMacroStore, IDisposable
 
     // ─── FileSystemWatcher helpers ─────────────────────────────────────────────────────
 
+    /// <summary>
+    /// Ensures the <see cref="FileSystemWatcher"/> instances are running for every folder
+    /// that currently exists on disk. Called lazily on the first
+    /// <see cref="LibraryChanged"/> subscription so watchers are only created when
+    /// something actually subscribes.
+    /// </summary>
+    /// <remarks>
+    /// NOTE: The repo watcher binds to the path returned by the <em>first</em> invocation
+    /// of <c>repoFolderProvider</c> at which the folder exists on disk. If the provider
+    /// returns a different path later (e.g., the user switches solutions without closing
+    /// the IDE), the watcher does <em>not</em> restart — named-macro operations route to
+    /// the new path correctly, but external file changes in the new path will not raise
+    /// <see cref="LibraryChanged"/>. Track via <c>m5-watcher-restart-on-solution-change</c>.
+    /// </remarks>
     private void EnsureWatchersStarted()
     {
         lock (_watcherSync)
