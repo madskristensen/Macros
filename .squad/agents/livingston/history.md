@@ -41,3 +41,15 @@
 - All future design and implementation work treats `.csx` Roslyn scripting as canonical.
 
 **Rationale:** User explicitly preferred this model ("users can make code changes instead of static json commands"). Aligns with historical VS macro feature (VBA modernized) and enables first-class IntelliSense editing. Engine architect (Danny) produced detailed CSX architecture in response.
+
+---
+
+### 2026-05-01 — TEAM UPDATE: IntelliSense Shim Feature Shipped
+
+**Wave 1 + 2 Complete:** Team shipped IntelliSense shim for .csx macros. Users now get full IntelliSense (EnvDTE, Toolkit, Helpers, script globals) when editing `.csx` files in VS.
+
+**Test outcome:** 958 / 958 tests pass (74 new tests added). Release build clean.
+
+**Design summary:** Auto-generated `Macros.Intellisense.csx` shim placed in global + repo macro stores. Codegen emits `#load` directive in every generated macro. Player's `SkipIntelliSenseShimSourceResolver` strips the shim at runtime (editor sees it, runtime never does). Shim refreshed automatically on package load and solution open.
+
+**For v1 ship:** IntelliSense support is now complete and locked. See decisions.md for full technical design (drop-box pattern, runtime resolver skip, lifecycle wiring).

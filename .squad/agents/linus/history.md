@@ -32,3 +32,15 @@
 
 **Your role in implementation:**
 Unit and integration tests remain core. The manual smoke checklist is your v1 release gate — it's unchanged. Test both the recorder (emitting valid C# code) and the player (Roslyn compilation + execution) deterministically.
+
+---
+
+### 2026-05-01 — TEAM UPDATE: IntelliSense Shim Feature Shipped
+
+**Wave 1 + 2 Complete:** Team shipped IntelliSense shim for .csx macros. Users now get full IntelliSense (EnvDTE, Toolkit, Helpers, script globals) when editing `.csx` files in VS.
+
+**Test outcome:** 958 / 958 tests pass (74 new tests added). Release build clean.
+
+**Impl summary:** Auto-generated `Macros.Intellisense.csx` shim placed in global + repo `.intellisense/` folders. Codegen emits `#load` directive. Player's `SkipIntelliSenseShimSourceResolver` strips it at runtime (returns empty stream). Shim refreshed on package load + solution open via `IntelliSenseShimRefresher`.
+
+**For your testing:** Smoke checklist now includes verifying IntelliSense appears when user opens any `.csx` macro in the editor. See decisions.md for full design (drop-box pattern, runtime resolver skip, lifecycle refresher).
