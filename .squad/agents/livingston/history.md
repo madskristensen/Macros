@@ -53,3 +53,22 @@
 **Design summary:** Auto-generated `Macros.Intellisense.csx` shim placed in global + repo macro stores. Codegen emits `#load` directive in every generated macro. Player's `SkipIntelliSenseShimSourceResolver` strips the shim at runtime (editor sees it, runtime never does). Shim refreshed automatically on package load and solution open.
 
 **For v1 ship:** IntelliSense support is now complete and locked. See decisions.md for full technical design (drop-box pattern, runtime resolver skip, lifecycle wiring).
+
+---
+
+### 2026-05-01 — TEAM UPDATE: IntelliSense Shim Debug Round — Two Bugs Fixed
+
+**Wave 3 Complete:** User reported "I'm not getting intellisense still" after initial shim feature shipped. Team diagnosed and fixed two bugs in parallel:
+
+1. **Duplicate `#r` in shim:** In VS18 Preview, `typeof(DTE).Assembly.Location` and `typeof(DTE2).Assembly.Location` both resolve to `Microsoft.VisualStudio.Interop.dll`. Shim emitted duplicate `#r` entry, breaking Roslyn parsing. Fixed via case-insensitive dedup in `IntelliSenseShimWriter.ResolveAssemblyPaths()`.
+
+2. **Stale macro files:** Macros recorded before commit 12056f1 lack the `#load ".intellisense/Macros.Intellisense.csx"` directive because old codegen didn't emit it. New `MacroFileLoadDirectiveMigrator` injects the `#load` line into all existing `.csx` files (atomic, idempotent, preserves line endings). Wired into package lifecycle — runs on every VS load.
+
+**Test outcome:** 979 / 979 tests pass (up from 958). Release build clean.
+
+**Ship readiness:** IntelliSense shim feature now debugged and hardened. Ready for v1 release.
+
+### 2026-05-01 — TEAM UPDATE: IntelliSense Shim Third Bug Fix — Migrator Recursion
+
+**Wave 4 Complete:** User reported missing IntelliSense for named macros in the global store's `Macros\` subfolder (`RecordedMacro.csx` at `%APPDATA%\Macros\Macros\RecordedMacro.csx`). Root cause: migrator used `TopDirectoryOnly` and never descended into that subfolder. Rusty fixed via `SearchOption.AllDirectories` + directory-segment-based `.intellisense\` exclusion (prevents false skip of filenames like `my.intellisense.csx`). Test outcome: 984 / 984 tests pass. Release build clean. VSIX fresh. Ship ready.
+

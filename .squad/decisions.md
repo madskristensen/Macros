@@ -380,6 +380,179 @@ unsubscribe happens while the tracker is still alive.
 7. `AttachToTracker_CalledTwice_ThrowsInvalidOperationException`
 8. `Dispose_UnsubscribesFromTracker_NoFurtherWritesAfterDispose`
 
+## 2026-05-01 16:30:25 UTC — Linus: IntelliSense debug diagnostics
+
+**Date:** 2026-05-01T16:30:25.083-07:00
+**Author:** Linus (Tester)
+**Requested by:** Mads Kristensen
+**Symptom:** "I'm not getting intellisense still" — `DTE`, `Context`, `Trigger` globals and `EnvDTE`/Toolkit types not resolving when editing a `.csx` macro in VS.
+
+### Diagnostics Run
+
+All five failure modes investigated via PowerShell diagnostics against the live machine.
+
+**Mode A — Shim file not on disk:** ✅ CLEAR. Shim exists at `C:\Users\madsk\AppData\Roaming\Macros\.intellisense\Macros.Intellisense.csx` (1554 bytes, written 5/1/2026 4:28:36 PM).
+
+**Mode B — Shim contents broken:** ⚠️ SECONDARY BUG CONFIRMED. Duplicate `#r` directive for `Microsoft.VisualStudio.Interop.dll` — both `typeof(DTE).Assembly.Location` and `typeof(DTE2).Assembly.Location` resolve to the same DLL in VS18 Preview. Roslyn may reject duplicate `#r` entries.
+
+**Mode C — Macro `.csx` file missing `#load` line:** 🔴 PRIMARY CAUSE. `current.csx` recorded at 12:35 PM, before shim feature deployed (4:28 PM). Old `CSharpCodeGenerator` did not emit `#load ".intellisense/Macros.Intellisense.csx"` directive. Without it, C# editor never reads shim; globals and `#r` references never enter IntelliSense model.
+
+**Mode D — VS Misc Files doesn't process `#load` for IntelliSense:** ❓ CANNOT TEST YET. Testable interactively after Mode C fixed.
+
+**Mode E — Stale experimental hive:** ✅ CLEAR. New VSIX running; shim written by new code.
+
+### Fix Plan
+
+**Fix 1 — Mode C (PRIMARY): One-time migration of existing `.csx` files.** Enumerate all `*.csx` files in global + repo macro stores. For each missing `#load ".intellisense/Macros.Intellisense.csx"` directive, inject it after the header block. Idempotent. Atomic write via `.tmp` + `File.Replace`.
+
+**Fix 2 — Mode B (SECONDARY): Deduplicate assembly paths in `IntelliSenseShimWriter.ResolveAssemblyPaths()`.** Use case-insensitive uniqueness check (HashSet) before adding paths to list. Forces shim regeneration on next package load.
+
+## 2026-05-01 16:30:25 UTC — Rusty: `MacroFileLoadDirectiveMigrator` specification
+
+**Date:** 2026-05-01T16:30:25.083-07:00
+**Author:** Rusty (Engineer)
+**Status:** Implemented — pending wiring by Danny
+
+### API Contract
+
+```csharp
+namespace Macros.Engine.Storage;
+
+public static class MacroFileLoadDirectiveMigrator
+{
+    public static MigrationResult Migrate(string storeRoot);
+}
+
+public sealed record MigrationResult(
+    int Scanned,
+    int Updated,
+    int Skipped,
+    IReadOnlyList<string> Errors);
+```
+
+### Behaviour
+
+- **Argument validation:** `string.IsNullOrWhiteSpace(storeRoot)` → `ArgumentException`.
+- **Missing folder:** return `(0, 0, 0, empty)`.
+- **Scan:** `Directory.EnumerateFiles(storeRoot, "*.csx", SearchOption.TopDirectoryOnly)` — no recursion.
+- **Shim file skip:** Skip `Macros.Intellisense.csx` (case-insensitive).
+- **Idempotency:** If file already contains `Macros.Intellisense.csx` (case-insensitive) → skip.
+- **Injection:** Insert shim block after last `//` comment line (header), before code.
+- **Line-ending preservation:** Detect `\r\n` (CRLF) or `\n` (LF) in file; use same on write.
+- **Atomic write:** `{filePath}.{guid}.tmp` → `File.Replace` or `File.Move`.
+- **Per-file error handling:** Catch exceptions; append to `Errors` list; continue to next file.
+
+### Tests (17, all green)
+
+Covers null/empty/whitespace validation, missing folder, empty folder, injection positioning, existing `#load` detection, CRLF/LF preservation, atomic write, shim skip, recursion prevention, per-file error capture, idempotency, Roslyn parseability, and edge cases.
+
+## 2026-05-01 16:30:25 UTC — Danny: Shim dedupe fix + Migrator wiring
+
+**Date:** 2026-05-01T16:30:25.083-07:00
+**Author:** Danny (Engineer)
+
+### Fix 1 — Duplicate `#r` in shim (Bug #2 per Linus's diagnosis)
+
+**File:** `src/Macros.Engine/Scripting/IntelliSenseShimWriter.cs`
+
+Extracted new pure helper `Deduplicate(IEnumerable<string> paths)`:
+- Case-insensitive (`StringComparer.OrdinalIgnoreCase`)
+- Order-preserving — first occurrence wins
+- Null/empty entries silently dropped
+
+`ResolveAssemblyPaths` now calls `Deduplicate(raw)` after `TryAdd` collects paths.
+
+### Fix 2 — Wire `MacroFileLoadDirectiveMigrator`
+
+**Files modified:**
+- `src/Macros/Lifecycle/IntelliSenseShimRefresher.cs` — Added `MacroFileLoadDirectiveMigrator.Migrate(root)` calls in `RefreshGlobal()` and `RefreshRepo()` after shim write.
+- `src/Macros/MacrosPackage.cs` — Added migration call in package init after `_shimRefresher.RefreshGlobal()`.
+
+**Stub:** `src/Macros.Engine/Storage/MacroFileLoadDirectiveMigrator.cs` — no-op stub until Rusty's real implementation landed.
+
+### Tests added
+
+- `IntelliSenseShimWriterTests.cs`: `ResolveAssemblyPaths_DeduplicatesIdenticalPaths_WhenInteropAssembliesShareDll`, `Deduplicate_PreservesOriginalOrdering`, `Deduplicate_IsCaseInsensitive`
+- `IntelliSenseShimRefresherTests.cs`: `RefreshGlobal_WithPreExistingCsxFile_WritesShimAndRunsMigration`
+
+### Result
+
+Build succeeded. 45 tests pass (pre-existing + new). All green.
+
+## 2026-05-01 17:29 — MacroFileLoadDirectiveMigrator — recursive scan with `.intellisense\` exclusion
+
+**Date:** 2026-05-01T17:29:22.587-07:00  
+**Author:** Rusty (Engineer)  
+**Status:** Shipped
+
+---
+
+### Problem
+
+`MacroFileLoadDirectiveMigrator.Migrate(storeRoot)` used `SearchOption.TopDirectoryOnly`.
+When called with the global store root (`%APPDATA%\Macros\`), it correctly migrated
+`current.csx` in the root but never descended into `%APPDATA%\Macros\Macros\` — the
+`GlobalNamedSubfolder` where all named macros actually live.
+
+Result: any macro the user opens from the tool window (`RecordedMacro.csx`, etc.) still
+lacked the `#load ".intellisense/Macros.Intellisense.csx"` directive → no IntelliSense.
+
+The repo store layout (`<sln>\.vs\Macros\*.csx`) was unaffected because named macros sit
+directly in the root there — `TopDirectoryOnly` worked by coincidence.
+
+---
+
+### Fix
+
+#### `src/Macros.Engine/Storage/MacroFileLoadDirectiveMigrator.cs`
+
+1. **`SearchOption.TopDirectoryOnly` → `SearchOption.AllDirectories`** in `Directory.EnumerateFiles`.
+
+2. **Added `IsInIntelliSenseFolder(string filePath)`** — private static helper that splits
+   the path on both `\` and `/` separators and checks every *directory* segment (not the
+   filename) for exact equality with `.intellisense` (OrdinalIgnoreCase).  
+   This ensures:
+   - `<root>\.intellisense\Macros.Intellisense.csx` — excluded ✓
+   - `<root>\.INTELLISENSE\extra.csx` — excluded ✓  
+   - `<root>\Macros\my.intellisense.csx` — **not** excluded ✓ (segment equality, not substring)
+
+3. **`.intellisense\` files are filtered before `scanned++`** — they do not appear in
+   `Scanned`, `Updated`, or `Skipped` counters.
+
+4. **Belt-and-suspenders shim-filename skip retained** — if a copy of `Macros.Intellisense.csx`
+   ever lands outside `.intellisense\` it is still skipped by the filename check.
+
+5. **`Migrate` doc-comment updated** with the recursive/exclusion semantics and rationale:
+   "The global store keeps named macros under a subfolder (`<root>\Macros\<name>.csx`);
+   recursive scanning ensures both layouts (global and repo) are covered without the caller
+   having to special-case the global named subfolder."
+
+---
+
+### Tests
+
+File: `tests/Macros.Tests/Storage/MacroFileLoadDirectiveMigratorTests.cs`
+
+| Test | Disposition |
+|------|-------------|
+| `Migrate_DoesNotRecurseIntoSubfolders` | **Replaced** |
+| `Migrate_RecursesIntoSubfolders_LikeGlobalNamedMacroLayout` | **New** — root + `Macros\` subfolder both migrated |
+| `Migrate_SkipsIntelliSenseSubfolder_EvenWhenItContainsCsx` | **New** — non-shim `.csx` in `.intellisense\`; Scanned=0 |
+| `Migrate_SkipsIntelliSenseSubfolderCaseInsensitively` | **New** — `.INTELLISENSE` folder still excluded |
+| `Migrate_HandlesGlobalLayoutCorrectly` | **New** — full global layout; Scanned=3, Updated=3, Skipped=0, shim untouched |
+| `Migrate_FilenameContainingDotIntellisense_IsNotSkipped` | **New** — segment equality guard; `my.intellisense.csx` is migrated |
+| `Migrate_HandlesTriggerDirectiveInComments_StillInjectsBeforeFirstRDirective` | **New** — `// @trigger` comment in header; `#load` injected before first `#r` |
+
+All 984 tests pass.
+
+---
+
+### Why segment equality, not substring
+
+Using `filePath.Contains(".intellisense")` would accidentally skip `my.intellisense.csx`.
+Using `Path.Split` + `string.Equals(segment, ".intellisense", OrdinalIgnoreCase)` restricts
+the exclusion to directory segments only, which is the correct semantic.
+
 ## Governance
 
 - All meaningful changes require team consensus
