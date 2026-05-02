@@ -86,7 +86,15 @@ internal sealed class IntelliSenseShimRefresher : IDisposable
         _tracker.SolutionChanged += OnSolutionChanged;
     }
 
-    private void OnSolutionChanged(object? sender, EventArgs e) => RefreshRepo();
+    private void OnSolutionChanged(object? sender, EventArgs e)
+    {
+        // Both: SHA-256 skip in IntelliSenseShimWriter makes this cheap when nothing
+        // changed, and it closes two lifecycle gaps: (1) a shim-shape upgrade lands on
+        // the global shim at next solution-open instead of next VS restart, and (2)
+        // a deleted global shim is recreated.
+        RefreshGlobal();
+        RefreshRepo();
+    }
 
     public void Dispose()
     {

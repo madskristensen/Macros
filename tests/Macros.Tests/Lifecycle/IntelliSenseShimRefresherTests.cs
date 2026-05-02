@@ -143,6 +143,62 @@ public sealed class IntelliSenseShimRefresherTests : IDisposable
             $"Expected shim at {ExpectedShimPath(expectedRepoMacrosFolder)}");
     }
 
+    // ── Test 5b ───────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void OnSolutionChanged_RefreshesBothGlobalAndRepoShims()
+    {
+        var globalRoot = UniqueFolder("global5b");
+        var repoRoot   = UniqueFolder("repo5b");
+
+        using var tracker = SolutionContextTracker.CreateForTests();
+        using var refresher = new IntelliSenseShimRefresher(
+            globalFolderProvider: () => globalRoot,
+            repoFolderProvider: () => tracker.GetCurrentRepoMacrosFolder());
+
+        refresher.AttachToTracker(tracker);
+
+        // Fires SolutionChanged → OnSolutionChanged → RefreshGlobal() + RefreshRepo().
+        tracker.ApplySolutionPath(repoRoot);
+
+        var expectedRepoMacrosFolder = Path.Combine(repoRoot, ".vs", "Macros");
+        Assert.True(File.Exists(ExpectedShimPath(globalRoot)),
+            $"Expected global shim at {ExpectedShimPath(globalRoot)}");
+        Assert.True(File.Exists(ExpectedShimPath(expectedRepoMacrosFolder)),
+            $"Expected repo shim at {ExpectedShimPath(expectedRepoMacrosFolder)}");
+    }
+
+    // ── Test 5c ───────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void OnSolutionChanged_RecreatesDeletedGlobalShim()
+    {
+        var globalRoot = UniqueFolder("global5c");
+        var repoRoot   = UniqueFolder("repo5c");
+
+        using var tracker = SolutionContextTracker.CreateForTests();
+        using var refresher = new IntelliSenseShimRefresher(
+            globalFolderProvider: () => globalRoot,
+            repoFolderProvider: () => tracker.GetCurrentRepoMacrosFolder());
+
+        // Seed the global shim.
+        refresher.RefreshGlobal();
+        var globalShimPath = ExpectedShimPath(globalRoot);
+        Assert.True(File.Exists(globalShimPath), "Pre-condition: global shim should exist after seed.");
+
+        // Simulate user deleting the global shim mid-session.
+        File.Delete(globalShimPath);
+        Assert.False(File.Exists(globalShimPath), "Pre-condition: global shim should be gone after delete.");
+
+        refresher.AttachToTracker(tracker);
+
+        // Fires SolutionChanged → OnSolutionChanged → RefreshGlobal() recreates the shim.
+        tracker.ApplySolutionPath(repoRoot);
+
+        Assert.True(File.Exists(globalShimPath),
+            $"Expected global shim to be recreated at {globalShimPath}");
+    }
+
     // ── Test 6 ────────────────────────────────────────────────────────────────────────
 
     [Fact]

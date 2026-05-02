@@ -82,3 +82,13 @@ docs/csx-reference.md, docs/architecture.md, docs/ship-readiness-v1.0.0.md, docs
 
 **Tests:** Updated tests 4 and 16 (stale `rPos < loadPos` assertion replaced with `DoesNotContain`). 6 new tests: PatternA strip, PatternB strip, trigger-intervenes strip, user-added #r preserved, idempotency of strip, exact-match guard. Golden file (`sample.csx`) updated. 993 tests green.
 
+---
+
+### 2026-05-01 — Lifecycle gap: refresh global shim on every solution-open
+
+**Gap closed:** `OnSolutionChanged` previously called only `RefreshRepo()`. Two scenarios were left unaddressed: (1) if the user deleted the global shim file mid-session it stayed gone until VS restart; (2) after a shim-shape upgrade (e.g., the `global::` prefix fix) the global shim was only updated on the next full VS restart, not on the next solution open.
+
+**Fix:** `OnSolutionChanged` now calls both `RefreshGlobal()` and `RefreshRepo()`. The SHA-256 skip inside `IntelliSenseShimWriter.Write` makes the extra call effectively free when nothing has changed.
+
+**Tests:** 2 new tests added to `IntelliSenseShimRefresherTests`: `OnSolutionChanged_RefreshesBothGlobalAndRepoShims` and `OnSolutionChanged_RecreatesDeletedGlobalShim`. Total test count: 1014 (all green).
+

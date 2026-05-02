@@ -138,14 +138,25 @@ public sealed class IntelliSenseShimTests
     public void Generate_ContainsContextStub()
     {
         string shim = IntelliSenseShim.Generate(SamplePaths);
-        Assert.Contains("Macros.Engine.Scripting.IMacroContext Context = null!;", shim, StringComparison.Ordinal);
+        Assert.Contains("global::Macros.Engine.Scripting.IMacroContext Context = null!;", shim, StringComparison.Ordinal);
     }
 
     [Fact]
     public void Generate_ContainsTriggerStub()
     {
         string shim = IntelliSenseShim.Generate(SamplePaths);
-        Assert.Contains("Macros.Engine.Triggers.IMacroTrigger Trigger = null!;", shim, StringComparison.Ordinal);
+        Assert.Contains("global::Macros.Engine.Triggers.IMacroTrigger Trigger = null!;", shim, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Generate_GlobalStubsUseGlobalNamespacePrefix_ToAvoidEnvDTEMacrosClash()
+    {
+        // Guards against a future "tidy-up" that strips the global:: prefix.
+        // EnvDTE defines a deprecated `Macros` type (old VBA-macros API); without global::
+        // the C# resolver shadows our Macros assembly with that deprecated type.
+        string shim = IntelliSenseShim.Generate(SamplePaths);
+        Assert.Contains("global::Macros.Engine.Scripting.IMacroContext Context = null!;", shim, StringComparison.Ordinal);
+        Assert.Contains("global::Macros.Engine.Triggers.IMacroTrigger Trigger = null!;", shim, StringComparison.Ordinal);
     }
 
     // ── determinism + output contract ────────────────────────────────────────────────

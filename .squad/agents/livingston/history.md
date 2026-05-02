@@ -80,3 +80,7 @@
 
 **Rounds 5–6 Complete:** Two final rounds shipped substantial fixes for macro recording, codegen, and repo macro discovery. Round 5 (rusty-open-on-stop + danny-drop-unresolved-commands): Added IMacroService.RecordingSaved event; StopCommand and RecordingStatusBarInjector auto-open the saved macro in the editor. Codegen now silently drops CommandSteps that don't resolve to DTE names — no more raw GUID fallback lines. Round 6 (linus diagnosis + danny fix): Diagnosed and fixed two critical failures in repo macro loading. File watcher now starts after solution open via EnsureWatchersStarted promotion to internal and RepoMacroStore.NotifySolutionChanged seam. Trigger registry now refreshes on SolutionChanged to capture pre-existing repo triggers. **1003 / 1003 tests green.** Round 6 source pending Mads's manual verification before commit.
 
+### 2026-05-02 — IntelliSense Final Polish: Two Final Rounds (8–9)
+
+**Rounds 8–9 Complete:** Two final polish rounds — danny-shim-global-prefix + rusty-refresh-both-on-solution-changed. Round 8: Added `global::` prefix to IMacroContext/IMacroTrigger stub declarations to dodge EnvDTE.Macros deprecation collision. Round 9: IntelliSenseShimRefresher.OnSolutionChanged now calls RefreshGlobal() AND RefreshRepo(), closing lifecycle gaps (mid-session shim deletion, shim-shape upgrades). **1014 / 1014 tests pass.**
+

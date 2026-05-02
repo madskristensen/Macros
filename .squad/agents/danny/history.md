@@ -150,6 +150,18 @@ Details (see `.squad/decisions.md` and `danny-triggers-and-scope.md`):
 - CompositeMacroStore (Global + Repo, repo-wins) with per-solution trust allowlist (InfoBar prompt)
 - Auto-disable on repeated failure (3 consecutive); failure count resets on success
 
+### 2026-05-01 — global:: prefix in IntelliSense shim to fix EnvDTE.Macros collision
+
+**Problem:** `using EnvDTE;` in the generated shim brings `EnvDTE.Macros` (a deprecated VBA-macros type from the old VS macro API) into scope. The C# resolver, walking using-imports before the global namespace, resolved `Macros.Engine.Scripting.IMacroContext` and `Macros.Engine.Triggers.IMacroTrigger` to `EnvDTE.Macros.*`, producing deprecation warnings in the editor.
+
+**Fix:** Prefixed the two declaration lines in `EmitGlobalStubs` with `global::` so the resolver skips using-imports and anchors directly at the root namespace. Added a comment block above the stubs explaining why, to prevent future "cleanup" removing the prefix.
+
+**`using` directives:** Left without `global::` — per C# spec, `using` directives are resolved against the global namespace and do not shadow-resolve through using-imports. Only declaration-site references need the prefix.
+
+**Tests:** Updated `Generate_ContainsContextStub` and `Generate_ContainsTriggerStub` to assert the `global::`-prefixed form. Added `Generate_GlobalStubsUseGlobalNamespacePrefix_ToAvoidEnvDTEMacrosClash` to guard against future cleanup. Parse sanity test (`Generate_ParseSanityCheck_NoSyntaxErrors`) confirmed `global::` is valid in Script `SourceCodeKind`.
+
+**Suite:** 1012 tests, all green.
+
 ### 2026-05-01 — Drop unresolved commands from generated macros
 
 **Problem:** When `CommandObserver.ResolveCommandName` failed to map a GUID/ID pair to a DTE-friendly name, `CSharpCodeGenerator.EmitCommandStep` fell back to emitting `await RunCommandAsync(new System.Guid("…"), Nu)` — unreadable and non-replayable noise that confused users.
