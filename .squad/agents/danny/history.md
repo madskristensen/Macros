@@ -10,7 +10,31 @@
 
 <!-- Append learnings below -->
 
-### 2026-05-01 — IntelliSense Shim Lifecycle Wiring (Wave 2)
+### 2026-05-01 — IntelliSense Shim Dual-Write for Named Macros
+
+**Root cause:** Named macros live in `<global-root>\Macros\<name>.csx` (one level deeper than the root). The codegen emits a constant relative `#load ".intellisense/Macros.Intellisense.csx"` for every macro regardless of depth. A shim only in `<global-root>\.intellisense\` is invisible to macros in the `Macros\` subfolder — they resolve relative to their own directory, which was missing its own `.intellisense\` sibling.
+
+**Fix — dual write:** `RefreshGlobal()` now calls `IntelliSenseShimWriter.Write` twice: once for the global root (for `current.csx`) and once for `Path.Combine(root, FileSystemMacroStore.GlobalNamedSubfolder)` (for all named macros). Both writes are idempotent (SHA-256 hash guard in `IntelliSenseShimWriter.Write`). No per-file path arithmetic needed — the constant `#load` path is correct for every file as long as a shim sibling folder exists.
+
+**Visibility:** `FileSystemMacroStore.GlobalNamedSubfolder` promoted from `private const` to `internal const` with a doc comment. `InternalsVisibleTo("Macros")` was already present in `Macros.Engine.csproj` — no new project changes required.
+
+**Tests added (3):** `RefreshGlobal_WritesShimInBothRootAndNamedSubfolder`, `RefreshGlobal_NamedSubfolderShimMatchesRootShim`, `RefreshGlobal_IsIdempotent_BothLocations`. Full suite: 987 tests, all green.
+
+
+
+**`IntelliSenseShimWriter.Deduplicate` pattern:** Extracted as `internal static IReadOnlyList<string> Deduplicate(IEnumerable<string> paths)` — pure, case-insensitive (`StringComparer.OrdinalIgnoreCase`), order-preserving (first occurrence wins). `ResolveAssemblyPaths` collects raw paths via `TryAdd` (which handles null/empty + diagnostic logging) then calls `Deduplicate`. VS18 Preview: `typeof(DTE).Assembly.Location` and `typeof(DTE2).Assembly.Location` both resolve to `Microsoft.VisualStudio.Interop.dll` — without dedup, the shim emits the same `#r` twice and Roslyn rejects it.
+
+**Migrator wiring in `IntelliSenseShimRefresher`:** Added `using Macros.Engine.Storage;` and called `MacroFileLoadDirectiveMigrator.Migrate(root)` immediately after `IntelliSenseShimWriter.Write(root)` in both `RefreshGlobal()` and `RefreshRepo()`. Errors are caught by the same `when (!IsCritical(ex))` filter and routed to `_onError`. Migration is idempotent — calling twice is safe.
+
+**Migrator wiring in `MacrosPackage`:** Added dedicated `// 2a-ter` block after `_shimRefresher.RefreshGlobal()` + `RefreshRepo()` calls. Resolves `globalRoot` via `MacrosPaths.ResolveGlobalFolderOrFallback` and calls `Migrate` directly. Wrapped in `catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException and not ThreadAbortException)` per codebase convention.
+
+**Stub pattern for parallel work:** Created `MacroFileLoadDirectiveMigrator.cs` in `src/Macros.Engine/Storage/` as a no-op stub (returns `new MigrationResult(0, 0, 0, Array.Empty<string>())`). Rusty will replace with real implementation. Stub enables build + test green before Rusty finishes.
+
+**Test pattern — pure helper testing:** `Deduplicate` is `internal` and tested directly with synthetic input in `IntelliSenseShimWriterTests`. No need to intercept `typeof(T).Assembly.Location` — the helper is pure and takes `IEnumerable<string>`. Three tests: dedupe when sharing paths, ordering preservation `[a,b,a,c]→[a,b,c]`, case-insensitivity `[C:\Foo.dll, c:\foo.dll]→[C:\Foo.dll]`.
+
+**RefresherTest pattern — migration smoke:** Added `RefreshGlobal_WithPreExistingCsxFile_WritesShimAndRunsMigration` — creates a fixture `.csx` before `RefreshGlobal()`, verifies shim is written and fixture file is not corrupted/deleted. Passes with no-op stub and will pass with real implementation.
+
+
 
 **`IntelliSenseShimRefresher` pattern:** A pure C# disposable class with no VS shell dependencies. Takes two `Func<>` providers (global folder, repo folder) and an optional `Action<string, Exception>` error callback. `RefreshGlobal()` / `RefreshRepo()` are each independently callable and swallow non-critical exceptions via the callback so a shim failure never crashes package init. `AttachToTracker(SolutionContextTracker)` subscribes to `SolutionChanged`; `Dispose()` unsubscribes. Second `AttachToTracker` call throws `InvalidOperationException`.
 

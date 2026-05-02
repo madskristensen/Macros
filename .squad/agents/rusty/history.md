@@ -54,3 +54,13 @@ docs/csx-reference.md, docs/architecture.md, docs/ship-readiness-v1.0.0.md, docs
 
 **Result:** 984 tests pass (979 baseline). Migrator finds all named macros in global store. Release build clean. VSIX ready (5:42 PM 5/1/2026).
 
+---
+
+### 2026-05-01 — Drop redundant `#r EnvDTE` from codegen + migrator strip
+
+**Codegen (CSharpCodeGenerator):** Removed the `// #r directives below…` comment block plus `#r "EnvDTE"` and `#r "EnvDTE80"` lines from `EmitReferenceDirectives`. The shim's absolute-path `#r` directives already cover the editor; the runtime player covers them via `ScriptOptions.WithReferences`. Updated XML doc: (3)→`using` block, (4)→step body (no more (5)).
+
+**Migrator (MacroFileLoadDirectiveMigrator):** Added `HasObsoleteEnvDTEDirectives` and `StripObsoleteEnvDTEDirectives` (internal for tests). Strip logic: finds consecutive `#r "EnvDTE"` + `#r "EnvDTE80"` lines; if the two preceding lines are both `//` comments and one mentions `#r directives`, removes all 4 (comment + #r pair); otherwise strips only the 2 `#r` lines (defensive — handles `// @trigger` intervening). Collapses double blank lines post-strip. `Migrate` now strips first, injects shim after (so `FindBodyStart` lands on `using` block not `#r` lines). Skip condition narrowed: only skips when shim present AND no obsolete `#r`.
+
+**Tests:** Updated tests 4 and 16 (stale `rPos < loadPos` assertion replaced with `DoesNotContain`). 6 new tests: PatternA strip, PatternB strip, trigger-intervenes strip, user-added #r preserved, idempotency of strip, exact-match guard. Golden file (`sample.csx`) updated. 993 tests green.
+

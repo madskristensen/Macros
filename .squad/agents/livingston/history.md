@@ -72,3 +72,7 @@
 
 **Wave 4 Complete:** User reported missing IntelliSense for named macros in the global store's `Macros\` subfolder (`RecordedMacro.csx` at `%APPDATA%\Macros\Macros\RecordedMacro.csx`). Root cause: migrator used `TopDirectoryOnly` and never descended into that subfolder. Rusty fixed via `SearchOption.AllDirectories` + directory-segment-based `.intellisense\` exclusion (prevents false skip of filenames like `my.intellisense.csx`). Test outcome: 984 / 984 tests pass. Release build clean. VSIX fresh. Ship ready.
 
+### 2026-05-02 — TEAM UPDATE: IntelliSense Shim Fourth Bug Fix + Macro File Simplification
+
+**Wave 5 Complete:** Team shipped dual-shim fix for named-subfolder macros + macro file simplification. Danny: Write the IntelliSense shim to both `<root>\.intellisense\` and `<root>\Macros\.intellisense\`, ensuring the constant `#load ".intellisense/..."` path resolves for all macro file depths without per-file path arithmetic. Rusty: Dropped redundant `#r "EnvDTE"` / `#r "EnvDTE80"` lines from generated macros — these references already come from the shim (editor) and `MacroPlayer.WithReferences` (runtime). Extended migrator with smart strip logic for different comment variants and trigger directives. Test outcome: **993 / 993 tests pass** (up from 984). Release build clean. VSIX fresh. Ready for v1 ship.
+

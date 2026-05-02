@@ -558,3 +558,164 @@ the exclusion to directory segments only, which is the correct semantic.
 - All meaningful changes require team consensus
 - Document architectural decisions here
 - Keep history focused on work, decisions focused on direction
+
+
+## 2026-05-01 17:51 — Write IntelliSense Shim to Both Global Root and Named-Macro Subfolder
+
+**Date:** 2026-05-01T17:51:09.083-07:00  
+**Author:** Danny  
+**Status:** Implemented
+
+## Context
+
+The global macro store has two levels:
+
+| Path | File | Depth relative to root |
+|------|------|------------------------|
+| `<global-root>\current.csx` | Ad-hoc macro | 0 (root) |
+| `<global-root>\Macros\<name>.csx` | Named macros | 1 (subfolder) |
+
+Every macro file — regardless of depth — is emitted with the same constant `#load` directive:
+
+```csharp
+#load ".intellisense/Macros.Intellisense.csx"
+```
+
+This path is relative to the file that contains it, not to the global root.
+
+## Problem
+
+Before this fix, `RefreshGlobal()` wrote the IntelliSense shim only to `<global-root>\.intellisense\`. That resolved correctly for `current.csx` (same directory), but named macros in `<global-root>\Macros\<name>.csx` look for `.intellisense\Macros.Intellisense.csx` relative to `<global-root>\Macros\` — which didn't exist. IntelliSense was broken for all named macros.
+
+Mads confirmed this by manually changing `#load ".intellisense/..."` to `#load "../.intellisense/..."` in one named macro — it worked. That validated the shim approach; only the placement was wrong.
+
+## Decision: Constant Path + Dual Write (not per-file path arithmetic)
+
+### Option A — Per-file relative path computation (rejected)
+Change the codegen to emit a path that is relative to the actual file location, e.g., `../.intellisense/...` for named macros. 
+
+**Rejected because:**
+- Creates two code paths (root vs. subfolder) in the code generator.
+- The migrator would also need branching.
+- Any future store layout change (e.g., deeper nesting) would require updating multiple places.
+- Introduces risk of getting relative path arithmetic wrong across OS path separators.
+
+### Option B — Constant path + dual write (chosen) ✅
+Keep the codegen, migrator, and every `.csx` file emitting exactly `.intellisense/Macros.Intellisense.csx`. Instead, ensure every directory that contains macro files has a sibling `.intellisense\` folder with the shim.
+
+**`RefreshGlobal()` now calls `IntelliSenseShimWriter.Write` twice:**
+1. `Write(<global-root>)` — covers `current.csx`.
+2. `Write(<global-root>\Macros)` — covers all named macros.
+
+**Why this is better:**
+- Zero changes to codegen, migrator, or any existing `.csx` file format.
+- `IntelliSenseShimWriter.Write` is already idempotent (SHA-256 content guard).
+- The shim content is identical in both locations — no divergence risk.
+- Adding a new storage level in the future just means adding one more `Write` call.
+
+## Implementation Notes
+
+- `FileSystemMacroStore.GlobalNamedSubfolder` promoted from `private const` to `internal const` so `IntelliSenseShimRefresher` (in the `Macros` VSIX assembly) can reference the canonical string value. `InternalsVisibleTo("Macros")` already existed in `Macros.Engine.csproj`.
+- `using System.IO` added to `IntelliSenseShimRefresher.cs` for `Path.Combine`.
+- `RefreshRepo()` is unchanged — repo macros live directly under the repo root with no nested subfolder.
+
+## Verification
+
+- 3 new tests added: `RefreshGlobal_WritesShimInBothRootAndNamedSubfolder`, `RefreshGlobal_NamedSubfolderShimMatchesRootShim`, `RefreshGlobal_IsIdempotent_BothLocations`.
+- Full suite: **987 tests, all green**.
+
+
+## 2026-05-01 17:54 — Drop redundant #r "EnvDTE"/"EnvDTE80" from macro files
+
+**Date:** 2026-05-01T17:54:53.924-07:00  
+**Author:** Rusty  
+**Status:** Implemented
+
+---
+
+## Why the `#r "EnvDTE"` lines were dead weight
+
+Every generated `.csx` macro file previously contained:
+
+```csx
+// #r directives below are kept for external dotnet-script consumers; MacroPlayer
+// supplies the same references via ScriptOptions at compile time.
+#r "EnvDTE"
+#r "EnvDTE80"
+```
+
+### For the editor (IntelliSense)
+
+The IntelliSense shim (`Macros.Intellisense.csx`) already contains absolute-path `#r`
+directives to the installed `Interop.EnvDTE.dll` and `Interop.EnvDTE80.dll` files.
+The `#load ".intellisense/Macros.Intellisense.csx"` directive (present since commit
+12056f1) pulls those in automatically.  The additional `#r "EnvDTE"` / `#r "EnvDTE80"`
+lines are therefore redundant — Roslyn can resolve the same types through the shim's
+absolute-path references.
+
+### For the runtime player
+
+`MacroPlayer.BuildScriptOptions` calls
+`.WithReferences(typeof(DTE).Assembly, typeof(DTE2).Assembly)` and supplies an
+`InteropAwareMetadataResolver`.  The `#r` lines in the script source are therefore
+resolved a second time to the same assemblies that `ScriptOptions` already added.
+
+### For "external dotnet-script consumers" (the comment's stated rationale)
+
+A standalone `dotnet-script` process cannot connect to a running Visual Studio instance
+to obtain a live `DTE` object.  The macro API is intrinsically coupled to the VS host.
+Carrying `#r "EnvDTE"` to support a usage that cannot work is misleading and clutters
+every macro file a user edits.
+
+---
+
+## Changes made
+
+### `CSharpCodeGenerator.EmitReferenceDirectives`
+
+Removed the four trailing lines (comment + two `#r` directives + blank separator).
+The method now emits only the `#load` comment block and the `#load` directive itself.
+XML doc updated: `(3)` → `using` block; `(4)` → step body; old `(3)` (#r item) deleted.
+
+### `MacroFileLoadDirectiveMigrator`
+
+Added two helpers — `HasObsoleteEnvDTEDirectives` and `StripObsoleteEnvDTEDirectives`
+(both internal so tests can exercise them) — and updated `Migrate` to invoke them on
+every file that still carries the old block.
+
+**Strip semantics:**
+
+| Scenario | Lines removed |
+|---|---|
+| Two preceding lines are both `//` comments AND one mentions `#r directives` | 4 lines: 2-comment block + `#r "EnvDTE"` + `#r "EnvDTE80"` |
+| `// @trigger` or other comment intervenes (triggers precede `#r` lines) | 2 lines: only `#r "EnvDTE"` + `#r "EnvDTE80"` |
+| `#r "EnvDTEFake"`, `#r "EnvDTE.Custom"`, or any other non-exact string | not stripped |
+
+After removal, consecutive blank lines are collapsed to one (prevents whitespace
+accumulation across repeated migration passes).
+
+**Order of operations inside `Migrate`:** strip first → inject shim second.  This
+ensures `FindBodyStart` (which drives shim injection) sees the `using` block as the
+first non-comment line rather than the now-removed `#r` lines.
+
+**Skip condition:** a file is skipped only when it already has the shim reference AND
+has no obsolete `#r` block.  A file that was previously migrated (has `#load`) but
+still carries the old `#r` block (generated between commit 12056f1 and this change) is
+updated.
+
+**Idempotency:** after one pass a file has the shim and no `#r "EnvDTE"`/`#r "EnvDTE80"`
+lines; a second pass finds nothing to do and counts the file as Skipped.
+
+---
+
+## Test coverage added
+
+- `Migrate_StripsObsoleteREnvDTEBlock_PatternA` — file with `#load` already + Pattern A block
+- `Migrate_StripsObsoleteREnvDTEBlock_PatternB` — file without `#load` + Pattern B block
+- `Migrate_StripsObsoleteRBlock_EvenWhenTriggerLineIntervenes` — trigger line between comment and `#r`; 2-line strip; trigger survives
+- `Migrate_DoesNotStripUserAddedRDirectives` — `#r "MyCustomLib"` survives; only exact lines removed
+- `Migrate_StripsObsoleteRBlock_IsIdempotent` — second pass = Skipped
+- `Migrate_OnlyStripsExactEnvDTEReferences` — `#r "EnvDTEFake"` and `#r "EnvDTE.Custom"` unchanged
+
+Existing tests 4 and 16 updated to replace the obsolete `rPos < loadPos` assertion
+with `DoesNotContain("#r \"EnvDTE\"")`.
