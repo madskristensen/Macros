@@ -84,3 +84,16 @@
 
 **Rounds 8–9 Complete:** Two final polish rounds — danny-shim-global-prefix + rusty-refresh-both-on-solution-changed. Round 8: Added `global::` prefix to IMacroContext/IMacroTrigger stub declarations to dodge EnvDTE.Macros deprecation collision. Round 9: IntelliSenseShimRefresher.OnSolutionChanged now calls RefreshGlobal() AND RefreshRepo(), closing lifecycle gaps (mid-session shim deletion, shim-shape upgrades). **1014 / 1014 tests pass.**
 
+### 2026-05-02 — Comprehensive Research & Recommendations Delivered
+
+**Deliverable:** `.squad/agents/livingston/research-macros-improvements.md` — structured research document covering historical macro systems, competitive landscape, technology assessment, feature gaps, and roadmap.
+
+**Key findings:**
+1. **AI-assisted macro authoring (Copilot agent)** is the single highest-impact opportunity — no competitor has it, and VS 2026's agent/skill model makes it feasible.
+2. **Sample macro gallery + first-run experience** solves the discoverability problem that killed the old VS macros (Microsoft cited "low usage" — but discoverability was the root cause, not lack of demand).
+3. **Persistent compilation cache** is low-hanging fruit for UX improvement — eliminates cold-start penalty.
+4. **Don't migrate to VisualStudio.Extensibility yet** — still preview, missing critical APIs. Stay in-process with Community.VisualStudio.Toolkit through 2026, dual-target for VS 2026 compatibility.
+5. **Parameterized macros** (`PromptAsync`) unlock template workflows and differentiate us from every competitor.
+
+**Competitive position:** We already beat JetBrains (editable code vs opaque action lists) and VS Code macro extensions (IntelliSense, triggers, recording). Main gaps are debugging, sharing, and AI integration.
+

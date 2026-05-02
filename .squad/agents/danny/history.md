@@ -10,6 +10,10 @@
 
 <!-- Append learnings below -->
 
+### 2026-05-02 — Docs must distinguish generated scaffolding from user-edited macros
+
+`CSharpCodeGenerator` emits a comment-only header, a `#load ".intellisense/Macros.Intellisense.csx"` shim line, and lowercase step metadata comments. It does **not** emit `#r` directives, `using` statements, `using static Macros.Helpers`, or `// @trigger Manual`; docs should reserve `// @trigger` examples for user-edited macros and keep generator anatomy aligned with the actual output.
+
 ### 2026-05-01 — Beginner docs should explain the platform terms up front
 
 For Macros docs, beginners get unstuck faster when `.csx`, `DTE`, `VS`, trigger types, and command-name discovery are explained before the API tables. External links should point to Roslyn scripting, EnvDTE2, Community.VisualStudio.Toolkit, and Visual Studio command docs so the local docs stay concise without losing accuracy.
