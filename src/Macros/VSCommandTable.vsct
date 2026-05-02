@@ -163,6 +163,16 @@
         </Strings>
       </Button>
 
+      <Button guid="guidMacrosPackageCmdSet" id="cmdidMacrosCtxDebug" priority="0x0105" type="Button">
+        <Parent guid="guidMacrosPackageCmdSet" id="MacrosContextMenuGroup1" />
+        <Icon guid="ImageCatalogGuid" id="DebugTemplate" />
+        <CommandFlag>IconIsMoniker</CommandFlag>
+        <Strings>
+          <ButtonText>De&amp;bug Macro</ButtonText>
+          <CommandName>Macros.Context.Debug</CommandName>
+        </Strings>
+      </Button>
+
       <Button guid="guidMacrosPackageCmdSet" id="cmdidMacrosCtxEdit" priority="0x0110" type="Button">
         <Parent guid="guidMacrosPackageCmdSet" id="MacrosContextMenuGroup1" />
         <Icon guid="ImageCatalogGuid" id="Edit" />
@@ -362,6 +372,7 @@
       <IDSymbol name="MacrosContextMenuGroup2"       value="0x2200" />
       <IDSymbol name="MacrosContextMenuGroup3"       value="0x2300" />
       <IDSymbol name="cmdidMacrosCtxPlay"            value="0x2110" />
+      <IDSymbol name="cmdidMacrosCtxDebug"           value="0x2119" />
       <IDSymbol name="cmdidMacrosCtxEdit"            value="0x2111" />
       <IDSymbol name="cmdidMacrosCtxRename"          value="0x2112" />
       <IDSymbol name="cmdidMacrosCtxDelete"          value="0x2113" />

@@ -231,6 +231,7 @@ public sealed class HelpersContractTests
             nameof(Helpers.WaitAsync),
             nameof(Helpers.OpenFileAsync),
             nameof(Helpers.PromptAsync),
+            nameof(Helpers.BreakIntoDebugger),
         };
 
         var actual = typeof(Helpers)
