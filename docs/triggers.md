@@ -16,31 +16,33 @@ A **trigger** auto-runs a macro on an IDE event. Triggers are declared as `//` c
 
 ## Trigger types
 
-| Type | Syntax | Behavior |
-|------|--------|----------|
-| **Manual** | `// @trigger Manual` | Default. Macro runs only when invoked by the user (from tool window, hotkey, Quick Launch, etc.). |
-| **VS event** | `// @trigger {Category}.{EventName}` | Subscribes to an event on `Community.VisualStudio.Toolkit.VS.Events`. ~40 events available. Examples: `Build.SolutionBuildDone`, `Build.ProjectBuildDone`, `Document.Saved`, `Solution.OnAfterOpenSolution`, `Debugger.EnterBreakMode`, `Selection.SelectionChanged`. |
+| Type              | Syntax                                     | Behavior                                                                                                                                                                                                                                                                                    |
+| ----------------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Manual**        | `// @trigger Manual`                       | Default. Macro runs only when invoked by the user (from tool window, hotkey, Quick Launch, etc.).                                                                                                                                                                                           |
+| **VS event**      | `// @trigger {Category}.{EventName}`       | Subscribes to an event on `Community.VisualStudio.Toolkit.VS.Events`. ~40 events available. Examples: `Build.SolutionBuildDone`, `Build.ProjectBuildDone`, `Document.Saved`, `Solution.OnAfterOpenSolution`, `Debugger.EnterBreakMode`, `Selection.SelectionChanged`.                       |
 | **BeforeCommand** | `// @trigger BeforeCommand {Command.Name}` | Runs **synchronously before** a named VS command executes. Can call `Trigger.CancelCommand()` to abort the command. Command names are the same ones you see in **Tools → Options → Environment → Keyboard** (e.g., `File.Save`, `File.Open`, `Build.BuildSolution`, `Edit.FormatDocument`). |
-| **AfterCommand** | `// @trigger AfterCommand {Command.Name}` | Runs **after** the command completes. Queued — never blocks the IDE. Can observe success/failure via `Trigger.Data["Success"]` (bool). |
+| **AfterCommand**  | `// @trigger AfterCommand {Command.Name}`  | Runs **after** the command completes. Queued — never blocks the IDE. Can observe success/failure via `Trigger.Data["Success"]` (bool).                                                                                                                                                      |
 
 ## Filters
 
 Append `when key=value` (multiple keys are AND-combined) to narrow when a trigger fires:
 
-| Filter key | Type | Applies to |
-|------------|------|------------|
-| `filename` | glob | `Document.*` events (e.g., `Document.Saved`, `Document.Opened`) |
-| `success` | bool | `Build.SolutionBuildDone`, `Build.ProjectBuildDone`, `AfterCommand` |
-| `project` | glob | `Build.ProjectBuildDone` |
-| `exception` | glob | `Debugger.ExceptionThrown` |
+| Filter key  | Type | Applies to                                                          |
+| ----------- | ---- | ------------------------------------------------------------------- |
+| `filename`  | glob | `Document.*` events (e.g., `Document.Saved`, `Document.Opened`)     |
+| `success`   | bool | `Build.SolutionBuildDone`, `Build.ProjectBuildDone`, `AfterCommand` |
+| `project`   | glob | `Build.ProjectBuildDone`                                            |
+| `exception` | glob | `Debugger.ExceptionThrown`                                          |
 
 Example: trigger on C# file saves only:
-```csharp
+
+```C#
 // @trigger Document.Saved when filename=*.cs
 ```
 
 Example: trigger on failed builds only:
-```csharp
+
+```C#
 // @trigger Build.SolutionBuildDone when success=false
 ```
 
@@ -53,6 +55,7 @@ Don't memorize the syntax — right-click a macro in the tool window and choose 
 ![Manage Triggers dialog](img/manage-triggers.png)
 
 The dialog:
+
 - Autocompletes event names (from the live `VS.Events` reflection catalog) and command names (from `DTE.Commands`).
 - Validates filter keys.
 - Rewrites the macro's header atomically — your script body bytes are not touched, and CRLF/LF line endings are preserved.
@@ -64,6 +67,7 @@ Repo macros with auto-triggers require per-solution approval before their trigge
 ## Re-entrance protection
 
 Triggers that invoke the same command can create infinite loops. The engine prevents this by:
+
 - Capping recursion depth at 3 levels.
 - Tracking ongoing trigger executions per macro.
 

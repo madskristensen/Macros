@@ -14,7 +14,7 @@ Press `Escape` during playback to cancel instantly — no hunting for a stop but
 
 Open it from **View → Other Windows → Macros** (or the *Show Tool Window* toolbar button).
 
-![Tool window screenshot](img/toolwindow-grouped.png)
+![Tool window screenshot](../art/toolwindow.png)
 
 The tool window groups your macros by scope:
 

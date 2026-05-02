@@ -8,7 +8,7 @@
 
 A modern Visual Studio 2022 extension that brings back the power of recorded automation. Record sequences of text edits and IDE commands, replay them with a single keystroke, or trigger them automatically on build, save, or any IDE event. Every macro is an editable C# script — no black boxes, full IntelliSense.
 
-![Tool window screenshot](docs/img/toolwindow.png)
+![Toolwindow](art/toolwindow.png)
 
 ## Why
 
