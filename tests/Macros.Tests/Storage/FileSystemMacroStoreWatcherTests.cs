@@ -87,9 +87,30 @@ public sealed class FileSystemMacroStoreWatcherTests : IDisposable
         using var storage = CreateStorage();
         var events = Capture(storage, out _);
 
+        // Warm up watcher subscription with a separate file so the assertion write below
+        // doesn't race initial watcher startup on slower CI machines.
+        File.WriteAllText(MacroFile(_namedFolder, "AlphaWarmup"), "// warmup");
+        Assert.True(
+            WaitFor(() =>
+            {
+                lock (events)
+                {
+                    return events.Exists(e =>
+                        e.Kind == MacroLibraryChangeKind.Added &&
+                        e.Name == "AlphaWarmup" &&
+                        e.Scope == MacroScope.Global);
+                }
+            }, timeoutMs: 3000),
+            "Expected initial warmup LibraryChanged(Added) event within timeout.");
+
+        lock (events)
+        {
+            events.Clear();
+        }
+
         File.WriteAllText(MacroFile(_namedFolder, "Alpha"), "// alpha");
 
-        Assert.True(WaitFor(() => { lock (events) return events.Count > 0; }),
+        Assert.True(WaitFor(() => { lock (events) return events.Count > 0; }, timeoutMs: 3000),
             "Expected LibraryChanged(Added) event within timeout.");
 
         lock (events)
@@ -167,14 +188,31 @@ public sealed class FileSystemMacroStoreWatcherTests : IDisposable
     public void ExternalModify_RaisesModified()
     {
         using var storage = CreateStorage();
-        var path = MacroFile(_namedFolder, "Delta");
-        File.WriteAllText(path, "// delta v1");
-        Thread.Sleep(300);
-
         var events = Capture(storage, out _);
+        var path = MacroFile(_namedFolder, "Delta");
+
+        File.WriteAllText(path, "// delta v1");
+        Assert.True(
+            WaitFor(() =>
+            {
+                lock (events)
+                {
+                    return events.Exists(e =>
+                        e.Kind == MacroLibraryChangeKind.Added &&
+                        e.Name == "Delta" &&
+                        e.Scope == MacroScope.Global);
+                }
+            }, timeoutMs: 3000),
+            "Expected initial LibraryChanged(Added) event within timeout.");
+
+        lock (events)
+        {
+            events.Clear();
+        }
+
         File.WriteAllText(path, "// delta v2");
 
-        Assert.True(WaitFor(() => { lock (events) return events.Count > 0; }),
+        Assert.True(WaitFor(() => { lock (events) return events.Count > 0; }, timeoutMs: 3000),
             "Expected LibraryChanged(Modified) event within timeout.");
 
         lock (events)
