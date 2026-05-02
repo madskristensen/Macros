@@ -105,14 +105,31 @@ public sealed class FileSystemMacroStoreWatcherTests : IDisposable
     public void ExternalDelete_RaisesRemoved()
     {
         using var storage = CreateStorage();
-        var path = MacroFile(_namedFolder, "Beta");
-        File.WriteAllText(path, "// beta");
-        Thread.Sleep(300); // let any Added event fire and settle
-
         var events = Capture(storage, out _);
+        var path = MacroFile(_namedFolder, "Beta");
+
+        File.WriteAllText(path, "// beta");
+        Assert.True(
+            WaitFor(() =>
+            {
+                lock (events)
+                {
+                    return events.Exists(e =>
+                        e.Kind == MacroLibraryChangeKind.Added &&
+                        e.Name == "Beta" &&
+                        e.Scope == MacroScope.Global);
+                }
+            }, timeoutMs: 3000),
+            "Expected initial LibraryChanged(Added) event within timeout.");
+
+        lock (events)
+        {
+            events.Clear();
+        }
+
         File.Delete(path);
 
-        Assert.True(WaitFor(() => { lock (events) return events.Count > 0; }),
+        Assert.True(WaitFor(() => { lock (events) return events.Count > 0; }, timeoutMs: 3000),
             "Expected LibraryChanged(Removed) event within timeout.");
 
         lock (events)
