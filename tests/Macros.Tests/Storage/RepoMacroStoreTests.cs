@@ -63,6 +63,22 @@ public sealed class RepoMacroStoreTests : IDisposable
 
     private RepoMacroStore CreateStore() => new(() => _repoRoot);
 
+    private static bool WaitFor(Func<bool> predicate, int timeoutMs = 3000)
+    {
+        var deadline = DateTime.UtcNow.AddMilliseconds(timeoutMs);
+        while (DateTime.UtcNow < deadline)
+        {
+            if (predicate())
+            {
+                return true;
+            }
+
+            Thread.Sleep(30);
+        }
+
+        return predicate();
+    }
+
     // ─── Construction ─────────────────────────────────────────────────────────────────
 
     [Fact]
@@ -380,15 +396,23 @@ public sealed class RepoMacroStoreTests : IDisposable
         Directory.CreateDirectory(_repoRoot);
         store.NotifySolutionChanged();
 
+        // Warm-up write so the assertion write below doesn't race watcher startup on CI.
+        File.WriteAllText(Path.Combine(_repoRoot, "ExternalWarmup.csx"), "// external warmup");
+        Assert.True(
+            WaitFor(() => events.Any(e => e.Name == "ExternalWarmup" && e.Scope == MacroScope.Repo)),
+            "Expected warmup repo watcher event within timeout.");
+
+        while (events.TryTake(out _))
+        {
+        }
+
         // Drop a .csx into the folder externally — the watcher must now be running.
         var path = Path.Combine(_repoRoot, "External.csx");
         File.WriteAllText(path, "// external");
 
-        var deadline = DateTime.UtcNow.AddMilliseconds(800);
-        while (DateTime.UtcNow < deadline && !events.Any(e => e.Name == "External"))
-        {
-            Thread.Sleep(30);
-        }
+        Assert.True(
+            WaitFor(() => events.Any(e => e.Name == "External" && e.Scope == MacroScope.Repo)),
+            "Expected repo watcher event for External.csx within timeout.");
 
         Assert.Contains(events, e => e.Name == "External" && e.Scope == MacroScope.Repo);
     }
@@ -409,11 +433,9 @@ public sealed class RepoMacroStoreTests : IDisposable
 
         File.WriteAllText(Path.Combine(_repoRoot, "Idempotent.csx"), "// ok");
 
-        var deadline = DateTime.UtcNow.AddMilliseconds(800);
-        while (DateTime.UtcNow < deadline && events.IsEmpty)
-        {
-            Thread.Sleep(30);
-        }
+        Assert.True(
+            WaitFor(() => !events.IsEmpty),
+            "Expected repo watcher event after idempotent NotifySolutionChanged calls within timeout.");
 
         Assert.NotEmpty(events);
     }
