@@ -7,6 +7,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using Community.VisualStudio.Toolkit;
 using Macros.Commands.Context;
+using Macros.Engine.Storage;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
 
@@ -21,6 +22,12 @@ namespace Macros.ToolWindows;
 /// </summary>
 public partial class MacrosToolWindowControl : UserControl
 {
+    private const string MacroDragDataFormat = "Macros.ToolWindows.MacroDragData";
+    private const string SampleDragDataFormat = "Macros.ToolWindows.SampleDragData";
+    private Point? _dragStartPoint;
+    private object? _dragData;
+    private bool _dragInProgress;
+
     /// <summary>
     /// Initializes the control with no view-model. Used by the XAML designer and by the
     /// fallback path when <see cref="MacrosToolWindow"/> hasn't been able to construct a
@@ -51,6 +58,71 @@ public partial class MacrosToolWindowControl : UserControl
         {
             disposable.Dispose();
         }
+    }
+
+    private void Row_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ChangedButton != MouseButton.Left)
+        {
+            return;
+        }
+
+        if (e.OriginalSource is DependencyObject origin && FindAncestor<ButtonBase>(origin) is not null)
+        {
+            ClearDragState();
+            return;
+        }
+
+        if (sender is FrameworkElement fe && (fe.DataContext is MacroItemViewModel || fe.DataContext is SampleTemplateItemViewModel))
+        {
+            _dragStartPoint = e.GetPosition(this);
+            _dragData = fe.DataContext;
+            return;
+        }
+
+        ClearDragState();
+    }
+
+    private void MacroRow_PreviewMouseMove(object sender, MouseEventArgs e)
+        => TryStartDrag(sender, e, MacroDragDataFormat, DragDropEffects.Move);
+
+    private void SampleRow_PreviewMouseMove(object sender, MouseEventArgs e)
+        => TryStartDrag(sender, e, SampleDragDataFormat, DragDropEffects.Copy);
+
+#pragma warning disable VSTHRD100 // WPF drag/drop handlers are event-based; exceptions are handled by the VM methods.
+    private async void MacroGroups_Drop(object sender, DragEventArgs e)
+#pragma warning restore VSTHRD100
+    {
+        if (DataContext is not MacrosToolWindowViewModel viewModel)
+        {
+            e.Effects = DragDropEffects.None;
+            e.Handled = true;
+            return;
+        }
+
+        DragDropEffects effect = ResolveDropEffect(e, out var targetScope, out var payload);
+        if (effect == DragDropEffects.None || targetScope is null)
+        {
+            e.Effects = DragDropEffects.None;
+            e.Handled = true;
+            return;
+        }
+
+        bool completed = payload switch
+        {
+            MacroItemViewModel macro => await viewModel.MoveMacroAsync(macro, targetScope.Value),
+            SampleTemplateItemViewModel sample => await viewModel.CopySampleToScopeAsync(sample, targetScope.Value),
+            _ => false,
+        };
+
+        e.Effects = completed ? effect : DragDropEffects.None;
+        e.Handled = true;
+    }
+
+    private void MacroGroups_DragOver(object sender, DragEventArgs e)
+    {
+        e.Effects = ResolveDropEffect(e, out _, out _);
+        e.Handled = true;
     }
 
     private void MacroRow_MouseDoubleClick(object sender, MouseButtonEventArgs e)
@@ -191,6 +263,109 @@ public partial class MacrosToolWindowControl : UserControl
         }
 
         e.Handled = true;
+    }
+
+    private void TryStartDrag(object sender, MouseEventArgs e, string format, DragDropEffects allowedEffects)
+    {
+        if (_dragInProgress || _dragStartPoint is null || e.LeftButton != MouseButtonState.Pressed)
+        {
+            return;
+        }
+
+        if (sender is not FrameworkElement fe || !ReferenceEquals(_dragData, fe.DataContext))
+        {
+            return;
+        }
+
+        Point currentPosition = e.GetPosition(this);
+        if (Math.Abs(currentPosition.X - _dragStartPoint.Value.X) < SystemParameters.MinimumHorizontalDragDistance
+            && Math.Abs(currentPosition.Y - _dragStartPoint.Value.Y) < SystemParameters.MinimumVerticalDragDistance)
+        {
+            return;
+        }
+
+        _dragInProgress = true;
+        try
+        {
+            var dataObject = new DataObject();
+            dataObject.SetData(format, fe.DataContext);
+            DragDrop.DoDragDrop(fe, dataObject, allowedEffects);
+        }
+        finally
+        {
+            _dragInProgress = false;
+            ClearDragState();
+        }
+    }
+
+    private DragDropEffects ResolveDropEffect(DragEventArgs e, out MacroScope? targetScope, out object? payload)
+    {
+        payload = null;
+        if (!TryResolveDropTargetScope(e.OriginalSource as DependencyObject, out MacroScope scope))
+        {
+            targetScope = null;
+            return DragDropEffects.None;
+        }
+
+        targetScope = scope;
+
+        if (e.Data.GetDataPresent(MacroDragDataFormat) && e.Data.GetData(MacroDragDataFormat) is MacroItemViewModel macro)
+        {
+            payload = macro;
+            return macro.Scope == scope ? DragDropEffects.None : DragDropEffects.Move;
+        }
+
+        if (e.Data.GetDataPresent(SampleDragDataFormat) && e.Data.GetData(SampleDragDataFormat) is SampleTemplateItemViewModel sample)
+        {
+            payload = sample;
+            return DragDropEffects.Copy;
+        }
+
+        return DragDropEffects.None;
+    }
+
+    private static bool TryResolveDropTargetScope(DependencyObject? origin, out MacroScope scope)
+    {
+        DependencyObject? current = origin;
+        while (current is not null)
+        {
+            if (current is FrameworkElement fe && TryMapDropScope(fe.DataContext, out scope))
+            {
+                return true;
+            }
+
+            current = VisualTreeHelper.GetParent(current);
+        }
+
+        scope = default;
+        return false;
+    }
+
+    private static bool TryMapDropScope(object? dataContext, out MacroScope scope)
+    {
+        switch (dataContext)
+        {
+            case MacroItemViewModel macro:
+                scope = macro.Scope;
+                return true;
+            case CollectionViewGroup group:
+                return TryMapDropScope(group.Name?.ToString(), out scope);
+            case string header when header == "Repo":
+                scope = MacroScope.Repo;
+                return true;
+            case string header when header == "Global" || header == "Shadowed Global Macros":
+                scope = MacroScope.Global;
+                return true;
+            default:
+                scope = default;
+                return false;
+        }
+    }
+
+    private void ClearDragState()
+    {
+        _dragStartPoint = null;
+        _dragData = null;
     }
 
     private static void ExecuteContextCommand(int commandId)

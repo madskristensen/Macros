@@ -170,6 +170,8 @@
         <Style x:Key="MacroListViewItemStyle"
                TargetType="ListViewItem"
                BasedOn="{StaticResource ToolWindowListViewItemStyle}">
+            <EventSetter Event="PreviewMouseLeftButtonDown" Handler="Row_PreviewMouseLeftButtonDown" />
+            <EventSetter Event="PreviewMouseMove" Handler="MacroRow_PreviewMouseMove" />
             <EventSetter Event="PreviewMouseRightButtonUp" Handler="MacroRow_PreviewMouseRightButtonUp" />
             <EventSetter Event="MouseDoubleClick" Handler="MacroRow_MouseDoubleClick" />
             <EventSetter Event="PreviewKeyDown" Handler="MacroRow_PreviewKeyDown" />
@@ -185,6 +187,8 @@
         <Style x:Key="SampleListViewItemStyle"
                TargetType="ListViewItem"
                BasedOn="{StaticResource ToolWindowListViewItemStyle}">
+            <EventSetter Event="PreviewMouseLeftButtonDown" Handler="Row_PreviewMouseLeftButtonDown" />
+            <EventSetter Event="PreviewMouseMove" Handler="SampleRow_PreviewMouseMove" />
             <EventSetter Event="MouseDoubleClick" Handler="SampleRow_MouseDoubleClick" />
             <EventSetter Event="PreviewKeyDown" Handler="SampleRow_PreviewKeyDown" />
         </Style>
@@ -204,6 +208,9 @@
                       Background="{DynamicResource {x:Static vsui:EnvironmentColors.ToolWindowBackgroundBrushKey}}"
                       Foreground="{DynamicResource {x:Static vsui:EnvironmentColors.ToolWindowTextBrushKey}}"
                       BorderThickness="0"
+                      AllowDrop="True"
+                      DragOver="MacroGroups_DragOver"
+                      Drop="MacroGroups_Drop"
                       ScrollViewer.HorizontalScrollBarVisibility="Auto"
                       ScrollViewer.VerticalScrollBarVisibility="Auto">
                 <ListView.View>
@@ -300,7 +307,6 @@
         </Grid>
 
         <Expander Grid.Row="1"
-                  Visibility="{Binding SamplesGroup.IsVisible, Converter={StaticResource BoolToVis}}"
                   IsExpanded="{Binding SamplesGroup.IsExpanded}"
                   Style="{StaticResource GroupExpanderStyle}"
                   Margin="0,8,0,0"

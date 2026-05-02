@@ -8,6 +8,7 @@ using Macros.Engine;
 using Macros.Engine.Recording;
 using Macros.Engine.Storage;
 using Macros.Lifecycle;
+using Macros.Samples;
 using Macros.ToolWindows;
 using Xunit;
 
@@ -272,6 +273,131 @@ public sealed class MacrosToolWindowViewModelTests
     }
 
     [Fact]
+    public async Task MoveMacroAsync_GlobalToRepo_MovesMacroAndReportsStatus()
+    {
+        var previousTracker = SolutionContextTracker.Current;
+        var tracker = SolutionContextTracker.CreateForTests();
+        SolutionContextTracker.Current = tracker;
+        tracker.ApplySolutionFullPath(@"X:\repo\Sample.sln");
+
+        try
+        {
+            var storage = new FakeStorage(repoAvailable: true);
+            storage.Add(MacroScope.Global, "Greeting", source: "// global");
+            var statuses = new List<string>();
+            var errors = new List<(string Title, string Message)>();
+
+            using var vm = new MacrosToolWindowViewModel(
+                storage,
+                debounceInterval: TimeSpan.Zero,
+                statusReporter: message =>
+                {
+                    statuses.Add(message);
+                    return Task.CompletedTask;
+                },
+                errorReporter: _ => Task.CompletedTask,
+                confirmAsync: (_, _) => Task.FromResult(true),
+                showErrorAsync: (title, message) =>
+                {
+                    errors.Add((title, message));
+                    return Task.CompletedTask;
+                });
+            await vm.LoadAsync();
+
+            var item = vm.Groups.Single(g => g.Scope == MacroScope.Global && !g.IsShadowed).Items.Single();
+            bool moved = await vm.MoveMacroAsync(item, MacroScope.Repo);
+
+            Assert.True(moved);
+            Assert.Null(await storage.LoadByNameAsync("Greeting", MacroScope.Global));
+            Assert.Equal("// global", await storage.LoadByNameAsync("Greeting", MacroScope.Repo));
+            Assert.Contains(statuses, message => message.Contains("Moved \"Greeting\" to repo", StringComparison.Ordinal));
+            Assert.Empty(errors);
+        }
+        finally
+        {
+            SolutionContextTracker.Current = previousTracker;
+        }
+    }
+
+    [Fact]
+    public async Task MoveMacroAsync_ExistingTarget_DeclinedOverwrite_LeavesBothScopesUntouched()
+    {
+        var previousTracker = SolutionContextTracker.Current;
+        var tracker = SolutionContextTracker.CreateForTests();
+        SolutionContextTracker.Current = tracker;
+        tracker.ApplySolutionFullPath(@"X:\repo\Sample.sln");
+
+        try
+        {
+            var storage = new FakeStorage(repoAvailable: true);
+            storage.Add(MacroScope.Global, "Greeting", source: "// global");
+            storage.Add(MacroScope.Repo, "Greeting", source: "// repo");
+            bool confirmCalled = false;
+
+            using var vm = new MacrosToolWindowViewModel(
+                storage,
+                debounceInterval: TimeSpan.Zero,
+                statusReporter: _ => Task.CompletedTask,
+                errorReporter: _ => Task.CompletedTask,
+                confirmAsync: (_, _) =>
+                {
+                    confirmCalled = true;
+                    return Task.FromResult(false);
+                },
+                showErrorAsync: (_, _) => Task.CompletedTask);
+            await vm.LoadAsync();
+
+            var item = vm.Groups.Single(g => g.IsShadowed).Items.Single();
+            bool moved = await vm.MoveMacroAsync(item, MacroScope.Repo);
+
+            Assert.False(moved);
+            Assert.True(confirmCalled);
+            Assert.Equal("// global", await storage.LoadByNameAsync("Greeting", MacroScope.Global));
+            Assert.Equal("// repo", await storage.LoadByNameAsync("Greeting", MacroScope.Repo));
+        }
+        finally
+        {
+            SolutionContextTracker.Current = previousTracker;
+        }
+    }
+
+    [Fact]
+    public async Task CopySampleToScopeAsync_Global_InstantiatesSampleAndReportsStatus()
+    {
+        var storage = new FakeStorage(repoAvailable: false);
+        var statuses = new List<string>();
+        SampleTemplate? instantiatedTemplate = null;
+        MacroScope instantiatedScope = default;
+
+        using var vm = new MacrosToolWindowViewModel(
+            storage,
+            debounceInterval: TimeSpan.Zero,
+            statusReporter: message =>
+            {
+                statuses.Add(message);
+                return Task.CompletedTask;
+            },
+            errorReporter: _ => Task.CompletedTask,
+            showErrorAsync: (_, _) => Task.CompletedTask,
+            instantiateSampleAsync: (template, scope, _) =>
+            {
+                instantiatedTemplate = template;
+                instantiatedScope = scope;
+                return Task.FromResult($"{FakeRoot}\\{scope}\\insert-file-header.csx");
+            });
+        await vm.LoadAsync();
+
+        var sample = vm.SamplesGroup.Items.Single(i => i.Name == "Insert file header");
+        bool copied = await vm.CopySampleToScopeAsync(sample, MacroScope.Global);
+
+        Assert.True(copied);
+        Assert.Equal(MacroScope.Global, instantiatedScope);
+        Assert.NotNull(instantiatedTemplate);
+        Assert.Equal("Insert file header", instantiatedTemplate!.Name);
+        Assert.Contains(statuses, message => message.Contains("Added sample \"insert-file-header\" to global", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task EmptyStorage_IsEmptyTrue()
     {
         var storage = new FakeStorage(repoAvailable: false);
@@ -323,6 +449,7 @@ public sealed class MacrosToolWindowViewModelTests
     private sealed class FakeStorage : IMacroStore
     {
         private readonly Dictionary<(MacroScope, string), MacroEntry> _files = new();
+        private readonly Dictionary<(MacroScope, string), string> _sources = new();
         private bool _repoAvailable;
 
         public FakeStorage(bool repoAvailable)
@@ -340,7 +467,7 @@ public sealed class MacrosToolWindowViewModelTests
             remove => LibraryChanged -= value;
         }
 
-        public void Add(MacroScope scope, string name, long size = 128)
+        public void Add(MacroScope scope, string name, long size = 128, string? source = null)
         {
             _files[(scope, name)] = new MacroEntry(
                 name,
@@ -350,6 +477,7 @@ public sealed class MacrosToolWindowViewModelTests
                 DateTimeOffset.UtcNow,
                 size,
                 System.Array.Empty<Macros.Engine.Triggers.TriggerBinding>());
+            _sources[(scope, name)] = source ?? $"// {name}";
         }
 
         public void RaiseChanged(MacroLibraryChangeKind kind, MacroScope scope, string name)
@@ -384,13 +512,28 @@ public sealed class MacrosToolWindowViewModelTests
         }
 
         public Task<string?> LoadByNameAsync(string name, MacroScope scope, CancellationToken cancellation = default)
-            => Task.FromResult<string?>(null);
+        {
+            _sources.TryGetValue((scope, name), out var source);
+            return Task.FromResult<string?>(source);
+        }
 
         public Task SaveAsAsync(string name, string source, MacroScope scope, bool overwrite = false, CancellationToken cancellation = default)
-            => Task.CompletedTask;
+        {
+            if (!overwrite && _files.ContainsKey((scope, name)))
+            {
+                throw new InvalidOperationException("already exists");
+            }
+
+            Add(scope, name, source: source);
+            return Task.CompletedTask;
+        }
 
         public Task<bool> DeleteAsync(string name, MacroScope scope, CancellationToken cancellation = default)
-            => Task.FromResult(false);
+        {
+            bool removedEntry = _files.Remove((scope, name));
+            bool removedSource = _sources.Remove((scope, name));
+            return Task.FromResult(removedEntry || removedSource);
+        }
 
         public Task RenameAsync(string oldName, string newName, MacroScope scope, CancellationToken cancellation = default)
             => Task.CompletedTask;

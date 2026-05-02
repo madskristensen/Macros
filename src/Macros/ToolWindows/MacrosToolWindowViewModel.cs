@@ -1,4 +1,5 @@
 using Community.VisualStudio.Toolkit;
+using Macros.Commands.Context;
 using Macros.Engine;
 using Macros.Engine.Storage;
 using Macros.Lifecycle;
@@ -65,6 +66,9 @@ public sealed class MacrosToolWindowViewModel : INotifyPropertyChanged, IDisposa
     private readonly SampleTemplateProvider _sampleTemplateProvider;
     private readonly Func<string, Task> _statusReporter;
     private readonly Func<Exception, Task> _errorReporter;
+    private readonly Func<string, string, Task<bool>> _confirmAsync;
+    private readonly Func<string, string, Task> _showErrorAsync;
+    private readonly Func<SampleTemplate, MacroScope, CancellationToken, Task<string>> _instantiateSampleAsync;
     private System.Threading.Timer? _debounceTimer;
     private TaskCompletionSource<bool> _nextLoadTcs = CreateTcs();
     private bool _disposed;
@@ -103,7 +107,10 @@ public sealed class MacrosToolWindowViewModel : INotifyPropertyChanged, IDisposa
         TimeSpan? debounceInterval = null,
         SampleTemplateProvider? sampleTemplateProvider = null,
         Func<string, Task>? statusReporter = null,
-        Func<Exception, Task>? errorReporter = null)
+        Func<Exception, Task>? errorReporter = null,
+        Func<string, string, Task<bool>>? confirmAsync = null,
+        Func<string, string, Task>? showErrorAsync = null,
+        Func<SampleTemplate, MacroScope, CancellationToken, Task<string>>? instantiateSampleAsync = null)
     {
         _storage = storage ?? throw new ArgumentNullException(nameof(storage));
         _service = service;
@@ -112,6 +119,9 @@ public sealed class MacrosToolWindowViewModel : INotifyPropertyChanged, IDisposa
         _sampleTemplateProvider = sampleTemplateProvider ?? new SampleTemplateProvider();
         _statusReporter = statusReporter ?? (message => VS.StatusBar.ShowMessageAsync(message));
         _errorReporter = errorReporter ?? (ex => ex.LogAsync());
+        _confirmAsync = confirmAsync ?? ((title, message) => VS.MessageBox.ShowConfirmAsync(title, message));
+        _showErrorAsync = showErrorAsync ?? ((title, message) => VS.MessageBox.ShowErrorAsync(title, message));
+        _instantiateSampleAsync = instantiateSampleAsync ?? InstantiateSampleAsync;
 
         Groups = new ObservableCollection<MacroGroupViewModel>
         {
@@ -248,6 +258,88 @@ public sealed class MacrosToolWindowViewModel : INotifyPropertyChanged, IDisposa
     /// user types in the VS search bar. Pass <see langword="null"/> or empty to clear.
     /// </summary>
     public void SetFilter(string? text) => FilterText = text ?? string.Empty;
+
+    public async Task<bool> MoveMacroAsync(MacroItemViewModel item, MacroScope target, CancellationToken cancellation = default)
+    {
+        if (item is null)
+        {
+            throw new ArgumentNullException(nameof(item));
+        }
+
+        var (ok, error) = MoveLogic.ValidateMove(item.Descriptor, target, SolutionContextTracker.Current?.HasSolution == true);
+        if (!ok)
+        {
+            await _showErrorAsync($"Move to {ScopeTitle(target)}", error ?? string.Empty).ConfigureAwait(true);
+            return false;
+        }
+
+        try
+        {
+            string? source = await _storage.LoadByNameAsync(item.Name, item.Scope, cancellation).ConfigureAwait(true);
+            if (source is null)
+            {
+                return false;
+            }
+
+            string? existing = await _storage.LoadByNameAsync(item.Name, target, cancellation).ConfigureAwait(true);
+            if (existing is not null)
+            {
+                bool confirmed = await _confirmAsync(
+                    "Conflict",
+                    $"A {ScopeLabel(target)} macro named \"{item.Name}\" already exists. Overwrite?")
+                    .ConfigureAwait(true);
+                if (!confirmed)
+                {
+                    return false;
+                }
+            }
+
+            await _storage.SaveAsAsync(item.Name, source, target, overwrite: true, cancellation: cancellation).ConfigureAwait(true);
+            await _storage.DeleteAsync(item.Name, item.Scope, cancellation).ConfigureAwait(true);
+            await _statusReporter($"Macros: Moved \"{item.Name}\" to {ScopeLabel(target)}").ConfigureAwait(true);
+            return true;
+        }
+        catch (OperationCanceledException)
+        {
+            return false;
+        }
+        catch (Exception ex)
+        {
+            await _showErrorAsync($"Move to {ScopeTitle(target)}", ex.Message).ConfigureAwait(true);
+            return false;
+        }
+    }
+
+    public async Task<bool> CopySampleToScopeAsync(SampleTemplateItemViewModel item, MacroScope target, CancellationToken cancellation = default)
+    {
+        if (item is null)
+        {
+            throw new ArgumentNullException(nameof(item));
+        }
+
+        if (target == MacroScope.Repo && SolutionContextTracker.Current?.HasSolution != true)
+        {
+            await _showErrorAsync("Copy sample to Repo", "Cannot copy to Repo scope: no solution is open.").ConfigureAwait(true);
+            return false;
+        }
+
+        try
+        {
+            string createdPath = await _instantiateSampleAsync(item.Template, target, cancellation).ConfigureAwait(true);
+            string createdName = Path.GetFileNameWithoutExtension(createdPath);
+            await _statusReporter($"Macros: Added sample \"{createdName}\" to {ScopeLabel(target)}").ConfigureAwait(true);
+            return true;
+        }
+        catch (OperationCanceledException)
+        {
+            return false;
+        }
+        catch (Exception ex)
+        {
+            await _showErrorAsync($"Copy sample to {ScopeTitle(target)}", ex.Message).ConfigureAwait(true);
+            return false;
+        }
+    }
 
     /// <summary>Gets a value indicating whether a load is in flight.</summary>
     public bool IsLoading
@@ -653,6 +745,24 @@ public sealed class MacrosToolWindowViewModel : INotifyPropertyChanged, IDisposa
         await VS.Documents.OpenAsync(samplePath);
         return samplePath;
     }
+
+    private Task<string> InstantiateSampleAsync(SampleTemplate template, MacroScope target, CancellationToken cancellation)
+    {
+        string probePath = _storage.GetMacroPath("sample", target);
+        string? targetFolder = Path.GetDirectoryName(probePath);
+        if (string.IsNullOrWhiteSpace(targetFolder))
+        {
+            throw new InvalidOperationException($"Could not resolve the {ScopeLabel(target)} macros folder.");
+        }
+
+        return _sampleTemplateProvider.InstantiateAsync(template, targetFolder, cancellation);
+    }
+
+    private static string ScopeLabel(MacroScope scope)
+        => scope == MacroScope.Repo ? "repo" : "global";
+
+    private static string ScopeTitle(MacroScope scope)
+        => scope == MacroScope.Repo ? "Repo" : "Global";
 
     private void Marshal(Action action)
     {
