@@ -10,6 +10,10 @@
 
 <!-- Append learnings below -->
 
+### 2026-05-01 — Beginner docs should explain the platform terms up front
+
+For Macros docs, beginners get unstuck faster when `.csx`, `DTE`, `VS`, trigger types, and command-name discovery are explained before the API tables. External links should point to Roslyn scripting, EnvDTE2, Community.VisualStudio.Toolkit, and Visual Studio command docs so the local docs stay concise without losing accuracy.
+
 ### 2026-05-01 — IntelliSense Shim Dual-Write for Named Macros
 
 **Root cause:** Named macros live in `<global-root>\Macros\<name>.csx` (one level deeper than the root). The codegen emits a constant relative `#load ".intellisense/Macros.Intellisense.csx"` for every macro regardless of depth. A shim only in `<global-root>\.intellisense\` is invisible to macros in the `Macros\` subfolder — they resolve relative to their own directory, which was missing its own `.intellisense\` sibling.
