@@ -9,8 +9,8 @@ namespace Macros
     internal sealed partial class Vsix
     {
         public const string Id = "Macros.MadsKristensen.d13e532a-bd43-40df-ae9f-8d05e54138c7";
-        public const string Name = "Macros for Visual Studio";
-        public const string Description = @"Record text edits and IDE actions. Replay instantly with hotkeys or trigger on events. Every macro is editable C# script. Modern, powerful, open-source macros for VS 2022.";
+        public const string Name = "Macros";
+        public const string Description = @"Record text edits and IDE actions. Replay instantly with hotkeys or trigger on events. Every macro is editable C# script. Modern, powerful, open-source macros";
         public const string Language = "en-US";
         public const string Version = "1.0.0";
         public const string Author = "Mads Kristensen";

@@ -24,7 +24,7 @@ A modern Visual Studio 2022 extension that brings back the power of recorded aut
 2. **Replay:** Move your caret and press **`Ctrl+Shift+P`** — your actions replay instantly.
 3. **Trigger (optional):** Add `// @trigger Build.SolutionBuildDone` at the top of the macro to fire it automatically.
 
-```csharp
+```c#
 // @trigger Build.SolutionBuildDone when success=false
 await VS.StatusBar.ShowMessageAsync("💥 Build failed!");
 await ExecuteCommandAsync("View.ErrorList");

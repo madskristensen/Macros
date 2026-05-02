@@ -21,9 +21,8 @@
 
   <!-- Files included inside the VSIX archive -->
   <ItemGroup>
-    <Content Include="LICENSE">
-      <IncludeInVSIX>true</IncludeInVSIX>
-    </Content>
+    <Content Include="Resources\Icon.png" />
+    <Content Include="Resources\LICENSE" />
   </ItemGroup>
 
   <!-- VSIX manifest (Designer + VSSDK build action) -->
@@ -40,6 +39,8 @@
     <AvailableItemName Include="VSCTCompile" />
   </ItemGroup>
   <ItemGroup>
+    <None Remove="Resources\Icon.png" />
+    <None Remove="Resources\LICENSE" />
     <None Remove="VSCommandTable.vsct" />
     <VSCTCompile Include="VSCommandTable.vsct">
       <ResourceName>Menus.ctmenu</ResourceName>

@@ -2,10 +2,11 @@
 <PackageManifest Version="2.0.0" xmlns="http://schemas.microsoft.com/developer/vsx-schema/2011" xmlns:d="http://schemas.microsoft.com/developer/vsx-schema-design/2011">
   <Metadata>
     <Identity Id="Macros.MadsKristensen.d13e532a-bd43-40df-ae9f-8d05e54138c7" Version="1.0.0" Language="en-US" Publisher="Mads Kristensen" />
-    <DisplayName>Macros for Visual Studio</DisplayName>
-    <Description xml:space="preserve">Record text edits and IDE actions. Replay instantly with hotkeys or trigger on events. Every macro is editable C# script. Modern, powerful, open-source macros for VS 2022.</Description>
+    <DisplayName>Macros</DisplayName>
+    <Description xml:space="preserve">Record text edits and IDE actions. Replay instantly with hotkeys or trigger on events. Every macro is editable C# script. Modern, powerful, open-source macros</Description>
     <MoreInfo>https://github.com/MadsKristensen/Macros</MoreInfo>
-    <License>LICENSE</License>
+    <License>Resources\LICENSE</License>
+    <Icon>Resources\Icon.png</Icon>
     <Tags>macros, automation, recording, replay, productivity, csharp, scripting, triggers</Tags>
   </Metadata>
   <Installation>
@@ -14,14 +15,14 @@
     </InstallationTarget>
   </Installation>
   <Dependencies>
-    <Dependency Id="Microsoft.Framework.NDP" DisplayName=".NET Framework" d:Source="Manual" Version="[4.8,)" />
+    <Dependency Id="Microsoft.Framework.NDP" DisplayName=".NET Framework" Version="[4.8,)" d:Source="Manual" />
   </Dependencies>
   <Prerequisites>
-    <Prerequisite Id="Microsoft.VisualStudio.Component.CoreEditor" Version="[17.0,18.0)" DisplayName="Visual Studio core editor" />
+    <Prerequisite Id="Microsoft.VisualStudio.Component.CoreEditor" DisplayName="Visual Studio core editor" Version="[17.0,18.0)" />
   </Prerequisites>
   <Assets>
-    <Asset Type="Microsoft.VisualStudio.VsPackage" d:Source="Project" d:ProjectName="%CurrentProject%" Path="|%CurrentProject%;PkgdefProjectOutputGroup|" />
-    <Asset Type="Microsoft.VisualStudio.MefComponent" d:Source="Project" d:ProjectName="%CurrentProject%" Path="|%CurrentProject%|" />
+    <Asset Type="Microsoft.VisualStudio.VsPackage" Path="|%CurrentProject%;PkgdefProjectOutputGroup|" d:Source="Project" d:ProjectName="%CurrentProject%" />
+    <Asset Type="Microsoft.VisualStudio.MefComponent" Path="|%CurrentProject%|" d:Source="Project" d:ProjectName="%CurrentProject%" />
     <Asset Type="Microsoft.VisualStudio.Vsix" Path="Resources\Icon.png" />
   </Assets>
 </PackageManifest>
