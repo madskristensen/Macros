@@ -392,7 +392,7 @@ public sealed class CSharpCodeGeneratorTests
     }
 
     [Fact]
-    public void Generate_DoesNotEmitUsingDirectives()
+    public void Generate_DoesNotEmitRegularUsingDirectives()
     {
         string src = CSharpCodeGenerator.Generate(Array.Empty<RecordedStep>(), "M", FixedUtc);
 
@@ -402,8 +402,17 @@ public sealed class CSharpCodeGeneratorTests
         Assert.DoesNotContain("using EnvDTE80;", src);
         Assert.DoesNotContain("using Community.VisualStudio.Toolkit;", src);
         Assert.DoesNotContain("using Macros.Engine.Scripting;", src);
-        Assert.DoesNotContain("using static Macros.Engine.Scripting.Helpers;", src);
-        Assert.DoesNotContain("using static Community.VisualStudio.Toolkit.VS;", src);
+    }
+
+    [Fact]
+    public void Generate_EmitsUsingStaticDirectivesInline()
+    {
+        string src = CSharpCodeGenerator.Generate(Array.Empty<RecordedStep>(), "M", FixedUtc);
+
+        // using static directives are emitted directly in the macro file so the VS
+        // script editor resolves helper methods for IntelliSense completion.
+        Assert.Contains("using static Macros.Engine.Scripting.Helpers;", src);
+        Assert.Contains("using static Community.VisualStudio.Toolkit.VS;", src);
     }
 
     [Fact]
