@@ -1,6 +1,7 @@
 using System;
 using Macros.Engine.Triggers;
 using EnvDTE80;
+using Microsoft.VisualStudio.Threading;
 
 namespace Macros.Engine.Scripting;
 
@@ -56,4 +57,8 @@ public sealed class MacroGlobals
     /// so script authors can write <c>Trigger.Kind</c> / <c>Trigger.CommandName</c> directly.
     /// </summary>
     public IMacroTrigger Trigger => Context.Trigger;
+
+    internal JoinableTaskFactory? UiThreadFactory { get; set; }
+
+    internal IMacroPromptService? PromptService { get; set; }
 }

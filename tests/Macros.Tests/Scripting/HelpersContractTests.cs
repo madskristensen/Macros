@@ -183,12 +183,21 @@ public sealed class HelpersContractTests
     [InlineData(nameof(Helpers.RunCommandAsync))]
     [InlineData(nameof(Helpers.WaitAsync))]
     [InlineData(nameof(Helpers.OpenFileAsync))]
-    public void Helpers_AllVerbsAreStaticAsync(string methodName)
+    public void Helpers_CommandVerbsAreStaticAsync(string methodName)
     {
         MethodInfo? method = typeof(Helpers).GetMethod(methodName, BindingFlags.Public | BindingFlags.Static);
         Assert.NotNull(method);
         Assert.True(method!.IsStatic, $"{methodName} must be static.");
         Assert.Equal(typeof(Task), method.ReturnType);
+    }
+
+    [Fact]
+    public void Helpers_PromptAsync_IsStaticAndReturnsTaskOfString()
+    {
+        MethodInfo? method = typeof(Helpers).GetMethod(nameof(Helpers.PromptAsync), BindingFlags.Public | BindingFlags.Static);
+        Assert.NotNull(method);
+        Assert.True(method!.IsStatic);
+        Assert.Equal(typeof(Task<string>), method.ReturnType);
     }
 
     [Theory]
@@ -208,7 +217,7 @@ public sealed class HelpersContractTests
     }
 
     [Fact]
-    public void Helpers_PublicSurfaceIsExactlyTheSevenVerbs()
+    public void Helpers_PublicSurfaceIsExactlyTheEightVerbs()
     {
         // Lock the surface so accidentally adding a public method without updating the codegen
         // contract fails the test loudly.
@@ -221,6 +230,7 @@ public sealed class HelpersContractTests
             nameof(Helpers.RunCommandAsync),
             nameof(Helpers.WaitAsync),
             nameof(Helpers.OpenFileAsync),
+            nameof(Helpers.PromptAsync),
         };
 
         var actual = typeof(Helpers)

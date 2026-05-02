@@ -25,6 +25,40 @@
     <Content Include="Resources\LICENSE" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Remove="Samples\collapse-regions-on-open.csx" />
+    <None Remove="Samples\format-on-save-csharp.csx" />
+    <None Remove="Samples\insert-file-header.csx" />
+    <EmbeddedResource Include="Samples\collapse-regions-on-open.csx">
+      <LogicalName>collapse-regions-on-open.csx</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Samples\format-on-save-csharp.csx">
+      <LogicalName>format-on-save-csharp.csx</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Samples\insert-file-header.csx">
+      <LogicalName>insert-file-header.csx</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Remove="Skills\Content\*.md" />
+    <EmbeddedResource Include="Skills\Content\writing-macros.md">
+      <LogicalName>Macros.Skills.Content.writing-macros.md</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Skills\Content\macro-triggers.md">
+      <LogicalName>Macros.Skills.Content.macro-triggers.md</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Skills\Content\macro-dte-api.md">
+      <LogicalName>Macros.Skills.Content.macro-dte-api.md</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Skills\Content\macro-toolkit-api.md">
+      <LogicalName>Macros.Skills.Content.macro-toolkit-api.md</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Skills\Content\macro-debugging.md">
+      <LogicalName>Macros.Skills.Content.macro-debugging.md</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
+
   <!-- VSIX manifest (Designer + VSSDK build action) -->
   <ItemGroup>
     <None Update="source.extension.vsixmanifest">

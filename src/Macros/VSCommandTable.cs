@@ -69,5 +69,7 @@ namespace Macros
         public const int cmdidMacrosCtxCopyToRepo = 0x2117;
         public const int cmdidMacrosCtxCopyToGlobal = 0x2118;
         public const int cmdidMacrosCtxOpenFolder = 0x2210;
+        public const int MacrosToolWindowGroupContextMenu = 0x2400;
+        public const int MacrosGroupContextMenuGroup1 = 0x2410;
     }
 }

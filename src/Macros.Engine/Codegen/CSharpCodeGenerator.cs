@@ -102,6 +102,21 @@ public static class CSharpCodeGenerator
         return sb.ToString();
     }
 
+    /// <summary>
+    /// Generates a new-user scaffold for an empty macro with the standard header and
+    /// IntelliSense shim, but no recorded steps.
+    /// </summary>
+    public static string GenerateEmpty(string macroName, DateTime utcNow)
+    {
+        if (macroName is null) throw new ArgumentNullException(nameof(macroName));
+
+        var sb = new StringBuilder(capacity: 512);
+        EmitHeader(sb, macroName, stepCount: 0, utcNow);
+        EmitReferenceDirectives(sb);
+        sb.Append("// Your code here\n");
+        return sb.ToString();
+    }
+
     private static bool IsEmittable(RecordedStep step) =>
         step switch
         {

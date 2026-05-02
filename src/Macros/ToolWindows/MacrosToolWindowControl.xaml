@@ -115,12 +115,86 @@
             <Setter Property="Padding" Value="6,2" />
             <Setter Property="FontWeight" Value="SemiBold" />
         </Style>
+
+        <Style x:Key="ToolWindowListViewItemStyle" TargetType="ListViewItem">
+            <Setter Property="Background" Value="{DynamicResource {x:Static vsui:TreeViewColors.BackgroundBrushKey}}" />
+            <Setter Property="Foreground" Value="{DynamicResource {x:Static vsui:TreeViewColors.BackgroundTextBrushKey}}" />
+            <Setter Property="Padding" Value="2,1" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="SnapsToDevicePixels" Value="True" />
+            <Setter Property="AutomationProperties.Name" Value="{Binding AutomationName}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListViewItem">
+                        <Border x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                Padding="{TemplateBinding Padding}"
+                                SnapsToDevicePixels="True">
+                            <GridViewRowPresenter
+                                Content="{TemplateBinding Content}"
+                                Columns="{Binding RelativeSource={RelativeSource AncestorType=ListView}, Path=View.Columns}"
+                                HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background"
+                                        Value="{DynamicResource {x:Static vsui:TreeViewColors.HighlightedSpanBrushKey}}" />
+                            </Trigger>
+                            <MultiTrigger>
+                                <MultiTrigger.Conditions>
+                                    <Condition Property="IsSelected" Value="True" />
+                                    <Condition Property="Selector.IsSelectionActive" Value="True" />
+                                </MultiTrigger.Conditions>
+                                <Setter TargetName="Bd" Property="Background"
+                                        Value="{DynamicResource {x:Static vsui:TreeViewColors.SelectedItemActiveBrushKey}}" />
+                                <Setter Property="Foreground"
+                                        Value="{DynamicResource {x:Static vsui:TreeViewColors.SelectedItemActiveTextBrushKey}}" />
+                            </MultiTrigger>
+                            <MultiTrigger>
+                                <MultiTrigger.Conditions>
+                                    <Condition Property="IsSelected" Value="True" />
+                                    <Condition Property="Selector.IsSelectionActive" Value="False" />
+                                </MultiTrigger.Conditions>
+                                <Setter TargetName="Bd" Property="Background"
+                                        Value="{DynamicResource {x:Static vsui:TreeViewColors.SelectedItemInactiveBrushKey}}" />
+                                <Setter Property="Foreground"
+                                        Value="{DynamicResource {x:Static vsui:TreeViewColors.SelectedItemInactiveTextBrushKey}}" />
+                            </MultiTrigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="MacroListViewItemStyle"
+               TargetType="ListViewItem"
+               BasedOn="{StaticResource ToolWindowListViewItemStyle}">
+            <EventSetter Event="PreviewMouseRightButtonUp" Handler="MacroRow_PreviewMouseRightButtonUp" />
+            <EventSetter Event="MouseDoubleClick" Handler="MacroRow_MouseDoubleClick" />
+            <EventSetter Event="PreviewKeyDown" Handler="MacroRow_PreviewKeyDown" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsShadowed}" Value="True">
+                    <Setter Property="FontStyle" Value="Italic" />
+                    <Setter Property="Opacity" Value="0.6" />
+                    <Setter Property="ToolTip" Value="Shadowed by repo macro of the same name." />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="SampleListViewItemStyle"
+               TargetType="ListViewItem"
+               BasedOn="{StaticResource ToolWindowListViewItemStyle}">
+            <EventSetter Event="MouseDoubleClick" Handler="SampleRow_MouseDoubleClick" />
+            <EventSetter Event="PreviewKeyDown" Handler="SampleRow_PreviewKeyDown" />
+        </Style>
     </UserControl.Resources>
 
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="*" />    <!-- 0: Group list / empty state -->
-            <RowDefinition Height="Auto" /> <!-- 1: Status banner -->
+            <RowDefinition Height="Auto" /> <!-- 1: Samples -->
+            <RowDefinition Height="Auto" /> <!-- 2: Status banner -->
         </Grid.RowDefinitions>
 
         <!-- ─── Macro list / empty state ────────────────────────────────────────────────── -->
@@ -180,72 +254,7 @@
                     </GridView>
                 </ListView.View>
                 <ListView.ItemContainerStyle>
-                    <!-- Per-row container style: custom ControlTemplate so we don't depend on a
-                         parent-supplied template. BasedOn="{StaticResource {x:Type ListViewItem}}"
-                         was removed because toolkit:Themes.UseVsTheme does not publish a default
-                         ListViewItem resource, causing an XamlParseException at parse time.
-                         Shadowed globals are rendered italic + 60% opacity. Right-click handlers
-                         are reattached so the VSCT context menu still works. -->
-                    <Style TargetType="ListViewItem">
-                        <Setter Property="Background" Value="{DynamicResource {x:Static vsui:TreeViewColors.BackgroundBrushKey}}" />
-                        <Setter Property="Foreground" Value="{DynamicResource {x:Static vsui:TreeViewColors.BackgroundTextBrushKey}}" />
-                        <Setter Property="Padding" Value="2,1" />
-                        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-                        <Setter Property="SnapsToDevicePixels" Value="True" />
-                        <Setter Property="AutomationProperties.Name" Value="{Binding AutomationName}" />
-                        <Setter Property="Template">
-                            <Setter.Value>
-                                <ControlTemplate TargetType="ListViewItem">
-                                    <Border x:Name="Bd"
-                                            Background="{TemplateBinding Background}"
-                                            Padding="{TemplateBinding Padding}"
-                                            SnapsToDevicePixels="True">
-                                        <GridViewRowPresenter
-                                            Content="{TemplateBinding Content}"
-                                            Columns="{Binding RelativeSource={RelativeSource AncestorType=ListView}, Path=View.Columns}"
-                                            HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
-                                            SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}" />
-                                    </Border>
-                                    <ControlTemplate.Triggers>
-                                        <Trigger Property="IsMouseOver" Value="True">
-                                            <Setter TargetName="Bd" Property="Background"
-                                                    Value="{DynamicResource {x:Static vsui:TreeViewColors.HighlightedSpanBrushKey}}" />
-                                        </Trigger>
-                                        <MultiTrigger>
-                                            <MultiTrigger.Conditions>
-                                                <Condition Property="IsSelected" Value="True" />
-                                                <Condition Property="Selector.IsSelectionActive" Value="True" />
-                                            </MultiTrigger.Conditions>
-                                            <Setter TargetName="Bd" Property="Background"
-                                                    Value="{DynamicResource {x:Static vsui:TreeViewColors.SelectedItemActiveBrushKey}}" />
-                                            <Setter Property="Foreground"
-                                                    Value="{DynamicResource {x:Static vsui:TreeViewColors.SelectedItemActiveTextBrushKey}}" />
-                                        </MultiTrigger>
-                                        <MultiTrigger>
-                                            <MultiTrigger.Conditions>
-                                                <Condition Property="IsSelected" Value="True" />
-                                                <Condition Property="Selector.IsSelectionActive" Value="False" />
-                                            </MultiTrigger.Conditions>
-                                            <Setter TargetName="Bd" Property="Background"
-                                                    Value="{DynamicResource {x:Static vsui:TreeViewColors.SelectedItemInactiveBrushKey}}" />
-                                            <Setter Property="Foreground"
-                                                    Value="{DynamicResource {x:Static vsui:TreeViewColors.SelectedItemInactiveTextBrushKey}}" />
-                                        </MultiTrigger>
-                                    </ControlTemplate.Triggers>
-                                </ControlTemplate>
-                            </Setter.Value>
-                        </Setter>
-                        <EventSetter Event="PreviewMouseRightButtonUp" Handler="MacroRow_PreviewMouseRightButtonUp" />
-                        <EventSetter Event="MouseDoubleClick" Handler="MacroRow_MouseDoubleClick" />
-                        <EventSetter Event="PreviewKeyDown" Handler="MacroRow_PreviewKeyDown" />
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding IsShadowed}" Value="True">
-                                <Setter Property="FontStyle" Value="Italic" />
-                                <Setter Property="Opacity" Value="0.6" />
-                                <Setter Property="ToolTip" Value="Shadowed by repo macro of the same name." />
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
+                    <StaticResource ResourceKey="MacroListViewItemStyle" />
                 </ListView.ItemContainerStyle>
                 <ListView.GroupStyle>
                     <GroupStyle>
@@ -259,9 +268,12 @@
                                                       Margin="0,2,0,0"
                                                       Foreground="{DynamicResource {x:Static vsui:EnvironmentColors.ToolWindowTextBrushKey}}">
                                                 <Expander.Header>
-                                                    <TextBlock Text="{Binding Name}"
-                                                               FontWeight="SemiBold"
-                                                               Foreground="{DynamicResource {x:Static vsui:EnvironmentColors.ToolWindowTextBrushKey}}" />
+                                                    <Border Background="Transparent"
+                                                            PreviewMouseRightButtonUp="MacroGroupHeader_PreviewMouseRightButtonUp">
+                                                        <TextBlock Text="{Binding Name}"
+                                                                   FontWeight="SemiBold"
+                                                                   Foreground="{DynamicResource {x:Static vsui:EnvironmentColors.ToolWindowTextBrushKey}}" />
+                                                    </Border>
                                                 </Expander.Header>
                                                 <ItemsPresenter />
                                             </Expander>
@@ -287,8 +299,55 @@
                        Foreground="{DynamicResource {x:Static vsui:EnvironmentColors.SystemGrayTextBrushKey}}" />
         </Grid>
 
+        <Expander Grid.Row="1"
+                  Visibility="{Binding SamplesGroup.IsVisible, Converter={StaticResource BoolToVis}}"
+                  IsExpanded="{Binding SamplesGroup.IsExpanded}"
+                  Style="{StaticResource GroupExpanderStyle}"
+                  Margin="0,8,0,0"
+                  ToolTip="Double-click a sample to open its .csx file in the editor."
+                  Foreground="{DynamicResource {x:Static vsui:EnvironmentColors.ToolWindowTextBrushKey}}">
+            <Expander.Header>
+                <TextBlock Text="{Binding SamplesGroup.Header}"
+                           FontWeight="SemiBold"
+                           Foreground="{DynamicResource {x:Static vsui:EnvironmentColors.ToolWindowTextBrushKey}}" />
+            </Expander.Header>
+            <ListView ItemsSource="{Binding SamplesGroup.VisibleItems}"
+                      AutomationProperties.Name="Sample macro templates"
+                      Background="{DynamicResource {x:Static vsui:EnvironmentColors.ToolWindowBackgroundBrushKey}}"
+                      Foreground="{DynamicResource {x:Static vsui:EnvironmentColors.ToolWindowTextBrushKey}}"
+                      BorderThickness="0"
+                      ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                      ScrollViewer.VerticalScrollBarVisibility="Disabled">
+                <ListView.View>
+                    <GridView ColumnHeaderContainerStyle="{StaticResource MacroGridViewHeaderStyle}">
+                        <GridViewColumn Header="Name" Width="140">
+                            <GridViewColumn.CellTemplate>
+                                <DataTemplate DataType="{x:Type local:SampleTemplateItemViewModel}">
+                                    <TextBlock Text="{Binding Name}"
+                                               TextTrimming="CharacterEllipsis"
+                                               ToolTip="{Binding Description}" />
+                                </DataTemplate>
+                            </GridViewColumn.CellTemplate>
+                        </GridViewColumn>
+                        <GridViewColumn Header="Description" Width="268">
+                            <GridViewColumn.CellTemplate>
+                                <DataTemplate DataType="{x:Type local:SampleTemplateItemViewModel}">
+                                    <TextBlock Text="{Binding Description}"
+                                               TextTrimming="CharacterEllipsis"
+                                               Foreground="{DynamicResource {x:Static vsui:EnvironmentColors.SystemGrayTextBrushKey}}" />
+                                </DataTemplate>
+                            </GridViewColumn.CellTemplate>
+                        </GridViewColumn>
+                    </GridView>
+                </ListView.View>
+                <ListView.ItemContainerStyle>
+                    <StaticResource ResourceKey="SampleListViewItemStyle" />
+                </ListView.ItemContainerStyle>
+            </ListView>
+        </Expander>
+
         <!-- ─── Status banner (errors only) ─────────────────────────────────────────────── -->
-        <Border Grid.Row="1"
+        <Border Grid.Row="2"
                 Visibility="{Binding HasError, Converter={StaticResource BoolToVis}}"
                 Background="{DynamicResource {x:Static vsui:EnvironmentColors.SystemInfoBackgroundBrushKey}}"
                 BorderBrush="{DynamicResource {x:Static vsui:EnvironmentColors.CommandBarBorderBrushKey}}"

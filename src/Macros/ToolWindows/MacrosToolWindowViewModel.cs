@@ -1,7 +1,9 @@
+using Community.VisualStudio.Toolkit;
 using Macros.Engine;
 using Macros.Engine.Storage;
 using Macros.Lifecycle;
 using Macros.Mvvm;
+using Macros.Samples;
 
 using Microsoft.VisualStudio.Shell;
 
@@ -9,6 +11,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
@@ -59,6 +62,9 @@ public sealed class MacrosToolWindowViewModel : INotifyPropertyChanged, IDisposa
     private readonly object _gate = new();
     private readonly RelayCommand _refreshCommand;
     private readonly RelayCommand _recordCommand;
+    private readonly SampleTemplateProvider _sampleTemplateProvider;
+    private readonly Func<string, Task> _statusReporter;
+    private readonly Func<Exception, Task> _errorReporter;
     private System.Threading.Timer? _debounceTimer;
     private TaskCompletionSource<bool> _nextLoadTcs = CreateTcs();
     private bool _disposed;
@@ -94,12 +100,18 @@ public sealed class MacrosToolWindowViewModel : INotifyPropertyChanged, IDisposa
         IMacroStore storage,
         IMacroService? service = null,
         SynchronizationContext? uiSync = null,
-        TimeSpan? debounceInterval = null)
+        TimeSpan? debounceInterval = null,
+        SampleTemplateProvider? sampleTemplateProvider = null,
+        Func<string, Task>? statusReporter = null,
+        Func<Exception, Task>? errorReporter = null)
     {
         _storage = storage ?? throw new ArgumentNullException(nameof(storage));
         _service = service;
         _uiSync = uiSync;
         _debounceInterval = debounceInterval ?? TimeSpan.FromMilliseconds(100);
+        _sampleTemplateProvider = sampleTemplateProvider ?? new SampleTemplateProvider();
+        _statusReporter = statusReporter ?? (message => VS.StatusBar.ShowMessageAsync(message));
+        _errorReporter = errorReporter ?? (ex => ex.LogAsync());
 
         Groups = new ObservableCollection<MacroGroupViewModel>
         {
@@ -111,6 +123,16 @@ public sealed class MacrosToolWindowViewModel : INotifyPropertyChanged, IDisposa
             new("Global", MacroScope.Global) { IsAvailable = true },
             new("Shadowed Global Macros", MacroScope.Global, isShadowed: true) { IsAvailable = false },
         };
+
+        SamplesGroup = new SampleGroupViewModel("Samples");
+        foreach (var template in _sampleTemplateProvider.GetTemplates())
+        {
+            SamplesGroup.Items.Add(new SampleTemplateItemViewModel(
+                template,
+                OpenSampleAsync,
+                _statusReporter,
+                _errorReporter));
+        }
 
         AllItems = new ObservableCollection<MacroItemViewModel>();
         GroupedItemsView = CollectionViewSource.GetDefaultView(AllItems);
@@ -175,6 +197,9 @@ public sealed class MacrosToolWindowViewModel : INotifyPropertyChanged, IDisposa
 
     /// <inheritdoc />
     public event PropertyChangedEventHandler? PropertyChanged;
+
+    /// <summary>Gets the read-only sample gallery shown below the saved macro groups.</summary>
+    public SampleGroupViewModel SamplesGroup { get; }
 
     /// <summary>Gets the Repo + Global + ShadowedGlobal section view-models, in display order.</summary>
     public ObservableCollection<MacroGroupViewModel> Groups { get; }
@@ -596,6 +621,13 @@ public sealed class MacrosToolWindowViewModel : INotifyPropertyChanged, IDisposa
             ? static _ => true
             : item => item.Name.IndexOf(trimmed, StringComparison.OrdinalIgnoreCase) >= 0;
 
+        Func<SampleTemplateItemViewModel, bool> samplePredicate = trimmed.Length == 0
+            ? static _ => true
+            : item => item.Name.IndexOf(trimmed, StringComparison.OrdinalIgnoreCase) >= 0
+                || item.Description.IndexOf(trimmed, StringComparison.OrdinalIgnoreCase) >= 0;
+
+        SamplesGroup.ApplyFilter(samplePredicate);
+
         foreach (var group in Groups)
         {
             group.ApplyFilter(predicate);
@@ -612,6 +644,14 @@ public sealed class MacrosToolWindowViewModel : INotifyPropertyChanged, IDisposa
         }
 
         OnPropertyChanged(nameof(IsEmpty));
+    }
+
+    private async Task<string> OpenSampleAsync(SampleTemplate template, CancellationToken cancellation)
+    {
+        string samplePath = await _sampleTemplateProvider.ExtractViewableCopyAsync(template, cancellation).ConfigureAwait(false);
+        await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(cancellation);
+        await VS.Documents.OpenAsync(samplePath);
+        return samplePath;
     }
 
     private void Marshal(Action action)

@@ -206,6 +206,31 @@ public static class Helpers
         dte.ItemOperations.OpenFile(path);
     }
 
+    /// <summary>
+    /// Shows a Visual Studio input dialog and returns the user's input.
+    /// If the user cancels, returns the default value.
+    /// </summary>
+    /// <param name="label">The prompt label shown to the user.</param>
+    /// <param name="defaultValue">The pre-filled default value (returned on cancel).</param>
+    /// <returns>The user's input string, or <paramref name="defaultValue"/> if cancelled.</returns>
+    public static async Task<string> PromptAsync(string label, string defaultValue = "")
+    {
+        if (label is null) throw new ArgumentNullException(nameof(label));
+        if (defaultValue is null) throw new ArgumentNullException(nameof(defaultValue));
+
+        MacroGlobals globals = RequireGlobals();
+        globals.Context.Cancellation.ThrowIfCancellationRequested();
+
+        Microsoft.VisualStudio.Threading.JoinableTaskFactory jtf = globals.UiThreadFactory ?? ThreadHelper.JoinableTaskFactory;
+        await jtf.SwitchToMainThreadAsync(globals.Context.Cancellation);
+
+        IMacroPromptService promptService = globals.PromptService
+            ?? throw new InvalidOperationException(
+                "No prompt service is configured. PromptAsync requires a running Visual Studio host.");
+
+        return await promptService.PromptAsync(label, defaultValue);
+    }
+
     /// <summary>Recorded macros never emit
     /// this — it exists for user-authored scripts that need a deliberate pause (e.g. waiting for
     /// an asynchronous editor command to settle).

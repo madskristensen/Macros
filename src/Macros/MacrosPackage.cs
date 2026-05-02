@@ -17,6 +17,8 @@ using Macros.Onboarding;
 using Macros.Options;
 using Macros.Recording;
 using Macros.StatusBar;
+using Macros.Scripting;
+using Macros.Skills;
 using Macros.ToolWindows;
 using Macros.Triggers;
 using Macros.Trust;
@@ -24,6 +26,8 @@ using Macros.UIContexts;
 using Microsoft.VisualStudio;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
+using Microsoft.VisualStudio.Threading;
+using System.Threading.Tasks;
 using Task = System.Threading.Tasks.Task;
 
 namespace Macros;
@@ -155,6 +159,9 @@ public sealed class MacrosPackage : ToolkitPackage
         Instance = this;
 
         await base.InitializeAsync(cancellationToken, progress);
+
+        // Keep skill installation out of the critical package-load path; it completes in the background.
+        SkillInstaller.InstallAsync(JoinableTaskFactory);
 
         // 1. Register IMacroService FIRST so consumers (status bar, commands, tool window) can
         //    resolve it via VS.GetRequiredServiceAsync<IMacroService, IMacroService>().
@@ -307,7 +314,7 @@ public sealed class MacrosPackage : ToolkitPackage
         this.AddService(
             typeof(IMacroPlayer),
             (_, _, _) => Task.FromResult<object>(
-                new MacroPlayer(this.JoinableTaskFactory, _scriptCache, dte)),
+                new MacroPlayer(this.JoinableTaskFactory, _scriptCache, dte, new MacroPromptService())),
             promote: true);
 
         // 4. Register the priority command target so CommandObserver sees every shell command
@@ -373,7 +380,7 @@ public sealed class MacrosPackage : ToolkitPackage
         // InitializeAsync without risking a deadlock against the service container that
         // hasn't finished registering us yet. The script cache and DTE are shared with the
         // proffered IMacroPlayer service so cache hits are still cross-instance.
-        var dispatcherPlayer = new MacroPlayer(JoinableTaskFactory, _scriptCache, dte);
+        var dispatcherPlayer = new MacroPlayer(JoinableTaskFactory, _scriptCache, dte, new MacroPromptService());
         _commandTriggerDispatcher = new CommandTriggerDispatcher(
             _triggerRegistry,
             dispatcherPlayer,
@@ -651,6 +658,7 @@ public sealed class MacrosPackage : ToolkitPackage
         await DeleteCommand.InitializeAsync(this);
         await RenameCommand.InitializeAsync(this);
         await EditCommand.InitializeAsync(this);
+        await NewMacroCommand.InitializeAsync(this);
         await ToggleTriggersCommand.InitializeAsync(this);
 
         // Context-menu commands

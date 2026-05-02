@@ -57,6 +57,13 @@
           <CommandName>Macros.MacrosContextMenu</CommandName>
         </Strings>
       </Menu>
+
+      <Menu guid="guidMacrosPackageCmdSet" id="MacrosToolWindowGroupContextMenu" priority="0x0000" type="Context">
+        <Strings>
+          <ButtonText>Macro Group Context Menu</ButtonText>
+          <CommandName>Macros.MacroGroupContextMenu</CommandName>
+        </Strings>
+      </Menu>
     </Menus>
 
     <Groups>
@@ -83,6 +90,10 @@
       <!-- Group 3: file-system navigation actions. -->
       <Group guid="guidMacrosPackageCmdSet" id="MacrosContextMenuGroup3" priority="0x0300">
         <Parent guid="guidMacrosPackageCmdSet" id="MacrosToolWindowContextMenu" />
+      </Group>
+
+      <Group guid="guidMacrosPackageCmdSet" id="MacrosGroupContextMenuGroup1" priority="0x0100">
+        <Parent guid="guidMacrosPackageCmdSet" id="MacrosToolWindowGroupContextMenu" />
       </Group>
     </Groups>
 
@@ -261,6 +272,16 @@
           <CommandName>Macros.Refresh</CommandName>
         </Strings>
       </Button>
+
+      <Button guid="guidMacrosPackageCmdSet" id="cmdidMacrosNewMacro" priority="0x0100" type="Button">
+        <Parent guid="guidMacrosPackageCmdSet" id="MacrosGroupContextMenuGroup1" />
+        <CommandFlag>DynamicVisibility</CommandFlag>
+        <CommandFlag>DefaultInvisible</CommandFlag>
+        <Strings>
+          <ButtonText>New Macro</ButtonText>
+          <CommandName>Macros.NewMacro</CommandName>
+        </Strings>
+      </Button>
     </Buttons>
 
   </Commands>
@@ -350,6 +371,8 @@
       <IDSymbol name="cmdidMacrosCtxCopyToRepo"      value="0x2117" />
       <IDSymbol name="cmdidMacrosCtxCopyToGlobal"    value="0x2118" />
       <IDSymbol name="cmdidMacrosCtxOpenFolder"      value="0x2210" />
+      <IDSymbol name="MacrosToolWindowGroupContextMenu" value="0x2400" />
+      <IDSymbol name="MacrosGroupContextMenuGroup1"  value="0x2410" />
 
     </GuidSymbol>
 

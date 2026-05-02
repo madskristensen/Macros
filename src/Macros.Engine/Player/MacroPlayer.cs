@@ -45,6 +45,7 @@ internal sealed class MacroPlayer : IMacroPlayer
     private readonly JoinableTaskFactory _jtf;
     private readonly ScriptCompilationCache _cache;
     private readonly DTE2 _dte;
+    private readonly IMacroPromptService? _promptService;
 
     /// <summary>
     /// Initializes a new <see cref="MacroPlayer"/>.
@@ -52,12 +53,14 @@ internal sealed class MacroPlayer : IMacroPlayer
     /// <param name="jtf">UI-thread marshalling factory; supplied by the package.</param>
     /// <param name="cache">Shared script compilation cache (process-singleton).</param>
     /// <param name="dte">The hosting Visual Studio's DTE automation root.</param>
-    /// <exception cref="ArgumentNullException">Any argument is <see langword="null"/>.</exception>
-    public MacroPlayer(JoinableTaskFactory jtf, ScriptCompilationCache cache, DTE2 dte)
+    /// <param name="promptService">Optional UI prompt service for <see cref="Helpers.PromptAsync"/>.</param>
+    /// <exception cref="ArgumentNullException">Any required argument is <see langword="null"/>.</exception>
+    public MacroPlayer(JoinableTaskFactory jtf, ScriptCompilationCache cache, DTE2 dte, IMacroPromptService? promptService = null)
     {
         _jtf = jtf ?? throw new ArgumentNullException(nameof(jtf));
         _cache = cache ?? throw new ArgumentNullException(nameof(cache));
         _dte = dte ?? throw new ArgumentNullException(nameof(dte));
+        _promptService = promptService;
     }
 
     /// <inheritdoc />
@@ -119,7 +122,11 @@ internal sealed class MacroPlayer : IMacroPlayer
             macroName,
             resolvedTrigger,
             cancellation);
-        var globals = new MacroGlobals(_dte, ctx);
+        var globals = new MacroGlobals(_dte, ctx)
+        {
+            UiThreadFactory = _jtf,
+            PromptService = _promptService,
+        };
 
         using (ReplayGuard.Enter())
         {

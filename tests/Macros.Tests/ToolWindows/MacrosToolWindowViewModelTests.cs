@@ -118,6 +118,28 @@ public sealed class MacrosToolWindowViewModelTests
     }
 
     [Fact]
+    public async Task FilterText_FiltersSampleTemplates_ByNameAndDescription()
+    {
+        var storage = new FakeStorage(repoAvailable: false);
+
+        using var vm = new MacrosToolWindowViewModel(storage, debounceInterval: TimeSpan.Zero);
+        await vm.LoadAsync();
+
+        Assert.False(vm.SamplesGroup.IsExpanded);
+        Assert.Equal(3, vm.SamplesGroup.VisibleItems.Count);
+
+        vm.FilterText = "header";
+        Assert.Collection(
+            vm.SamplesGroup.VisibleItems,
+            item => Assert.Equal("Insert file header", item.Name));
+
+        vm.FilterText = "document open";
+        Assert.Collection(
+            vm.SamplesGroup.VisibleItems,
+            item => Assert.Equal("Auto-collapse #region blocks on open", item.Name));
+    }
+
+    [Fact]
     public async Task LibraryChanged_TriggersReload()
     {
         var storage = new FakeStorage(repoAvailable: false);
