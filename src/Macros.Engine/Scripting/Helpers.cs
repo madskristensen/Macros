@@ -250,6 +250,31 @@ public static class Helpers
         return Task.Delay(milliseconds, cancellation);
     }
 
+    /// <summary>
+    /// Triggers a debugger break. If no debugger is attached to the current Visual Studio process,
+    /// shows the JIT debugger selection dialog so the user can attach one. Once attached, execution
+    /// pauses at the next statement after this call.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Use this in a macro to inspect state at a specific point. A second VS instance (or any
+    /// managed debugger) can then step through the <c>.csx</c> source line-by-line.
+    /// </para>
+    /// <para>
+    /// If the user dismisses the debugger dialog without attaching, execution continues normally.
+    /// </para>
+    /// </remarks>
+    public static void BreakIntoDebugger()
+    {
+        if (!System.Diagnostics.Debugger.IsAttached)
+        {
+            if (!System.Diagnostics.Debugger.Launch())
+                return; // User dismissed the dialog — continue without breaking.
+        }
+
+        System.Diagnostics.Debugger.Break();
+    }
+
     private static MacroGlobals RequireGlobals()
         => CurrentGlobals.Value ?? throw new InvalidOperationException(
             "No ambient MacroGlobals is set. Helpers can only be invoked from inside a macro " +

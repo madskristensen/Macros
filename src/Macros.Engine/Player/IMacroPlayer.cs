@@ -45,7 +45,8 @@ public interface IMacroPlayer
         string source,
         string macroName,
         IMacroTrigger? trigger,
-        CancellationToken cancellation);
+        CancellationToken cancellation,
+        string? csxFilePath = null);
 }
 
 /// <summary>

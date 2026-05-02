@@ -206,7 +206,7 @@ internal sealed class CommandTriggerDispatcher
                         using var cts = new CancellationTokenSource(timeoutMs);
                         var task = _jtf.RunAsync(async () =>
                         {
-                            return await _player.PlayAsync(source, entry.Name, trigger, cts.Token).ConfigureAwait(true);
+                            return await _player.PlayAsync(source, entry.Name, trigger, cts.Token, entry.Path).ConfigureAwait(true);
                         });
 
                         // Caller is on the UI thread — Join() pumps so the player's
@@ -322,7 +322,7 @@ internal sealed class CommandTriggerDispatcher
 
                         try
                         {
-                            var result = await _player.PlayAsync(source, entry.Name, trigger, CancellationToken.None).ConfigureAwait(true);
+                            var result = await _player.PlayAsync(source, entry.Name, trigger, CancellationToken.None, entry.Path).ConfigureAwait(true);
                             if (result.Success)
                             {
                                 _tracker?.RecordSuccess(entry.Path);

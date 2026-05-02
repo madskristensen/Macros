@@ -220,7 +220,7 @@ public sealed class EventTriggerDispatcherTests
         public string? LastMacroName { get; private set; }
         public IMacroTrigger? LastTrigger { get; private set; }
 
-        public Task<MacroPlayResult> PlayAsync(string source, string macroName, IMacroTrigger? trigger, CancellationToken cancellation)
+        public Task<MacroPlayResult> PlayAsync(string source, string macroName, IMacroTrigger? trigger, CancellationToken cancellation, string? csxFilePath = null)
         {
             PlayCount++;
             LastMacroName = macroName;

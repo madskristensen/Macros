@@ -357,7 +357,10 @@ public sealed class MacroService : IMacroService
         _currentMacroSource = source;
         _currentMacroName = name;
 
-        return await PlayCoreAsync(source, name, cancellation).ConfigureAwait(false);
+        string? csxFilePath = null;
+        try { csxFilePath = _storage!.GetMacroPath(name, scope); } catch { /* best-effort */ }
+
+        return await PlayCoreAsync(source, name, cancellation, csxFilePath).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -365,14 +368,14 @@ public sealed class MacroService : IMacroService
     /// resolving <paramref name="source"/> / <paramref name="name"/>; this method owns the
     /// Idle→Playing→Idle transition, the linked CTS, and the player invocation.
     /// </summary>
-    private async Task<MacroPlayResult> PlayCoreAsync(string source, string name, CancellationToken ct)
+    private async Task<MacroPlayResult> PlayCoreAsync(string source, string name, CancellationToken ct, string? csxFilePath = null)
     {
         TransitionTo(expected: MacroState.Idle, next: MacroState.Playing);
         _activeCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         try
         {
             IMacroPlayer player = await _playerFactory(_activeCts.Token).ConfigureAwait(false);
-            return await player.PlayAsync(source, name, trigger: null, _activeCts.Token).ConfigureAwait(false);
+            return await player.PlayAsync(source, name, trigger: null, _activeCts.Token, csxFilePath).ConfigureAwait(false);
         }
         finally
         {

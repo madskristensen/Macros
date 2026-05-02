@@ -139,7 +139,7 @@ public sealed class CommandTriggerDispatcherReentranceTests
         public ReentranceFakePlayer(Func<string, string, IMacroTrigger?, CancellationToken, Task<MacroPlayResult>> onPlay)
             => _onPlay = onPlay;
 
-        public Task<MacroPlayResult> PlayAsync(string source, string macroName, IMacroTrigger? trigger, CancellationToken cancellation)
+        public Task<MacroPlayResult> PlayAsync(string source, string macroName, IMacroTrigger? trigger, CancellationToken cancellation, string? csxFilePath = null)
             => _onPlay(source, macroName, trigger, cancellation);
     }
 

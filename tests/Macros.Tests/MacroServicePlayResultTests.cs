@@ -143,7 +143,8 @@ public sealed class MacroServicePlayResultTests
             string source,
             string macroName,
             IMacroTrigger? trigger,
-            CancellationToken cancellation)
+            CancellationToken cancellation,
+            string? csxFilePath = null)
         {
             LastSource = source;
             LastName = macroName;

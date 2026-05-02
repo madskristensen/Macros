@@ -68,7 +68,8 @@ internal sealed class MacroPlayer : IMacroPlayer
         string source,
         string macroName,
         IMacroTrigger? trigger,
-        CancellationToken cancellation)
+        CancellationToken cancellation,
+        string? csxFilePath = null)
     {
         if (source is null) throw new ArgumentNullException(nameof(source));
         if (macroName is null) throw new ArgumentNullException(nameof(macroName));
@@ -91,10 +92,11 @@ internal sealed class MacroPlayer : IMacroPlayer
         ImmutableArray<Diagnostic> diagnostics;
         try
         {
+            string cacheKey = BuildCacheKey(source, csxFilePath);
             (script, diagnostics) = await Task.Run(
                 () =>
                 {
-                    Script<object> compiled = _cache.GetOrAdd(source, CompileScript);
+                    Script<object> compiled = _cache.GetOrAdd(cacheKey, _ => CompileScript(source, csxFilePath));
                     return (compiled, compiled.Compile(cancellation));
                 },
                 cancellation).ConfigureAwait(false);
@@ -162,11 +164,27 @@ internal sealed class MacroPlayer : IMacroPlayer
         }
     }
 
-    private static Script<object> CompileScript(string src) =>
-        CSharpScript.Create<object>(src, BuildScriptOptions(), typeof(MacroGlobals));
+    private static Script<object> CompileScript(string src, string? csxFilePath) =>
+        CSharpScript.Create<object>(src, BuildScriptOptions(csxFilePath), typeof(MacroGlobals));
 
-    private static ScriptOptions BuildScriptOptions() =>
+    /// <summary>
+    /// Builds a cache key that incorporates both the source text and the file path.
+    /// The file path affects PDB document references and #load resolution, so scripts at
+    /// different paths must have separate cache entries even if the source is identical.
+    /// </summary>
+    private static string BuildCacheKey(string source, string? csxFilePath)
+    {
+        if (string.IsNullOrEmpty(csxFilePath))
+            return source;
+        return csxFilePath + "|" + source;
+    }
+
+    private static ScriptOptions BuildScriptOptions(string? csxFilePath) =>
         ScriptOptions.Default
+            .WithEmitDebugInformation(!string.IsNullOrEmpty(csxFilePath))
+            .WithOptimizationLevel(
+                string.IsNullOrEmpty(csxFilePath) ? OptimizationLevel.Release : OptimizationLevel.Debug)
+            .WithFilePath(csxFilePath ?? "")
             .WithMetadataResolver(InteropAwareMetadataResolver.Instance)
             .WithSourceResolver(SkipIntelliSenseShimSourceResolver.Instance)
             .WithReferences(
@@ -181,6 +199,7 @@ internal sealed class MacroPlayer : IMacroPlayer
                 typeof(VS).Assembly)
             .WithImports(
                 "System",
+                "System.Diagnostics",
                 "System.Threading.Tasks",
                 "Macros.Engine.Scripting",
                 "Macros.Engine.Recording",

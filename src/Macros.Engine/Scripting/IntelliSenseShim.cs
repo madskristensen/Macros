@@ -104,6 +104,7 @@ public static class IntelliSenseShim
     private static void EmitUsings(StringBuilder sb)
     {
         sb.Append("using System;\n");
+        sb.Append("using System.Diagnostics;\n");
         sb.Append("using System.Threading.Tasks;\n");
         sb.Append("using EnvDTE;\n");
         sb.Append("using EnvDTE80;\n");

@@ -424,7 +424,7 @@ public sealed class MacroServiceStorageTests
             _capture = capture;
         }
 
-        public Task<MacroPlayResult> PlayAsync(string source, string macroName, Macros.Engine.Triggers.IMacroTrigger? trigger, CancellationToken cancellation)
+        public Task<MacroPlayResult> PlayAsync(string source, string macroName, Macros.Engine.Triggers.IMacroTrigger? trigger, CancellationToken cancellation, string? csxFilePath = null)
         {
             _capture(source);
             return Task.FromResult(new MacroPlayResult(true, null, null, TimeSpan.Zero));

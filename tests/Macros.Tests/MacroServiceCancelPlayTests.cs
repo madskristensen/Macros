@@ -155,7 +155,8 @@ public sealed class MacroServiceCancelPlayTests
             string source,
             string macroName,
             IMacroTrigger? trigger,
-            CancellationToken cancellation)
+            CancellationToken cancellation,
+            string? csxFilePath = null)
         {
             _started.TrySetResult(true);
             try
@@ -181,7 +182,8 @@ public sealed class MacroServiceCancelPlayTests
             string source,
             string macroName,
             IMacroTrigger? trigger,
-            CancellationToken cancellation)
+            CancellationToken cancellation,
+            string? csxFilePath = null)
             => Task.FromResult(_result);
     }
 }

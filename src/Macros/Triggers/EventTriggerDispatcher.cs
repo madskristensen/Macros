@@ -243,7 +243,7 @@ internal sealed class EventTriggerDispatcher : IDisposable
 
                     try
                     {
-                        var result = await _player.PlayAsync(source, entry.Name, trigger, CancellationToken.None).ConfigureAwait(true);
+                        var result = await _player.PlayAsync(source, entry.Name, trigger, CancellationToken.None, entry.Path).ConfigureAwait(true);
                         if (result.Success)
                         {
                             _tracker?.RecordSuccess(entry.Path);

@@ -165,7 +165,7 @@ public sealed class MacroServicePlayByNameTests
             _capture = capture;
         }
 
-        public Task<MacroPlayResult> PlayAsync(string source, string macroName, IMacroTrigger? trigger, CancellationToken cancellation)
+        public Task<MacroPlayResult> PlayAsync(string source, string macroName, IMacroTrigger? trigger, CancellationToken cancellation, string? csxFilePath = null)
         {
             _capture(source, macroName);
             return Task.FromResult(new MacroPlayResult(true, null, null, TimeSpan.Zero));

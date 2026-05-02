@@ -105,6 +105,7 @@ public sealed class IntelliSenseShimTests
         string[] expectedUsings =
         {
             "using System;",
+            "using System.Diagnostics;",
             "using System.Threading.Tasks;",
             "using EnvDTE;",
             "using EnvDTE80;",
