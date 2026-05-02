@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Macros.Engine.Storage;
 using Xunit;
@@ -360,5 +361,60 @@ public sealed class RepoMacroStoreTests : IDisposable
         Assert.Equal(MacroLibraryChangeKind.Added, captured!.Kind);
         Assert.Equal(MacroScope.Repo, captured.Scope);
         Assert.Equal("Hello", captured.Name);
+    }
+
+    // ─── NotifySolutionChanged / watcher lifecycle ───────────────────────────────────
+
+    [Fact]
+    public void NotifySolutionChanged_StartsWatcher_AfterFolderCreated()
+    {
+        // Start with no solution: provider returns null → folder absent → watcher skipped.
+        string? currentRepo = null;
+        using var store = new RepoMacroStore(() => currentRepo);
+
+        var events = new System.Collections.Concurrent.ConcurrentBag<MacroLibraryChangedEventArgs>();
+        store.LibraryChanged += (_, e) => events.Add(e);
+
+        // Simulate solution open: create the folder, point the provider at it, then notify.
+        currentRepo = _repoRoot;
+        Directory.CreateDirectory(_repoRoot);
+        store.NotifySolutionChanged();
+
+        // Drop a .csx into the folder externally — the watcher must now be running.
+        var path = Path.Combine(_repoRoot, "External.csx");
+        File.WriteAllText(path, "// external");
+
+        var deadline = DateTime.UtcNow.AddMilliseconds(800);
+        while (DateTime.UtcNow < deadline && !events.Any(e => e.Name == "External"))
+        {
+            Thread.Sleep(30);
+        }
+
+        Assert.Contains(events, e => e.Name == "External" && e.Scope == MacroScope.Repo);
+    }
+
+    [Fact]
+    public void NotifySolutionChanged_IsIdempotent()
+    {
+        Directory.CreateDirectory(_repoRoot);
+        using var store = CreateStore();
+
+        // Calling twice must not throw and must not start a second watcher.
+        store.NotifySolutionChanged();
+        store.NotifySolutionChanged();
+
+        // Verify the single watcher still works by writing a file.
+        var events = new System.Collections.Concurrent.ConcurrentBag<MacroLibraryChangedEventArgs>();
+        store.LibraryChanged += (_, e) => events.Add(e);
+
+        File.WriteAllText(Path.Combine(_repoRoot, "Idempotent.csx"), "// ok");
+
+        var deadline = DateTime.UtcNow.AddMilliseconds(800);
+        while (DateTime.UtcNow < deadline && events.IsEmpty)
+        {
+            Thread.Sleep(30);
+        }
+
+        Assert.NotEmpty(events);
     }
 }

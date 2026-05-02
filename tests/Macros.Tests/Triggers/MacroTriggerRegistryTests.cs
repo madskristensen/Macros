@@ -265,6 +265,36 @@ public sealed class MacroTriggerRegistryTests
         Assert.Equal(baseline, store.ListAllCallCount);
     }
 
+    [Fact]
+    public async Task RefreshAsync_AfterSolutionOpen_PicksUpPreexistingRepoTriggers()
+    {
+        // Simulate: registry loaded when no solution is open (store initially empty).
+        var store = new FakeStore();
+        using var registry = new MacroTriggerRegistry(store, CreateJtf());
+        await registry.RefreshAsync();
+
+        Assert.True(registry.IsLoaded);
+        Assert.Empty(registry.FindByEvent("Build.SolutionBuildDone"));
+
+        // Simulate solution open: repo macros with @trigger annotations become visible.
+        store.Entries.Add(new MacroEntry(
+            "RepoOnBuildDone",
+            MacroScope.Repo,
+            @"X:\solution\.vs\Macros\RepoOnBuildDone.csx",
+            StepCount: 1,
+            Modified: DateTimeOffset.UtcNow,
+            SizeBytes: 42,
+            Triggers: new[] { new TriggerBinding(TriggerKind.VsEvent, "Build.SolutionBuildDone") }));
+
+        // The VSIX SolutionChanged handler calls RefreshAsync — simulate that here.
+        await registry.RefreshAsync();
+
+        var matches = registry.FindByEvent("Build.SolutionBuildDone");
+        Assert.Single(matches);
+        Assert.Equal("RepoOnBuildDone", matches[0].Entry.Name);
+        Assert.Equal(MacroScope.Repo, matches[0].Entry.Scope);
+    }
+
     /// <summary>
     /// Minimal in-memory <see cref="IMacroStore"/> double for registry tests. Only the
     /// enumeration + LibraryChanged surface is exercised; everything else throws so a

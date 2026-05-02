@@ -980,7 +980,7 @@ public sealed class FileSystemMacroStore : IMacroStore, IDisposable
     /// the new path correctly, but external file changes in the new path will not raise
     /// <see cref="LibraryChanged"/>. Track via <c>m5-watcher-restart-on-solution-change</c>.
     /// </remarks>
-    private void EnsureWatchersStarted()
+    internal void EnsureWatchersStarted()
     {
         lock (_watcherSync)
         {

@@ -334,6 +334,40 @@ public sealed class MacrosPackage : ToolkitPackage
             disableAllTriggersProvider: () => MacrosOptions.Instance.DisableAllTriggers,
             failureTracker: _failureTracker);
 
+        // 2a-quater. When a solution opens, wake the repo store's file watcher (the watcher
+        //            start is one-shot at trigger-registry construction; if VS started with no
+        //            solution open, the repo folder didn't exist yet, so the watcher was
+        //            skipped). Also rebuild the trigger registry so pre-existing committed
+        //            repo macro @trigger directives come online immediately.
+        //            Ordering is critical: _shimRefresher (subscribed above) creates the repo
+        //            folder first, then this handler finds it and starts the watcher.
+        _solutionTracker.SolutionChanged += (_, _) =>
+        {
+            try
+            {
+                _repoMacroStore?.NotifySolutionChanged();
+            }
+            catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException and not ThreadAbortException)
+            {
+                System.Diagnostics.Trace.WriteLine($"Macros: failed to wake repo store on solution change: {ex}");
+            }
+
+            JoinableTaskFactory.RunAsync(async () =>
+            {
+                try
+                {
+                    if (_triggerRegistry is not null)
+                    {
+                        await _triggerRegistry.RefreshAsync();
+                    }
+                }
+                catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException and not ThreadAbortException)
+                {
+                    System.Diagnostics.Trace.WriteLine($"Macros: failed to refresh trigger registry on solution change: {ex}");
+                }
+            }).FileAndForget("Macros/Triggers/RefreshOnSolutionChange");
+        };
+
         // Construct the dispatcher. The MacroPlayer here is a fresh instance — we cannot
         // resolve via VS.GetRequiredServiceAsync from inside the package's own
         // InitializeAsync without risking a deadlock against the service container that

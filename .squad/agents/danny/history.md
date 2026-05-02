@@ -98,9 +98,31 @@
 - Storage: `FileSystemMacroStorage` with atomic-write (`.tmp` rename) pattern.
 - `MacroService` is a MEF singleton with Idle/Recording/Playing state machine; guards against nested record/play.
 
----
+### 2026-05-01 — Wake Repo Watcher + Trigger Registry on Solution Open
 
-### 2026-04-30 — TEAM UPDATE: C# Scripting Pivot (Canonical Storage Decision) — ARCHITECTURE CONFIRMED
+**Bugs fixed:** Two related lifecycle bugs where VS starting with no solution open left both the repo file-system watcher and the trigger registry stale after a solution was later opened.
+
+**Root cause — watcher:** `FileSystemMacroStore.EnsureWatchersStarted()` is called once (at `LibraryChanged` first-subscription during package init). If no solution is open at that moment, the repo folder doesn't exist, the watcher is skipped, and `_repoWatcher` stays null forever. No subsequent code path re-invoked it.
+
+**Root cause — trigger registry:** `MacroTriggerRegistry` only refreshes on `LibraryChanged` (incremental) or an explicit `RefreshAsync()`. Its initial `RefreshAsync` ran against an empty repo. Without a running watcher, `LibraryChanged` never fires for pre-existing files, so repo macro @trigger directives stay dead.
+
+**Fix — three files:**
+1. `FileSystemMacroStore.EnsureWatchersStarted()` promoted from `private` to `internal` — no logic change.
+2. `RepoMacroStore.NotifySolutionChanged()` added as a public delegation seam: `public void NotifySolutionChanged() => _inner.EnsureWatchersStarted();`
+3. `MacrosPackage.InitializeAsync`: after `_triggerRegistry` construction (after `_shimRefresher.AttachToTracker`), wired a `SolutionChanged` handler that (a) calls `_repoMacroStore?.NotifySolutionChanged()` and (b) fire-and-forgets `_triggerRegistry.RefreshAsync()`.
+
+**Ordering is critical:** `_shimRefresher` (subscribed first) creates the repo folder via `Directory.CreateDirectory`. The new handler (subscribed after) then finds the folder and starts the watcher. Never reorder these subscriptions.
+
+**Tests added (3):**
+- `RepoMacroStoreTests.NotifySolutionChanged_StartsWatcher_AfterFolderCreated` — start with null provider → create folder → call `NotifySolutionChanged()` → drop a `.csx` → assert `LibraryChanged` fires.
+- `RepoMacroStoreTests.NotifySolutionChanged_IsIdempotent` — call twice, no exception, watcher still functional.
+- `MacroTriggerRegistryTests.RefreshAsync_AfterSolutionOpen_PicksUpPreexistingRepoTriggers` — empty store → `RefreshAsync` → add repo-scoped trigger entry → explicit `RefreshAsync` again → assert registry picks up the binding.
+
+Full suite: 1003 tests, all green.
+
+**Known deferred scope (m5-watcher-restart-on-solution-change):** If the watcher is already running for Solution A, opening Solution B does NOT restart it on B's repo folder. `EnsureWatchersStarted` checks `_repoWatcher == null` — it won't re-bind to a different path. Fixing that requires disposing the stale watcher first. This is a follow-up task.
+
+
 
 **Context:** User directive captured by Copilot; mid-flight architectural pivot from JSON to C# scripting.
 

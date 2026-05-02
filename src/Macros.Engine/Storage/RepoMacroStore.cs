@@ -197,6 +197,20 @@ public sealed class RepoMacroStore : IMacroStore, IDisposable
         return _inner.GetMacroPath(name, MacroScope.Repo);
     }
 
+    /// <summary>
+    /// Wakes the underlying file-system store so it (re)evaluates the repo folder and
+    /// starts a FileSystemWatcher on it. Idempotent — calling when the watcher is already
+    /// running is a no-op.
+    /// </summary>
+    /// <remarks>
+    /// Called from the VSIX's <c>SolutionChanged</c> handler so the watcher (and the
+    /// <see cref="IMacroStore.LibraryChanged"/> events it produces) stays in sync with
+    /// whatever solution is currently open. Without this, a session that started with no
+    /// solution and later opened one would never produce <c>LibraryChanged</c> for repo
+    /// files, leaving the tool window and the trigger registry stale on external changes.
+    /// </remarks>
+    public void NotifySolutionChanged() => _inner.EnsureWatchersStarted();
+
     /// <inheritdoc />
     public bool IsValidName(string name) => _inner.IsValidName(name);
 

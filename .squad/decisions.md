@@ -553,6 +553,200 @@ Using `filePath.Contains(".intellisense")` would accidentally skip `my.intellise
 Using `Path.Split` + `string.Equals(segment, ".intellisense", OrdinalIgnoreCase)` restricts
 the exclusion to directory segments only, which is the correct semantic.
 
+## 2026-05-01 18:46:56 UTC — Open recorded macro in editor after Stop Recording
+
+**Date:** 2026-05-01T18:46:56.131-07:00  
+**Author:** Rusty  
+**Status:** Implemented
+
+### Problem
+
+After clicking Stop Recording the user had to find the newly-saved macro in the Macros tool window and right-click → Edit to see the generated `.csx`. Mads wanted the file to open automatically.
+
+### Approach chosen: Option B — `RecordingSaved` event
+
+Added `event EventHandler<RecordingSavedEventArgs>? RecordingSaved` to `IMacroService` and implemented it on `MacroService`. The event fires **after** `SaveAsAsync` completes, inside the existing fire-and-forget block, carrying the absolute path of the named-library copy via `storage.GetMacroPath(name, MacroScope.Global)`.
+
+Option A (change `StopRecordingAsync` return type to a record containing the path) was rejected because it would have required awaiting disk I/O on the stop caller (often the UI thread), breaking the existing `Task<string>` contract and touching all tests that assert on the return type.
+
+### Contract
+
+- **Producer:** `MacroService.StopRecordingAsync` — fires `RecordingSaved` synchronously on the JTF background task, after `SaveAsAsync` returns.
+- **Consumers:** `StopCommand.ExecuteAsync` and `RecordingStatusBarInjector` click handler — both subscribe via a `TaskCompletionSource` handshake **before** calling `StopRecordingAsync`, await the TCS (5-second timeout), then call `VS.Documents.OpenAsync(path)`.
+- **Timeout:** 5 seconds. Failure to receive the event (disk full, permission error) is swallowed silently via `ex.LogAsync()` — the macro is persisted regardless.
+- **Cleanup:** Both consumers unsubscribe in a `finally` block to prevent leaks.
+- **No VS-level kill switch:** Behavior is always-on; a future `MacrosOptions.OpenMacroAfterRecording` flag can be added if users want opt-out.
+
+### Files changed
+
+| File | Change |
+|---|---|
+| `src/Macros.Engine/RecordingSavedEventArgs.cs` | New — event args type |
+| `src/Macros.Engine/IMacroService.cs` | Added `RecordingSaved` event declaration |
+| `src/Macros.Engine/MacroService.cs` | Fires event after `SaveAsAsync` + event field |
+| `src/Macros/Commands/StopCommand.cs` | TCS handshake → opens file on save |
+| `src/Macros/StatusBar/RecordingStatusBarInjector.cs` | Same handshake in status-bar click handler |
+| `tests/Macros.Tests/MacroServiceStorageTests.cs` | Two new tests (`RaisesRecordingSaved_WithAbsolutePath`, `FiresOnlyAfterSaveAsCompletes`) |
+| Five test-fake `IMacroService` stubs | Added no-op `RecordingSaved` event |
+
+## 2026-05-01 18:46:56 UTC — Codegen drops steps it cannot render readable code for
+
+**Author:** Danny  
+**Date:** 2026-05-01T18:46:56.131-07:00  
+**Status:** Implemented
+
+### Policy
+
+> **The codegen is the filtering point.** The recorder still captures every event. `CSharpCodeGenerator` decides what is human-readable and replayable; anything that isn't is silently dropped from the emitted `.csx`.
+
+### Background
+
+When Visual Studio cannot resolve a command's GUID/ID pair to a DTE-friendly name (e.g. `DTE.Commands.Item` throws), `CommandObserver.ResolveCommandName` returns `null`. Previously, `CSharpCodeGenerator.EmitCommandStep` fell back to emitting:
+
+```csharp
+// step N: command 5efc7975-14bc-11cf-9b2b-00aa00573819/901
+await RunCommandAsync(new System.Guid("5efc7975-14bc-11cf-9b2b-00aa00573819"), 901u);
+```
+
+This output was confusing to users (raw GUIDs in their macro file) and wasn't usefully replayable as authored code.
+
+### Decision
+
+A `CommandStep` is only emittable if its `Name` field is non-null, non-whitespace, and matches the DTE name regex (`^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)+$`). Any other step type (`FileOpenStep`, `TextEditStep`) is always emittable.
+
+Steps that fail this check are silently dropped:
+- No comment is emitted.
+- No `await` call is emitted.
+- The `// Steps: N` header counts only emitted steps.
+- Step numbers in `// step N:` comments are contiguous (no gaps from dropped steps).
+
+### Rationale
+
+- **The `.csx` is the canonical human-editable form**, not a faithful event log. Users edit it; it should be clean.
+- **One filtering point** — the rule lives in `CSharpCodeGenerator.IsEmittable`, nowhere else. The recorder captures everything; the codegen is the gatekeeper.
+- **Simplicity** — removing the GUID/ID fallback branch eliminates complexity and removes a code path that produced output nobody wanted.
+- **Future extensibility** — `IsEmittable` is a single predicate. New step types are emittable by default; new opt-out rules are added in one place.
+
+### Implementation
+
+- `CSharpCodeGenerator.IsEmittable(RecordedStep)` — private static predicate.
+- `Generate()` pre-filters via `IsEmittable` into an `emittable` list; iterates and numbers from that list.
+- `EmitCommandStep` — GUID/ID fallback branch removed; throws `InvalidOperationException` defensively if called with an un-emittable step (should be unreachable post-filter).
+- Golden file `tests/Macros.Tests/Codegen/golden/sample.csx` updated: Steps 5 → 4.
+- Test suite: 1000 tests, all green.
+
+### What is NOT in scope
+
+- The recorder does not filter. All events continue to be captured. This leaves the door open for a future "raw replay" mode that bypasses codegen.
+- `CommandObserver.ResolveCommandName` is unchanged.
+- No UI change — the user simply never sees the GUID lines.
+
+## 2026-05-01 18:56:05 UTC — Repo Macros Don't Load When a Solution Is Loaded (Diagnosis)
+
+**Author:** Linus (Tester)  
+**Date:** 2026-05-01T18:56:05.841-07:00  
+**Status:** Diagnosis — fixed in danny-wake-repo-on-solution-open
+
+### Problem Statement (Mads, verbatim)
+
+> "the repo macros don't load when a solution is loaded. it must. even if there are no macros, because you should be able to move or copy a global macro to repo."
+
+### Root Cause Overview
+
+Three independent failure modes. They compound each other. Listed by severity:
+
+1. **File watcher for the repo folder never starts after a solution opens** (critical)
+2. **Trigger registry not refreshed when a solution opens** (critical)
+3. **Tool window list does update on solution-open** (working — no fix needed here)
+
+**Failure Mode A — Repo File Watcher Never Starts on Solution-Open**
+
+`FileSystemMacroStore.EnsureWatchersStarted()` is a **private** method called in exactly one place: the `add` accessor of the `LibraryChanged` event. The first subscription happens during package init, which triggers `EnsureWatchersStarted()` on the inner `FileSystemMacroStore`. It starts the repo watcher **only if** `_repoWatcher == null` AND the repo folder **already exists on disk** at that moment.
+
+When VS launches with no solution open, the repo folder does not exist. `EnsureWatchersStarted()` finds the folder absent, skips it, and `_repoWatcher` stays `null`. Later, when the user opens a solution, `SolutionContextTracker.SolutionChanged` fires, but **nothing calls `EnsureWatchersStarted()` again**. The folder is created by the IntelliSense shim refresher, but by then the watcher-start moment has passed.
+
+**Failure Mode B — Trigger Registry Not Refreshed on Solution-Open**
+
+`MacroTriggerRegistry` ctor subscribes to `IMacroStore.LibraryChanged` for incremental refreshes, and fires an initial `RefreshAsync` fire-and-forget. It has **no subscription to `SolutionContextTracker.SolutionChanged`**.
+
+That initial `RefreshAsync` calls `CompositeMacroStore.ListAllAsync`, which calls `_repo.ListAsync(MacroScope.Repo)`. If no solution is open at that moment, the repo list is empty. When the user later opens a solution with pre-existing repo macros that carry `@trigger` annotations, nothing causes the registry to re-enumerate the repo store. `LibraryChanged` only fires for file-system mutations — it does not fire for pre-existing files. The registry therefore stays stale from its initial empty-repo load.
+
+### Fix Plan
+
+**1. Make `EnsureWatchersStarted()` internal (was private) in `FileSystemMacroStore`**
+
+**2. Add `public void NotifySolutionChanged()` to `RepoMacroStore`:**
+```csharp
+public void NotifySolutionChanged() => _inner.EnsureWatchersStarted();
+```
+
+**3. In `MacrosPackage.InitializeAsync` after `_triggerRegistry` construction, add:**
+```csharp
+_solutionTracker.SolutionChanged += (_, _) =>
+{
+    _repoMacroStore?.NotifySolutionChanged();
+    JoinableTaskFactory.RunAsync(async () =>
+    {
+        await TaskScheduler.Default;
+        await (_triggerRegistry?.RefreshAsync(CancellationToken.None) ?? Task.CompletedTask);
+    }).FileAndForget("Macros/Triggers/Registry/SolutionChanged");
+};
+```
+
+**Ordering is critical:** this subscription must be added AFTER `_shimRefresher.AttachToTracker(...)` so that when `SolutionChanged` fires, `RefreshRepo()` (which creates the folder) executes first, then `NotifySolutionChanged()` attempts to start the watcher on the now-present folder.
+
+## 2026-05-01 18:56:05 UTC — Wake Repo Watcher and Trigger Registry on Solution Open (Fix)
+
+**Author:** Danny (Engineer)  
+**Date:** 2026-05-01T18:56:05.841-07:00  
+**Status:** Implemented — 1003 tests green
+
+### Contract
+
+#### `RepoMacroStore.NotifySolutionChanged()` — public seam for the VSIX
+
+```csharp
+public void NotifySolutionChanged() => _inner.EnsureWatchersStarted();
+```
+
+This is the only caller-facing method the VSIX needs to wake the repo file-system watcher after a solution opens. It delegates directly to `FileSystemMacroStore.EnsureWatchersStarted()` which is now `internal` (was `private`). The method is **idempotent**: if the watcher is already running it is a no-op.
+
+#### `MacroTriggerRegistry.RefreshAsync()` — must be re-run on `SolutionChanged`
+
+`RefreshAsync` is already `public`. The VSIX `SolutionChanged` handler fire-and-forgets it so the registry rebuilds its trigger index from the now-populated repo folder.
+
+### Why these two are paired
+
+| Problem | Without fix |
+|---|---|
+| Watcher never starts | External file changes (teammate commits, Move-to-Repo) don't raise `LibraryChanged` → tool window doesn't auto-refresh |
+| Registry not rebuilt | Pre-existing repo macro `@trigger` directives never register → triggers dead until the user manually saves a macro |
+
+Both are caused by the same root: `EnsureWatchersStarted()` was one-shot at package init and `MacroTriggerRegistry` had no `SolutionChanged` subscription.
+
+### Ordering constraint
+
+In `MacrosPackage.InitializeAsync`:
+
+1. `_shimRefresher.AttachToTracker(_solutionTracker)` — subscribes first; creates repo folder on `SolutionChanged` via `IntelliSenseShimWriter.Write` → `Directory.CreateDirectory`.
+2. New `_solutionTracker.SolutionChanged` handler (added after registry construction) — calls `_repoMacroStore?.NotifySolutionChanged()` *then* fire-and-forgets `_triggerRegistry.RefreshAsync()`.
+
+**Do not reorder.** Step 1 must fire before Step 2 so the folder exists when `EnsureWatchersStarted` checks `Directory.Exists(repoFolder)`.
+
+### Deferred scope
+
+`m5-watcher-restart-on-solution-change`: When a second solution opens while a watcher is already running for the first, `EnsureWatchersStarted` is a no-op (`_repoWatcher != null`). The watcher continues to point at the old repo folder. Fixing that requires disposing the stale watcher before the check. This is explicitly **out of scope** for this fix and should be a separate task.
+
+### Files changed
+
+| File | Change |
+|---|---|
+| `src/Macros.Engine/Storage/FileSystemMacroStore.cs` | `EnsureWatchersStarted` → `internal` |
+| `src/Macros.Engine/Storage/RepoMacroStore.cs` | Added `public void NotifySolutionChanged()` |
+| `src/Macros/MacrosPackage.cs` | Wired `SolutionChanged` handler after `_triggerRegistry` construction |
+| `tests/Macros.Tests/Storage/RepoMacroStoreTests.cs` | +2 watcher tests |
+| `tests/Macros.Tests/Triggers/MacroTriggerRegistryTests.cs` | +1 repo-trigger discovery test |
+
 ## Governance
 
 - All meaningful changes require team consensus

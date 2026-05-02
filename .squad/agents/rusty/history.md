@@ -65,8 +65,18 @@ docs/csx-reference.md, docs/architecture.md, docs/ship-readiness-v1.0.0.md, docs
 **Result:** 991 non-Performance tests pass (2 new). Release build clean.
 
 
+---
 
-**Codegen (CSharpCodeGenerator):** Removed the `// #r directives below…` comment block plus `#r "EnvDTE"` and `#r "EnvDTE80"` lines from `EmitReferenceDirectives`. The shim's absolute-path `#r` directives already cover the editor; the runtime player covers them via `ScriptOptions.WithReferences`. Updated XML doc: (3)→`using` block, (4)→step body (no more (5)).
+### 2026-05-01 — Wave 5: slim macro file header
+
+**Codegen (CSharpCodeGenerator):** Removed `// Source format:` line and trailing `//` separator from `EmitHeader`. Collapsed 4-line verbose shim comment to a single canonical line in `EmitReferenceDirectives`. Removed `EmitUsings` method and its call from `Generate` entirely — the shim's `#load` brings standard namespaces into scope for IntelliSense, and `MacroPlayer.ScriptOptions.WithImports` covers runtime. XML doc updated: point (3) now documents step emission only (using block gone).
+
+**Migrator (MacroFileLoadDirectiveMigrator):** Added `StripSourceFormatLine`, `ReplaceVerboseShimComment`, `StripStandardUsings` (with `CollapseBlankLines` + `JoinLines` helpers). Strip order: (a) obsolete `#r EnvDTE`, (b) `// Source format:` line, (c) 4-line→1-line shim comment, (d) 8 exact standard usings (conservative: user-added usings preserved), (e) inject `#load`. `ShimBlock` updated to 3-element array (1-line comment + `#load` + blank). Skip condition widened: file skipped only when shim present and none of the 5 obsolete patterns detected.
+
+**Tests:** 8 new tests (3 codegen + 5 migrator). Updated 4 existing tests (`Generate_EmptySteps`, `Generate_AllUnemittable`, `Migrate_FileWithExistingLoadDirective_LeavesUnchanged`, `Migrate_RoundTripIsRoslynParseable`). Golden file updated. 1011 tests green.
+
+**Key design decisions:** Standard using stripping is conservative — exact line match only (after TrimEnd). A user-added `using System.IO;` or `using MyCompany;` is never touched. Idempotency verified: second migration pass on a fully-slimmed file is a no-op (Skipped=1).
+
 
 **Migrator (MacroFileLoadDirectiveMigrator):** Added `HasObsoleteEnvDTEDirectives` and `StripObsoleteEnvDTEDirectives` (internal for tests). Strip logic: finds consecutive `#r "EnvDTE"` + `#r "EnvDTE80"` lines; if the two preceding lines are both `//` comments and one mentions `#r directives`, removes all 4 (comment + #r pair); otherwise strips only the 2 `#r` lines (defensive — handles `// @trigger` intervening). Collapses double blank lines post-strip. `Migrate` now strips first, injects shim after (so `FindBodyStart` lands on `using` block not `#r` lines). Skip condition narrowed: only skips when shim present AND no obsolete `#r`.
 

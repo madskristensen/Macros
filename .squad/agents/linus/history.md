@@ -47,6 +47,31 @@ Unit and integration tests remain core. The manual smoke checklist is your v1 re
 
 ---
 
+### 2026-05-01 — BUG INVESTIGATION: Repo Macros Don't Load on Solution Open
+
+**Context:** Mads reported repo macros not loading when a solution is opened. Investigated all five subsystems.
+
+**Findings:**
+
+| Mode | Status | Detail |
+|------|--------|--------|
+| A — File watcher starts on solution-open | 🔴 **BUG** | `EnsureWatchersStarted()` is private, called only on `LibraryChanged` subscription. When VS starts with no solution, the folder doesn't exist → watcher not started. Later, `SolutionChanged` fires but nothing calls `EnsureWatchersStarted()` again. Watcher stays null → `LibraryChanged` never fires for repo adds → tool window and trigger registry stay stale. |
+| B — Trigger registry refresh on solution-open | 🔴 **BUG** | `MacroTriggerRegistry` only listens to `LibraryChanged`, not `SolutionChanged`. Initial `RefreshAsync` ran with empty repo. No further refresh happens for pre-existing repo macros when solution opens later. |
+| C — Tool window list on solution-open | ✅ CLEAR | VM subscribes to `SolutionChanged` → `ScheduleReload` → `LoadAsync` → `ListAllAsync`. Pre-existing repo macros appear correctly (direct `Directory.EnumerateFiles`, no watcher needed). |
+| D — Repo folder creation on solution-open | ✅ CLEAR | `IntelliSenseShimRefresher.RefreshRepo()` on `SolutionChanged` creates the folder via `Directory.CreateDirectory` inside `IntelliSenseShimWriter.Write`. |
+| E — Watcher restart on solution switch | ⚠️ KNOWN/DEFERRED | Documented as `m5-watcher-restart-on-solution-change`. `EnsureWatchersStarted()` checks `_repoWatcher == null` — won't restart for a new solution if old watcher is still running. Out of scope for this fix. |
+
+**Fix plan:**
+1. Make `FileSystemMacroStore.EnsureWatchersStarted()` internal; add `RepoMacroStore.NotifySolutionChanged()`.
+2. In `MacrosPackage.InitializeAsync`, after `_triggerRegistry` construction, subscribe to `SolutionChanged` → call `_repoMacroStore?.NotifySolutionChanged()` AND fire-and-forget `_triggerRegistry?.RefreshAsync()`.
+3. Subscription order matters: must be after `_shimRefresher.AttachToTracker(...)` so folder is created first.
+
+**Tests required:** 3 new unit tests (see decision-drop file). Manual smoke checklist additions for tool window + trigger binding on solution-open.
+
+**Decision drop:** `.squad/decisions/inbox/linus-repo-load-on-solution-open.md`
+
+---
+
 ### 2026-05-01 — BUG INVESTIGATION: IntelliSense Not Working for Mads
 
 **Context:** Mads reported IntelliSense not resolving `DTE`, `Context`, `Trigger` globals after the shim feature shipped. Investigated all five failure modes.
