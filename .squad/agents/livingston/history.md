@@ -97,3 +97,30 @@
 
 **Competitive position:** We already beat JetBrains (editable code vs opaque action lists) and VS Code macro extensions (IntelliSense, triggers, recording). Main gaps are debugging, sharing, and AI integration.
 
+### 2026-05-02 — Macro Samples Gallery Shipped
+
+**Deliverable:** `docs/macro-samples.md` — 15 ready-to-use macro samples covering text manipulation, triggers, DTE automation, user prompts, and event handling.
+
+**Design decision:** Each sample is 5-15 lines of executable script body, immediately copy-pasteable, with inline comments explaining what it demonstrates. Samples intentionally include conditional logic (`if` statements) to show real-world usage without over-engineering. Three samples ship with the extension in the Macros tool window.
+
+**Key samples showcase:**
+- **Triggers:** Document.Opened, Document.Saved with filters, Build.SolutionBuildDone
+- **Text manipulation:** sorting, case conversion, wrapping, blank-line removal
+- **Conditionals:** selection checking, file existence, event data access
+- **User input:** PromptAsync for parameterized macros (header author, region names)
+- **DTE automation:** command execution, file opening, Output Window logging
+
+**Rationale:** Addresses discoverability gap identified in research phase. Gallery pattern (small, self-contained examples) proven effective in VS Code, Sublime, and other extensible editors. Removes barrier between "can I do this?" and "here's how".
+
+
+## Cross-Agent Context (20260502T172014Z)
+
+### Team Status
+- **Rusty:** 5 Copilot skills created, 1019 tests passing
+- **Danny:** PromptAsync service pattern implemented, 5 tests added, build passes
+- **Livingston:** 15 macro samples documented
+
+### Key Decisions
+1. PromptAsync uses service seam pattern to keep engine free of WPF dependencies
+2. Macro Copilot skills stay in authoring scope (not extensibility)
+

@@ -8,6 +8,14 @@
 
 ## Learnings
 
+### 2026-05-02 — Copilot macro skills pack
+
+Created five `.copilot/skills/` docs for macro authoring only: `writing-macros`, `macro-triggers`, `macro-dte-api`, `macro-toolkit-api`, and `macro-debugging`.
+
+The pack is intentionally scoped to `.csx` macros in this repo — exact header shape, shim `#load`, helper verbs, trigger comments, DTE patterns inside macros, Toolkit facade usage inside macros, and runtime-vs-IntelliSense debugging. It explicitly avoids VS extensibility/VSIX guidance because that belongs in the separate vs-agent-plugins repo.
+
+---
+
 ### 2026-04-30 — UX Architecture pass
 
 **Locked decisions:** Toolbar + hotkeys (Ctrl+Shift+R/P) + tool window ListView + VSCT context menus + UIContexts. BaseCommand<T> + BaseOptionModel<MacrosOptions> + DynamicResource VS theming.
@@ -91,4 +99,16 @@ docs/csx-reference.md, docs/architecture.md, docs/ship-readiness-v1.0.0.md, docs
 **Fix:** `OnSolutionChanged` now calls both `RefreshGlobal()` and `RefreshRepo()`. The SHA-256 skip inside `IntelliSenseShimWriter.Write` makes the extra call effectively free when nothing has changed.
 
 **Tests:** 2 new tests added to `IntelliSenseShimRefresherTests`: `OnSolutionChanged_RefreshesBothGlobalAndRepoShims` and `OnSolutionChanged_RecreatesDeletedGlobalShim`. Total test count: 1014 (all green).
+
+
+## Cross-Agent Context (20260502T172014Z)
+
+### Team Status
+- **Rusty:** 5 Copilot skills created, 1019 tests passing
+- **Danny:** PromptAsync service pattern implemented, 5 tests added, build passes
+- **Livingston:** 15 macro samples documented
+
+### Key Decisions
+1. PromptAsync uses service seam pattern to keep engine free of WPF dependencies
+2. Macro Copilot skills stay in authoring scope (not extensibility)
 
