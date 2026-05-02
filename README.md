@@ -4,7 +4,7 @@
 [![Version](https://img.shields.io/badge/version-1.0--preview-blue)](https://github.com/MadsKristensen/Macros/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-> **Record once. Repeat forever — manually or on cue.**
+**Record once. Repeat forever — manually or on cue.**
 
 A modern Visual Studio 2022 extension that brings back the power of recorded automation. Record sequences of text edits and IDE commands, replay them with a single keystroke, or trigger them automatically on build, save, or any IDE event. Every macro is an editable C# script — no black boxes, full IntelliSense.
 
@@ -32,7 +32,7 @@ await ExecuteCommandAsync("View.ErrorList");
 
 ## Install
 
-- **[Visual Studio Marketplace](https://marketplace.visualstudio.com/)** (coming soon)
+- **Visual Studio Marketplace** — search *"Macros"* by Mads Kristensen (or sideload from [Releases](https://github.com/MadsKristensen/Macros/releases)).
 - **Manual:** Download `Macros.vsix` from [Releases](https://github.com/MadsKristensen/Macros/releases) and double-click to install.
 
 Requires **Visual Studio 2022** (17.10+) on Windows.
@@ -58,4 +58,4 @@ Issues, ideas, and PRs welcome on [GitHub](https://github.com/MadsKristensen/Mac
 
 ## License
 
-MIT — see [`LICENSE`](LICENSE). Built by [Mads Kristensen](https://github.com/MadsKristensen) with the excellent [Community.VisualStudio.Toolkit](https://github.com/VsixCommunity/Community.VisualStudio.Toolkit).
+MIT — see [LICENSE](LICENSE). Built by [Mads Kristensen](https://github.com/MadsKristensen) with the excellent [Community.VisualStudio.Toolkit](https://github.com/VsixCommunity/Community.VisualStudio.Toolkit).

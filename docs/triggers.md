@@ -23,6 +23,28 @@ A **trigger** auto-runs a macro on an IDE event. Triggers are declared as `//` c
 | **BeforeCommand** | `// @trigger BeforeCommand {Command.Name}` | Runs **synchronously before** a named VS command executes. Can call `Trigger.CancelCommand()` to abort the command. Command names are the same ones you see in **Tools → Options → Environment → Keyboard** (e.g., `File.Save`, `File.Open`, `Build.BuildSolution`, `Edit.FormatDocument`). |
 | **AfterCommand**  | `// @trigger AfterCommand {Command.Name}`  | Runs **after** the command completes. Queued — never blocks the IDE. Can observe success/failure via `Trigger.Data["Success"]` (bool).                                                                                                                                                      |
 
+### When to use which trigger type
+
+- **VS events** — Use for passive observation. You want to know when something happened, but you don't need to stop it. Examples: log when a build completes, format a file after save, show a notification when the debugger hits a breakpoint.
+- **BeforeCommand** — Use for active intervention. You want to intercept a command and potentially cancel it. Examples: block `File.Save` during a build, validate before `Build.BuildSolution`, confirm before `File.CloseAll`.
+- **AfterCommand** — Use for post-action reactions. The command already ran; you want to do something in response. Examples: refresh a tool window after `File.NewFile`, log which commands were executed, chain additional actions after a refactoring.
+
+## Available VS events
+
+The trigger engine supports all events exposed by `Community.VisualStudio.Toolkit`'s `VS.Events` surface. Here are the most commonly used:
+
+| Category | Events | Example use |
+|----------|--------|-------------|
+| **Build** | `SolutionBuildDone`, `ProjectBuildDone` | React to build success/failure |
+| **Document** | `Saved`, `Opened`, `Closed`, `Renamed` | Auto-format on save, log file opens |
+| **Solution** | `OnAfterOpenSolution`, `OnBeforeCloseSolution`, `OnAfterOpenProject` | Initialize workspace on solution load |
+| **Debugger** | `EnterBreakMode`, `EnterDesignMode`, `ExceptionThrown` | Show diagnostics on breakpoint hit |
+| **Selection** | `SelectionChanged` | React to active document/window changes |
+| **Window** | `ActiveFrameChanged`, `Created`, `Destroy` | Track window lifecycle |
+| **Shell** | `ShutdownStarted` | Clean up before VS exits |
+
+For the complete list, use the **Manage Triggers** dialog (right-click macro → Manage Triggers…) — it autocompletes all available event names from the live VS.Events catalog.
+
 ## Filters
 
 Append `when key=value` (multiple keys are AND-combined) to narrow when a trigger fires:

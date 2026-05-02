@@ -66,6 +66,17 @@ Every action is reachable from the UI:
 - The **Macros** tool window lets you Play / Edit / Delete / Move from a right-click menu.
 - All commands are reachable via **Quick Launch** (`Ctrl+Q`) — type *"macros"* to find them.
 
+## Finding command names
+
+Macros can execute any Visual Studio command by name. To discover available commands:
+
+1. Open **Tools → Options → Environment → Keyboard**.
+2. In the **Show commands containing** box, type a keyword (e.g., `Format`, `Build`, `Refactor`).
+3. Browse the list — each entry is a valid command name (e.g., `Edit.FormatDocument`, `Build.BuildSolution`).
+4. Copy the full name to use in your macro: `await ExecuteCommandAsync("Edit.FormatDocument");`
+
+> 💡 **Tip:** The **Command Window** (View → Other Windows → Command Window) also lets you type and execute commands interactively — great for testing before adding to a macro.
+
 ## Hotkey conflicts
 
 Known collisions:

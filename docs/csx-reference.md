@@ -29,6 +29,10 @@ await ExecuteCommandAsync("File.SaveSelectedItems");
 
 The header block (comments and references) is parsed by the trigger system (see [Triggers](triggers.md)); everything below the first non-comment line is your script body. Top-level `await` works — this is **Roslyn C# Scripting** under the hood, the same engine that runs `dotnet-script`.
 
+## What is `.csx`?
+
+A `.csx` file is a **C# script** — executable C# code that runs immediately without a separate compilation step. Unlike compiled `.cs` files in a project, scripts support top-level `await`, don't need a `Main()` method, and can reference assemblies with `#r` directives. The Macros extension uses [Roslyn C# Scripting](https://github.com/dotnet/roslyn/wiki/Scripting-API-Samples) (the same engine behind [`dotnet-script`](https://github.com/filipw/dotnet-script)) to execute your macros.
+
 ## The `Helpers` API
 
 Import helpers with `using static Macros.Helpers`:
@@ -41,6 +45,7 @@ Import helpers with `using static Macros.Helpers`:
 | `ExecuteCommandAsync(string name, string args = "")` | Invoke a named VS command (`File.Save`, `Edit.FormatDocument`, etc.). |
 | `RunCommandAsync(Guid group, uint id, object? args = null)` | Invoke a command by GUID + ID for cases without a public name. |
 | `WaitAsync(int ms)` | Pause the script. |
+| `OpenFileAsync(string path)` | Open a file in the VS editor (or bring it to front if already open). |
 
 ## The `MacroGlobals` object
 
@@ -50,6 +55,10 @@ Inside your script, these globals are automatically accessible:
 - **`VS`** — the Community Toolkit's `VS` static facade (status bar, info bars, message boxes, document services…).
 - **`Context`** — `IMacroContext` with cancellation token and current document info.
 - **`Trigger`** — `IMacroTrigger?` with the firing event's data (e.g. `Trigger.Data["ErrorCount"]`); `null` for manual runs.
+
+> **DTE** (Development Tools Environment) is Visual Studio's COM automation object model — the API your macro uses to inspect and control the IDE. Through `DTE` you can access the active document, solution, debugger, commands, windows, and more. For the full API surface, see the [EnvDTE2 reference on Microsoft Learn](https://learn.microsoft.com/en-us/dotnet/api/envdte80.dte2).
+
+> **VS** is the [Community.VisualStudio.Toolkit](https://github.com/VsixCommunity/Community.VisualStudio.Toolkit) static facade — a modern, simplified wrapper over the Visual Studio SDK. It provides easy access to the status bar, message boxes, info bars, document services, and more. See the [Toolkit wiki](https://github.com/VsixCommunity/Community.VisualStudio.Toolkit/wiki) for the full API.
 
 ## Examples
 
@@ -106,3 +115,21 @@ When a macro is opened in the editor, the C# language service automatically load
 - Top-level field stubs for `DTE`, `Context`, and `Trigger` so the editor knows their types.
 
 At *runtime* (when the macro plays), the player automatically skips loading the shim (so the real `MacroGlobals` take precedence), making the shim a purely editor-time artifact. For a deeper technical walk-through, see the [Architecture](architecture.md#intellisense-in-the-csx-editor) doc.
+
+## Available assemblies
+
+Your macro can reference these assemblies via `#r` directives (the IntelliSense shim provides them automatically):
+
+- `EnvDTE` / `EnvDTE80` — DTE automation model
+- `Microsoft.VisualStudio.Shell.Interop` — VS Shell interfaces
+- `Community.VisualStudio.Toolkit` — The `VS` facade
+- `Macros.Engine` — Macro helpers and globals
+
+Custom NuGet packages and project-specific DLLs are **not** supported in macro scripts. If you need external libraries, consider building a VS extension instead.
+
+## Further reading
+
+- **[EnvDTE2 API Reference](https://learn.microsoft.com/en-us/dotnet/api/envdte80.dte2)** — Full DTE automation surface (documents, solution, debugger, commands).
+- **[Community.VisualStudio.Toolkit Wiki](https://github.com/VsixCommunity/Community.VisualStudio.Toolkit/wiki)** — The `VS` facade: status bar, message boxes, info bars, and more.
+- **[Roslyn Scripting API](https://github.com/dotnet/roslyn/wiki/Scripting-API-Samples)** — How `.csx` scripting works under the hood.
+- **[Visual Studio Commands](https://learn.microsoft.com/en-us/visualstudio/ide/reference/visual-studio-commands)** — Official list of all built-in VS commands.
