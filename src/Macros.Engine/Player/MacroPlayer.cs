@@ -165,26 +165,15 @@ internal sealed class MacroPlayer : IMacroPlayer
     }
 
     private static Script<object> CompileScript(string src, string? csxFilePath) =>
-        CSharpScript.Create<object>(src, BuildScriptOptions(csxFilePath), typeof(MacroGlobals));
+        CSharpScript.Create<object>(src, BuildScriptOptions(), typeof(MacroGlobals));
 
     /// <summary>
     /// Builds a cache key that incorporates both the source text and the file path.
-    /// The file path affects PDB document references and #load resolution, so scripts at
-    /// different paths must have separate cache entries even if the source is identical.
     /// </summary>
-    private static string BuildCacheKey(string source, string? csxFilePath)
-    {
-        if (string.IsNullOrEmpty(csxFilePath))
-            return source;
-        return csxFilePath + "|" + source;
-    }
+    private static string BuildCacheKey(string source, string? csxFilePath) => source;
 
-    private static ScriptOptions BuildScriptOptions(string? csxFilePath) =>
+    private static ScriptOptions BuildScriptOptions() =>
         ScriptOptions.Default
-            .WithEmitDebugInformation(!string.IsNullOrEmpty(csxFilePath))
-            .WithOptimizationLevel(
-                string.IsNullOrEmpty(csxFilePath) ? OptimizationLevel.Release : OptimizationLevel.Debug)
-            .WithFilePath(csxFilePath ?? "")
             .WithMetadataResolver(InteropAwareMetadataResolver.Instance)
             .WithSourceResolver(SkipIntelliSenseShimSourceResolver.Instance)
             .WithReferences(

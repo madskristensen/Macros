@@ -48,7 +48,6 @@ Helper methods are available directly in your macro (no import needed — the In
 | `RunCommandAsync(Guid group, uint id, object? args = null)` | Invoke a command by GUID + ID for cases without a public name. |
 | `WaitAsync(int ms)` | Pause the script. |
 | `OpenFileAsync(string path)` | Open a file in the VS editor (or bring it to front if already open). |
-| `BreakIntoDebugger()` | Attach a debugger and break (see [Debugging](#debugging) below). |
 
 ## The `MacroGlobals` object
 
@@ -138,39 +137,3 @@ Custom NuGet packages and project-specific DLLs are **not** supported in macro s
 - **[Visual Studio Commands](https://learn.microsoft.com/en-us/visualstudio/ide/reference/visual-studio-commands)** — Official list of all built-in VS commands.
 
 ---
-
-## Debugging
-
-Macros run inside the `devenv.exe` process, so you cannot debug them with the *same* VS instance (a process cannot debug itself). Instead, attach a **second** VS instance or any managed debugger.
-
-### Quick start
-
-1. Add `BreakIntoDebugger()` at the point you want to inspect:
-
-   ```csharp
-   // ... some macro code ...
-   BreakIntoDebugger();   // Pauses here — debugger shows the .csx source
-   // ... code you want to step through ...
-   ```
-
-2. Run the macro. A debugger selection dialog appears — choose **"New instance of Visual Studio"** or an existing VS.
-3. The attached VS pauses at the break and shows your `.csx` file with full source mapping.
-
-### Using "Debug Macro" from the tool window
-
-Right-click a macro in the Macros tool window and choose **Debug Macro**. This:
-1. Prompts you to attach a debugger (if none is attached).
-2. Runs the macro under the attached debugger.
-3. Breakpoints set by the attached VS in your `.csx` file will be hit.
-
-### How it works
-
-- The extension compiles macros with full PDB debug information and source file path mapping.
-- When a debugger is attached to devenv.exe, it receives the in-memory PDB and can map execution back to your `.csx` source lines.
-- `BreakIntoDebugger()` calls `System.Diagnostics.Debugger.Launch()` (if needed) then `Debugger.Break()`.
-
-### Tips
-
-- **Extension developers:** If you're debugging the extension itself (F5 from a host VS into an experimental instance), macros in the experimental instance are automatically debuggable — breakpoints work without `BreakIntoDebugger()`.
-- **Performance:** Debug info emission has negligible overhead on compilation time.
-- **`System.Diagnostics`** is auto-imported, so you can also use `Debugger.Break()` and `Debugger.IsAttached` directly.

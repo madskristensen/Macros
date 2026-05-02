@@ -663,7 +663,6 @@ public sealed class MacrosPackage : ToolkitPackage
 
         // Context-menu commands
         await PlayContextCommand.InitializeAsync(this);
-        await DebugContextCommand.InitializeAsync(this);
         await EditContextCommand.InitializeAsync(this);
         await RenameContextCommand.InitializeAsync(this);
         await DeleteContextCommand.InitializeAsync(this);
