@@ -89,33 +89,35 @@ public sealed class CSharpCodeGeneratorTests
     }
 
     [Fact]
-    public void Generate_CommandStepWithoutName_EmitsRunCommandAsync()
+    public void Generate_CommandStepWithoutName_IsSilentlyDropped()
     {
         var group = new Guid("11111111-2222-3333-4444-555555555555");
         var cmd = new RecordedStep.CommandStep(group, 42u, Name: null);
 
         string src = CSharpCodeGenerator.Generate(new RecordedStep[] { cmd }, "M", FixedUtc);
 
-        Assert.Contains(
-            "await RunCommandAsync(new System.Guid(\"11111111-2222-3333-4444-555555555555\"), 42u);",
-            src);
+        Assert.Contains("// Steps: 0", src);
+        Assert.DoesNotContain("RunCommandAsync", src);
         Assert.DoesNotContain("ExecuteCommandAsync", src);
-        AssertNoSyntaxErrors(src);
+        Assert.DoesNotContain("11111111-2222-3333-4444-555555555555", src);
+        Assert.DoesNotContain("await ", src);
     }
 
     [Fact]
-    public void Generate_CommandStepWithMalformedName_FallsBackToRunCommandAsync()
+    public void Generate_CommandStepWithMalformedName_IsSilentlyDropped()
     {
-        // Localised / non-DTE-shaped names must NOT be passed to DTE.ExecuteCommand —
-        // the generator falls back to GUID/ID dispatch and surfaces the raw name in
-        // the comment for diagnostic value.
+        // Localised / non-DTE-shaped names cannot be passed to DTE.ExecuteCommand.
+        // The step is silently dropped so the emitted .csx stays clean.
         var group = new Guid("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");
         var cmd = new RecordedStep.CommandStep(group, 9u, "Some Localised Label");
 
         string src = CSharpCodeGenerator.Generate(new RecordedStep[] { cmd }, "M", FixedUtc);
 
-        Assert.Contains("await RunCommandAsync(new System.Guid(\"aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee\"), 9u);", src);
-        Assert.Contains("(raw name: Some Localised Label)", src);
+        Assert.Contains("// Steps: 0", src);
+        Assert.DoesNotContain("RunCommandAsync", src);
+        Assert.DoesNotContain("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", src);
+        Assert.DoesNotContain("Some Localised Label", src);
+        Assert.DoesNotContain("await ", src);
     }
 
     [Fact]
@@ -243,13 +245,12 @@ public sealed class CSharpCodeGeneratorTests
     [Fact]
     public void Generate_SnapshotMatchesGoldenFile()
     {
-        var group = new Guid("11111111-2222-3333-4444-555555555555");
         var steps = new RecordedStep[]
         {
             new TextEditStep(OldPosition: 0, OldLength: 0, OldText: "", NewText: "Hello"),
             new RecordedStep.CommandStep(Guid.NewGuid(), 7u, "Edit.Copy"),
             new TextEditStep(OldPosition: 10, OldLength: 0, OldText: "", NewText: "Line1\nLine2 \"quoted\""),
-            new RecordedStep.CommandStep(group, 42u, Name: null),
+            new RecordedStep.CommandStep(new Guid("11111111-2222-3333-4444-555555555555"), 42u, Name: null), // dropped — no friendly name
             new TextEditStep(OldPosition: 20, OldLength: 3, OldText: "abc", NewText: ""),
         };
 
@@ -296,6 +297,100 @@ public sealed class CSharpCodeGeneratorTests
 
         // Backslashes are literal in verbatim strings; only " is escaped (doubled).
         Assert.Equal("@\"a\"\"b\\c\"", quoted);
+    }
+
+    [Fact]
+    public void Generate_DropsCommandStepWithNullName()
+    {
+        var fileOpen1 = new RecordedStep.FileOpenStep(@"C:\a.cs");
+        var fileOpen2 = new RecordedStep.FileOpenStep(@"C:\b.cs");
+        var unresolved = new RecordedStep.CommandStep(new Guid("11111111-2222-3333-4444-555555555555"), 901u, Name: null);
+
+        string src = CSharpCodeGenerator.Generate(new RecordedStep[] { fileOpen1, unresolved, fileOpen2 }, "M", FixedUtc);
+
+        Assert.Contains("// Steps: 2", src);
+        Assert.Contains("// step 1:", src);
+        Assert.Contains("// step 2:", src);
+        Assert.DoesNotContain("// step 3:", src);
+        Assert.DoesNotContain("Guid", src);
+        Assert.DoesNotContain("RunCommandAsync", src);
+        Assert.DoesNotContain("901", src);
+        AssertNoSyntaxErrors(src);
+    }
+
+    [Fact]
+    public void Generate_DropsCommandStepWithUnparseableName()
+    {
+        var unresolved = new RecordedStep.CommandStep(new Guid("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"), 9u, "Some Random Command");
+        var fileOpen = new RecordedStep.FileOpenStep(@"C:\a.cs");
+
+        string src = CSharpCodeGenerator.Generate(new RecordedStep[] { unresolved, fileOpen }, "M", FixedUtc);
+
+        Assert.Contains("// Steps: 1", src);
+        Assert.Contains("// step 1:", src);
+        Assert.DoesNotContain("// step 2:", src);
+        Assert.DoesNotContain("Guid", src);
+        Assert.DoesNotContain("RunCommandAsync", src);
+        Assert.DoesNotContain("Some Random Command", src);
+        AssertNoSyntaxErrors(src);
+    }
+
+    [Fact]
+    public void Generate_KeepsCommandStepWithValidName()
+    {
+        var cmd = new RecordedStep.CommandStep(Guid.NewGuid(), 26u, "Edit.Copy");
+
+        string src = CSharpCodeGenerator.Generate(new RecordedStep[] { cmd }, "M", FixedUtc);
+
+        Assert.Contains("// Steps: 1", src);
+        Assert.Contains("// step 1: command Edit.Copy", src);
+        Assert.Contains("await ExecuteCommandAsync(\"Edit.Copy\");", src);
+        Assert.DoesNotContain("RunCommandAsync", src);
+        AssertNoSyntaxErrors(src);
+    }
+
+    [Fact]
+    public void Generate_RenumbersStepsAfterDrop()
+    {
+        var steps = new RecordedStep[]
+        {
+            new TextEditStep(0, 0, "", "a"),                                         // emittable → step 1
+            new RecordedStep.CommandStep(Guid.NewGuid(), 1u, null),                  // dropped
+            new TextEditStep(1, 0, "", "b"),                                         // emittable → step 2
+            new RecordedStep.CommandStep(Guid.NewGuid(), 2u, "Broken Command Name"), // dropped
+            new TextEditStep(2, 0, "", "c"),                                         // emittable → step 3
+        };
+
+        string src = CSharpCodeGenerator.Generate(steps, "M", FixedUtc);
+
+        Assert.Contains("// Steps: 3", src);
+        Assert.Contains("// step 1:", src);
+        Assert.Contains("// step 2:", src);
+        Assert.Contains("// step 3:", src);
+        Assert.DoesNotContain("// step 4:", src);
+        Assert.DoesNotContain("// step 5:", src);
+        AssertNoSyntaxErrors(src);
+    }
+
+    [Fact]
+    public void Generate_AllUnemittable_ProducesEmptyBody()
+    {
+        var steps = new RecordedStep[]
+        {
+            new RecordedStep.CommandStep(Guid.NewGuid(), 1u, null),
+            new RecordedStep.CommandStep(Guid.NewGuid(), 2u, null),
+            new RecordedStep.CommandStep(Guid.NewGuid(), 3u, "Not A Valid DTE Name"),
+        };
+
+        string src = CSharpCodeGenerator.Generate(steps, "M", FixedUtc);
+
+        Assert.Contains("// Steps: 0", src);
+        Assert.Contains("#load ", src);
+        Assert.Contains("using static Macros.Engine.Scripting.Helpers;", src);
+        Assert.DoesNotContain("await ", src);
+        Assert.DoesNotContain("Guid", src);
+        Assert.DoesNotContain("RunCommandAsync", src);
+        AssertNoSyntaxErrors(src);
     }
 
     private static string ReadGoldenFile(string name)

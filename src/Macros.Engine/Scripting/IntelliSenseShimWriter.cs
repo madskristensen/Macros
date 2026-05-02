@@ -124,17 +124,38 @@ public static class IntelliSenseShimWriter
     /// reference. Each assembly is located via <c>typeof(KnownType).Assembly.Location</c>.
     /// Entries whose <c>Location</c> is empty (assembly loaded from a byte array, uncommon
     /// in a hosted VS process) are skipped with a diagnostic trace rather than causing a
-    /// crash.
+    /// crash. Duplicate paths (e.g. EnvDTE and EnvDTE80 resolving to the same Interop dll
+    /// in VS18 Preview) are collapsed to a single entry — first occurrence wins.
     /// </summary>
     private static IReadOnlyList<string> ResolveAssemblyPaths()
     {
-        var paths = new List<string>(5);
-        TryAdd(paths, "EnvDTE", typeof(DTE).Assembly.Location);
-        TryAdd(paths, "EnvDTE80", typeof(DTE2).Assembly.Location);
-        TryAdd(paths, "Microsoft.VisualStudio.Shell.15.0", typeof(Package).Assembly.Location);
-        TryAdd(paths, "Community.VisualStudio.Toolkit", typeof(VS).Assembly.Location);
-        TryAdd(paths, "Macros.Engine", typeof(MacroGlobals).Assembly.Location);
-        return paths;
+        var raw = new List<string>(5);
+        TryAdd(raw, "EnvDTE", typeof(DTE).Assembly.Location);
+        TryAdd(raw, "EnvDTE80", typeof(DTE2).Assembly.Location);
+        TryAdd(raw, "Microsoft.VisualStudio.Shell.15.0", typeof(Package).Assembly.Location);
+        TryAdd(raw, "Community.VisualStudio.Toolkit", typeof(VS).Assembly.Location);
+        TryAdd(raw, "Macros.Engine", typeof(MacroGlobals).Assembly.Location);
+        return Deduplicate(raw);
+    }
+
+    /// <summary>
+    /// Returns a deduplicated, order-preserving list from <paramref name="paths"/>.
+    /// Null/empty entries are dropped. Comparison is case-insensitive (Windows paths).
+    /// First occurrence of any given path wins.
+    /// </summary>
+    internal static IReadOnlyList<string> Deduplicate(IEnumerable<string> paths)
+    {
+        var unique = new List<string>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var path in paths)
+        {
+            if (string.IsNullOrEmpty(path)) continue;
+            if (seen.Add(path))
+                unique.Add(path);
+            else
+                Debug.WriteLine($"[IntelliSenseShimWriter] Duplicate assembly path '{path}'; skipping redundant #r entry.");
+        }
+        return unique;
     }
 
     private static void TryAdd(List<string> paths, string assemblyName, string? location)

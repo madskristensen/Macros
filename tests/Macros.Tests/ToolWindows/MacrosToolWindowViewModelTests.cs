@@ -443,6 +443,7 @@ public sealed class MacrosToolWindowViewModelTests
         public event EventHandler<MacroStateChangedEventArgs>? StateChanged;
 #pragma warning disable CS0067 // unused — required to satisfy the IMacroService surface
         public event EventHandler? RecordingCapReached;
+        public event EventHandler<RecordingSavedEventArgs>? RecordingSaved;
         public event EventHandler<int>? RecordingStepCountChanged;
         public event EventHandler<TriggeredExecutionEventArgs>? TriggeredExecutionStarted;
         public event EventHandler<TriggeredExecutionEventArgs>? TriggeredExecutionEnded;

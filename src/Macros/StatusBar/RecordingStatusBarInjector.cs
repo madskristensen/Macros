@@ -245,7 +245,25 @@ internal static class RecordingStatusBarInjector
                         IMacroService? svc = _service;
                         if (svc?.State == MacroState.Recording)
                         {
-                            await svc.StopRecordingAsync();
+                            // Subscribe before Stop so we can't race the fire-and-forget save.
+                            var tcs = new TaskCompletionSource<string>();
+                            EventHandler<RecordingSavedEventArgs> handler = (_, args) => tcs.TrySetResult(args.Path);
+                            svc.RecordingSaved += handler;
+
+                            try
+                            {
+                                await svc.StopRecordingAsync();
+
+                                var winner = await Task.WhenAny(tcs.Task, Task.Delay(TimeSpan.FromSeconds(5)));
+                                if (winner == tcs.Task)
+                                {
+                                    await VS.Documents.OpenAsync(await tcs.Task);
+                                }
+                            }
+                            finally
+                            {
+                                svc.RecordingSaved -= handler;
+                            }
                         }
                     }
                 }

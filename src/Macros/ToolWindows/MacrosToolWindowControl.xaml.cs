@@ -1,7 +1,9 @@
 using System;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
+using System.Windows.Media;
 using Community.VisualStudio.Toolkit;
 using Macros.Commands.Context;
 using Microsoft.VisualStudio.Shell;
@@ -54,6 +56,29 @@ public partial class MacrosToolWindowControl : UserControl
     }
 
     /// <summary>
+    /// Double-clicking a macro row triggers the same default action as Enter: play the macro.
+    /// </summary>
+    private void MacroRow_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        if (!(sender is FrameworkElement fe) || !(fe.DataContext is MacroItemViewModel item))
+        {
+            return;
+        }
+
+        // Ignore double-clicks that originate from the inline Play button itself.
+        if (e.OriginalSource is DependencyObject origin && FindAncestor<ButtonBase>(origin) is not null)
+        {
+            return;
+        }
+
+        if (item.PlayCommand.CanExecute(null))
+        {
+            item.PlayCommand.Execute(null);
+            e.Handled = true;
+        }
+    }
+
+    /// <summary>
     /// Right-click on a macro row: capture the targeted macro into
     /// <see cref="MacroSelectionContext"/> so the VSCT-defined context menu's commands can
     /// resolve their selection, then ask <see cref="IVsUIShell"/> to display the menu at
@@ -102,9 +127,10 @@ public partial class MacrosToolWindowControl : UserControl
     ///
     /// Also routes the row's "default action" keys directly to their commands:
     ///   * Enter -> Play   (matches the VSCT KeyBinding gesture text on the menu item)
+    ///   * F7    -> Edit   (matches the VSCT KeyBinding gesture text on the menu item)
     ///   * F2    -> Rename (matches the Solution Explorer / file rename convention)
     /// We invoke the commands here rather than relying on the VSCT KeyBinding alone
-    /// because the WPF ListView swallows Enter/F2 before the IDE keyboard chain sees them.
+    /// because the WPF ListView swallows Enter/F7/F2 before the IDE keyboard chain sees them.
     /// </summary>
     private void MacroRow_PreviewKeyDown(object sender, KeyEventArgs e)
     {
@@ -114,11 +140,12 @@ public partial class MacrosToolWindowControl : UserControl
         }
 
         bool isEnter = e.Key == Key.Enter && Keyboard.Modifiers == ModifierKeys.None;
+        bool isF7 = e.Key == Key.F7 && Keyboard.Modifiers == ModifierKeys.None;
         bool isF2 = e.Key == Key.F2 && Keyboard.Modifiers == ModifierKeys.None;
         bool isContextMenu = e.Key == Key.Apps
             || (e.Key == Key.F10 && (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift);
 
-        if (!isEnter && !isF2 && !isContextMenu)
+        if (!isEnter && !isF7 && !isF2 && !isContextMenu)
         {
             return;
         }
@@ -130,6 +157,15 @@ public partial class MacrosToolWindowControl : UserControl
         {
             MacroSelectionContext.Current = item.Descriptor;
             ExecuteContextCommand(PackageIds.cmdidMacrosCtxPlay);
+            e.Handled = true;
+            return;
+        }
+
+        // F7 -> Edit the selected macro.
+        if (isF7)
+        {
+            MacroSelectionContext.Current = item.Descriptor;
+            ExecuteContextCommand(PackageIds.cmdidMacrosCtxEdit);
             e.Handled = true;
             return;
         }
@@ -196,5 +232,22 @@ public partial class MacrosToolWindowControl : UserControl
             nMenuId: PackageIds.MacrosToolWindowContextMenu,
             pos: pts,
             pCmdTrgtActive: null);
+    }
+
+    private static T? FindAncestor<T>(DependencyObject? start)
+        where T : DependencyObject
+    {
+        DependencyObject? current = start;
+        while (current is not null)
+        {
+            if (current is T match)
+            {
+                return match;
+            }
+
+            current = VisualTreeHelper.GetParent(current);
+        }
+
+        return null;
     }
 }

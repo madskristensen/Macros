@@ -131,6 +131,9 @@ public sealed class MacroService : IMacroService
     public event EventHandler<int>? RecordingStepCountChanged;
 
     /// <inheritdoc />
+    public event EventHandler<RecordingSavedEventArgs>? RecordingSaved;
+
+    /// <inheritdoc />
     public event EventHandler<TriggeredExecutionEventArgs>? TriggeredExecutionStarted;
 
     /// <inheritdoc />
@@ -208,6 +211,8 @@ public sealed class MacroService : IMacroService
                 await storage.SaveCurrentAsync(source).ConfigureAwait(false);
                 var name = await GenerateUniqueRecordingNameAsync(storage).ConfigureAwait(false);
                 await storage.SaveAsAsync(name, source, MacroScope.Global, overwrite: false).ConfigureAwait(false);
+                var savedPath = storage.GetMacroPath(name, MacroScope.Global);
+                RecordingSaved?.Invoke(this, new RecordingSavedEventArgs(savedPath));
             }).FileAndForget("Macros/Storage/SaveCurrent");
         }
 

@@ -250,6 +250,56 @@ public sealed class MacroServiceStorageTests
         Assert.Equal("RecordedMacro1", fake.LastSavedName);
     }
 
+    [Fact]
+    public async Task StopRecordingAsync_RaisesRecordingSaved_WithAbsolutePath()
+    {
+        var fake = new FakeMacroStorage();
+        var svc = new MacroService(CreateJtf(), storage: fake);
+
+        string? observedPath = null;
+        var tcs = new TaskCompletionSource<string>();
+        svc.RecordingSaved += (_, args) =>
+        {
+            observedPath = args.Path;
+            tcs.TrySetResult(args.Path);
+        };
+
+        await svc.StartRecordingAsync();
+        await svc.StopRecordingAsync();
+
+        var completed = await Task.WhenAny(tcs.Task, Task.Delay(TimeSpan.FromSeconds(5)));
+        Assert.Equal(tcs.Task, completed);
+
+        Assert.NotNull(observedPath);
+        // FakeMacroStorage.GetMacroPath returns X:\fake\{name}.csx
+        Assert.Equal(@"X:\fake\RecordedMacro1.csx", observedPath);
+    }
+
+    [Fact]
+    public async Task StopRecordingAsync_RecordingSaved_FiresOnlyAfterSaveAsCompletes()
+    {
+        // Verify sequencing: when RecordingSaved fires, SaveAs has already committed
+        // (fake.LastSavedName is populated before the event handler runs).
+        var fake = new FakeMacroStorage();
+        var svc = new MacroService(CreateJtf(), storage: fake);
+
+        string? savedNameAtEventTime = null;
+        var tcs = new TaskCompletionSource<bool>();
+        svc.RecordingSaved += (_, _) =>
+        {
+            savedNameAtEventTime = fake.LastSavedName;
+            tcs.TrySetResult(true);
+        };
+
+        await svc.StartRecordingAsync();
+        await svc.StopRecordingAsync();
+
+        var completed = await Task.WhenAny(tcs.Task, Task.Delay(TimeSpan.FromSeconds(5)));
+        Assert.Equal(tcs.Task, completed);
+
+        Assert.Equal("RecordedMacro1", savedNameAtEventTime);
+    }
+
     /// <summary>In-memory <see cref="IMacroStore"/> double for engine wiring tests.</summary>
     private sealed class FakeMacroStorage : IMacroStore
     {

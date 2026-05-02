@@ -56,7 +56,15 @@ docs/csx-reference.md, docs/architecture.md, docs/ship-readiness-v1.0.0.md, docs
 
 ---
 
-### 2026-05-01 — Drop redundant `#r EnvDTE` from codegen + migrator strip
+### 2026-05-01 — Open-on-stop: auto-open recorded .csx after Stop Recording
+
+**Feature:** When the user clicks Stop Recording (Ctrl+Shift+R or the status-bar indicator), the just-saved `.csx` file automatically opens in the VS editor.
+
+**Design:** Option B — event-based (`RecordingSaved`). Added `event EventHandler<RecordingSavedEventArgs>? RecordingSaved` to `IMacroService` / `MacroService`. The event fires inside the fire-and-forget block after `SaveAsAsync` completes, carrying the absolute path from `storage.GetMacroPath(name, MacroScope.Global)`. `StopCommand.ExecuteAsync` and `RecordingStatusBarInjector` subscribe before calling `StopRecordingAsync`, await a `TaskCompletionSource` (5 s timeout), then call `VS.Documents.OpenAsync`. Five fake `IMacroService` test doubles updated with the no-op event stub. Two new tests in `MacroServiceStorageTests`: path assertion and sequencing (SaveAs before event).
+
+**Result:** 991 non-Performance tests pass (2 new). Release build clean.
+
+
 
 **Codegen (CSharpCodeGenerator):** Removed the `// #r directives below…` comment block plus `#r "EnvDTE"` and `#r "EnvDTE80"` lines from `EmitReferenceDirectives`. The shim's absolute-path `#r` directives already cover the editor; the runtime player covers them via `ScriptOptions.WithReferences`. Updated XML doc: (3)→`using` block, (4)→step body (no more (5)).
 

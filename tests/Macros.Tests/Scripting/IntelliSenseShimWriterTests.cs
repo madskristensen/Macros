@@ -192,4 +192,40 @@ public sealed class IntelliSenseShimWriterTests : IDisposable
         var ex = Assert.Throws<ArgumentException>(() => IntelliSenseShimWriter.Write(storeRoot!));
         Assert.Equal("storeRoot", ex.ParamName);
     }
+
+    // ── Deduplicate ───────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void ResolveAssemblyPaths_DeduplicatesIdenticalPaths_WhenInteropAssembliesShareDll()
+    {
+        // Simulate VS18 Preview: EnvDTE and EnvDTE80 both resolve to the same path.
+        var shimPath = @"C:\VS\Interop.dll";
+        var shellPath = @"C:\VS\Shell.dll";
+
+        var deduplicated = IntelliSenseShimWriter.Deduplicate(
+            new[] { shimPath, shimPath, shellPath });
+
+        Assert.Equal(2, deduplicated.Count);
+        Assert.Equal(shimPath, deduplicated[0]);
+        Assert.Equal(shellPath, deduplicated[1]);
+    }
+
+    [Fact]
+    public void Deduplicate_PreservesOriginalOrdering()
+    {
+        var input = new[] { "a.dll", "b.dll", "a.dll", "c.dll" };
+        var result = IntelliSenseShimWriter.Deduplicate(input);
+
+        Assert.Equal(new[] { "a.dll", "b.dll", "c.dll" }, result);
+    }
+
+    [Fact]
+    public void Deduplicate_IsCaseInsensitive()
+    {
+        var input = new[] { @"C:\Foo.dll", @"c:\foo.dll" };
+        var result = IntelliSenseShimWriter.Deduplicate(input);
+
+        Assert.Single(result);
+        Assert.Equal(@"C:\Foo.dll", result[0]); // first occurrence wins
+    }
 }

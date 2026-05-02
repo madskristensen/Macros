@@ -128,3 +128,17 @@ Details (see `.squad/decisions.md` and `danny-triggers-and-scope.md`):
 - CompositeMacroStore (Global + Repo, repo-wins) with per-solution trust allowlist (InfoBar prompt)
 - Auto-disable on repeated failure (3 consecutive); failure count resets on success
 
+### 2026-05-01 — Drop unresolved commands from generated macros
+
+**Problem:** When `CommandObserver.ResolveCommandName` failed to map a GUID/ID pair to a DTE-friendly name, `CSharpCodeGenerator.EmitCommandStep` fell back to emitting `await RunCommandAsync(new System.Guid("…"), Nu)` — unreadable and non-replayable noise that confused users.
+
+**Fix — IsEmittable predicate + pre-filter in Generate:** Added `private static bool IsEmittable(RecordedStep)`. For `CommandStep`: returns `true` only when `Name` is non-null, non-whitespace, and matches `DteNameRegex`. All other step types return `true`. `Generate()` builds an `emittable` list by filtering all input steps through `IsEmittable`, iterates `emittable` for emission, and passes `emittable.Count` to the `// Steps: N` header.
+
+**Simplified EmitCommandStep:** The GUID/ID fallback branch is gone. Only the clean `await ExecuteCommandAsync("Name.Here");` emission path remains. If called with an un-emittable command (impossible post-filter), it throws `InvalidOperationException`.
+
+**Tests:** Rewrote two tests that previously asserted GUID/ID fallback; added 5 new tests covering: null name drop, unparseable name drop, valid name kept, step renumbering after drops, all-unemittable produces empty body. Updated golden file (`sample.csx`): Steps 5→4; the unnamed CommandStep is dropped; former step 5 (deletion) renumbered to step 4.
+
+**Policy:** The recorder still captures everything. The codegen is the single filtering point. Un-emittable steps vanish silently; the `// Steps: N` header reflects what was emitted.
+
+**Suite:** 1000 tests, all green.
+

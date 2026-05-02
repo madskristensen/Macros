@@ -26,17 +26,15 @@ namespace Macros.Engine.Codegen;
 ///     (<c>.intellisense/Macros.Intellisense.csx</c>) so the C# editor resolves
 ///     EnvDTE/EnvDTE80, the Community Toolkit's <c>VS</c> facade, Macros Helpers,
 ///     and script globals (<c>DTE</c>, <c>Context</c>, <c>Trigger</c>). The
-///     relative path is identical for both global and repo macro stores.
+///     relative path is identical for both global and repo macro stores. The shim
+///     is the single source of truth for assembly references in the editor;
 ///     <see cref="Player.MacroPlayer"/> intercepts this directive via a custom
 ///     <c>SourceReferenceResolver</c> and returns an empty stream, so shim stubs
 ///     never shadow the real <c>MacroGlobals</c> at runtime;
-/// (3) emits <c>#r</c> directives for the EnvDTE interop assemblies for external
-///     dotnet-script consumers — <see cref="Player.MacroPlayer"/> supplies the
-///     same references via <c>ScriptOptions</c> at compile time;
-/// (4) emits <c>using</c> + <c>using static</c> directives so unqualified
+/// (3) emits <c>using</c> + <c>using static</c> directives so unqualified
 ///     <see cref="Scripting.Helpers"/> verb calls (<c>TypeAsync</c>,
 ///     <c>ExecuteCommandAsync</c>, …) compile without further setup;
-/// (5) emits one helper call per step preceded by an inline
+/// (4) emits one helper call per step preceded by an inline
 ///     <c>// step N: …</c> comment that mirrors the source <see cref="RecordedStep"/>.
 /// </para>
 /// <para>
@@ -70,6 +68,11 @@ public static class CSharpCodeGenerator
     /// <param name="macroName">The macro's display name; included verbatim in the header comment.</param>
     /// <param name="utcNow">The UTC timestamp to embed in the header. Caller-supplied for testability.</param>
     /// <returns>A C#-script source string that <see cref="Player.MacroPlayer"/> can compile and run.</returns>
+    /// <remarks>
+    /// Steps that the generator cannot render readable code for (e.g. captured commands with no
+    /// DTE-resolved friendly name) are silently dropped — the resulting <c>.csx</c> is the canonical,
+    /// human-editable form, not a faithful replay of every captured event.
+    /// </remarks>
     /// <exception cref="ArgumentNullException">
     /// <paramref name="steps"/> or <paramref name="macroName"/> is <see langword="null"/>.
     /// </exception>
@@ -78,18 +81,35 @@ public static class CSharpCodeGenerator
         if (steps is null) throw new ArgumentNullException(nameof(steps));
         if (macroName is null) throw new ArgumentNullException(nameof(macroName));
 
-        var sb = new StringBuilder(capacity: 512 + (steps.Count * 64));
-        EmitHeader(sb, macroName, steps.Count, utcNow);
+        // Drop steps the codegen can't render in human-readable form (e.g. commands with no
+        // DTE-resolved friendly name). These would otherwise produce ugly Guid+id fallbacks
+        // that confuse the user and aren't usefully replayable as authored code.
+        var emittable = new List<RecordedStep>(steps.Count);
+        for (int i = 0; i < steps.Count; i++)
+        {
+            if (IsEmittable(steps[i])) emittable.Add(steps[i]);
+        }
+
+        var sb = new StringBuilder(capacity: 512 + (emittable.Count * 64));
+        EmitHeader(sb, macroName, emittable.Count, utcNow);
         EmitReferenceDirectives(sb);
         EmitUsings(sb);
 
-        for (int i = 0; i < steps.Count; i++)
+        for (int i = 0; i < emittable.Count; i++)
         {
-            EmitStep(sb, steps[i], stepNumber: i + 1);
+            EmitStep(sb, emittable[i], stepNumber: i + 1);
         }
 
         return sb.ToString();
     }
+
+    private static bool IsEmittable(RecordedStep step) =>
+        step switch
+        {
+            RecordedStep.CommandStep cmd =>
+                !string.IsNullOrWhiteSpace(cmd.Name) && DteNameRegex.IsMatch(cmd.Name!),
+            _ => true,
+        };
 
     private static void EmitHeader(StringBuilder sb, string macroName, int stepCount, DateTime utcNow)
     {
@@ -120,11 +140,6 @@ public static class CSharpCodeGenerator
         sb.Append("// the Macros Helpers, and script globals (DTE, Context, Trigger). The runtime\n");
         sb.Append("// player ignores this #load via a custom SourceReferenceResolver.\n");
         sb.Append(IntelliSenseLoadDirective).Append('\n');
-        sb.Append('\n');
-        sb.Append("// #r directives below are kept for external dotnet-script consumers; MacroPlayer\n");
-        sb.Append("// supplies the same references via ScriptOptions at compile time.\n");
-        sb.Append("#r \"EnvDTE\"\n");
-        sb.Append("#r \"EnvDTE80\"\n");
         sb.Append('\n');
     }
 
@@ -175,30 +190,17 @@ public static class CSharpCodeGenerator
 
     private static void EmitCommandStep(StringBuilder sb, RecordedStep.CommandStep cmd, int stepNumber)
     {
-        if (!string.IsNullOrWhiteSpace(cmd.Name) && DteNameRegex.IsMatch(cmd.Name!))
+        // Generate() pre-filters via IsEmittable — Name is guaranteed non-null and regex-matched here.
+        if (string.IsNullOrWhiteSpace(cmd.Name) || !DteNameRegex.IsMatch(cmd.Name!))
         {
-            sb.Append("// step ").Append(stepNumber)
-              .Append(": command ").Append(cmd.Name).Append('\n');
-            sb.Append("await ExecuteCommandAsync(").Append(QuoteRegular(cmd.Name!)).Append(");\n");
-            return;
+            throw new InvalidOperationException(
+                $"EmitCommandStep called with un-emittable command (Name={cmd.Name ?? "<null>"}). " +
+                "IsEmittable should have filtered this step out.");
         }
 
         sb.Append("// step ").Append(stepNumber)
-          .Append(": command ")
-          .Append(cmd.Group.ToString("D", CultureInfo.InvariantCulture))
-          .Append('/')
-          .Append(cmd.Id.ToString(CultureInfo.InvariantCulture));
-        if (!string.IsNullOrWhiteSpace(cmd.Name))
-        {
-            sb.Append(" (raw name: ").Append(cmd.Name).Append(')');
-        }
-
-        sb.Append('\n');
-        sb.Append("await RunCommandAsync(new System.Guid(\"")
-          .Append(cmd.Group.ToString("D", CultureInfo.InvariantCulture))
-          .Append("\"), ")
-          .Append(cmd.Id.ToString(CultureInfo.InvariantCulture))
-          .Append("u);\n");
+          .Append(": command ").Append(cmd.Name).Append('\n');
+        sb.Append("await ExecuteCommandAsync(").Append(QuoteRegular(cmd.Name!)).Append(");\n");
     }
 
     private static void EmitTextEditStep(StringBuilder sb, TextEditStep edit, int stepNumber)

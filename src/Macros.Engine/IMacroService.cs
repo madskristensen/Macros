@@ -73,6 +73,21 @@ public interface IMacroService
     event EventHandler<int>? RecordingStepCountChanged;
 
     /// <summary>
+    /// Raised after <see cref="StopRecordingAsync"/>'s background save lands the freshly-
+    /// recorded macro into the named library. Carries the absolute path of the saved
+    /// <c>.csx</c> so UI consumers (e.g. <c>StopCommand</c>) can open it in the editor.
+    /// </summary>
+    /// <remarks>
+    /// The event is raised from the fire-and-forget task that performs the disk write, so it
+    /// fires <em>after</em> <see cref="StopRecordingAsync"/> returns. Subscribers that need
+    /// to act on the file (e.g. open it in the VS editor) should use a
+    /// <see cref="System.Threading.Tasks.TaskCompletionSource{T}"/> handshake: subscribe
+    /// <em>before</em> calling <see cref="StopRecordingAsync"/> and unsubscribe in a
+    /// <c>finally</c> block to avoid leaks.
+    /// </remarks>
+    event EventHandler<RecordingSavedEventArgs>? RecordingSaved;
+
+    /// <summary>
     /// Raised immediately before a macro begins executing as a result of a trigger.
     /// Provides context about the trigger that initiated the execution.
     /// </summary>

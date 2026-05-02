@@ -50,7 +50,15 @@ public sealed class FileSystemMacroStore : IMacroStore, IDisposable
     private const string CurrentFileName = "current.csx";
     private const string CurrentReservedName = "current";
     private const string MacroExtension = ".csx";
-    private const string GlobalNamedSubfolder = "Macros";
+
+    /// <summary>
+    /// Name of the subfolder under the global root where named macros are stored.
+    /// Exposed so the IntelliSense shim writer can place a sibling shim in the
+    /// named-macro subfolder. Do NOT remove or rename this constant — both the
+    /// storage layout and the IntelliSense shim layout depend on the same value.
+    /// </summary>
+    internal const string GlobalNamedSubfolder = "Macros";
+
     private const int MaxNameLength = 60;
 
     // Cap the on-disk read in ParseHeaderAsync so a multi-megabyte .csx (which would not

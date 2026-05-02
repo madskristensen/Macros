@@ -236,6 +236,7 @@
                             </Setter.Value>
                         </Setter>
                         <EventSetter Event="PreviewMouseRightButtonUp" Handler="MacroRow_PreviewMouseRightButtonUp" />
+                        <EventSetter Event="MouseDoubleClick" Handler="MacroRow_MouseDoubleClick" />
                         <EventSetter Event="PreviewKeyDown" Handler="MacroRow_PreviewKeyDown" />
                         <Style.Triggers>
                             <DataTrigger Binding="{Binding IsShadowed}" Value="True">

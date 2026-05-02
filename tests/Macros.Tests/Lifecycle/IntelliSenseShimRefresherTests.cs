@@ -220,4 +220,87 @@ public sealed class IntelliSenseShimRefresherTests : IDisposable
         Assert.Equal("global", errorKey);
         Assert.NotNull(capturedException);
     }
+
+    // ── Test 9 ────────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void RefreshGlobal_WithPreExistingCsxFile_WritesShimAndRunsMigration()
+    {
+        var globalRoot = UniqueFolder("global9");
+
+        // Simulate a macro that was recorded before the #load directive feature shipped.
+        string fixturePath = Path.Combine(globalRoot, "fixture.csx");
+        File.WriteAllText(fixturePath, "// macro\nDTE.ExecuteCommand(\"File.Save\");\n");
+
+        using var refresher = new IntelliSenseShimRefresher(
+            globalFolderProvider: () => globalRoot,
+            repoFolderProvider: () => null);
+
+        // Must not throw even when the folder contains pre-existing .csx files.
+        refresher.RefreshGlobal();
+
+        // Shim must be written.
+        Assert.True(File.Exists(ExpectedShimPath(globalRoot)),
+            $"Expected shim at {ExpectedShimPath(globalRoot)}");
+
+        // Fixture file must still exist — migration must not corrupt or delete it.
+        Assert.True(File.Exists(fixturePath));
+    }
+
+    // ── Test 10 ───────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void RefreshGlobal_WritesShimInBothRootAndNamedSubfolder()
+    {
+        var globalRoot = UniqueFolder("global10");
+        using var refresher = new IntelliSenseShimRefresher(
+            globalFolderProvider: () => globalRoot,
+            repoFolderProvider: () => null);
+
+        refresher.RefreshGlobal();
+
+        var rootShim = ExpectedShimPath(globalRoot);
+        var namedShim = ExpectedShimPath(Path.Combine(globalRoot, "Macros"));
+
+        Assert.True(File.Exists(rootShim),
+            $"Expected root shim at {rootShim}");
+        Assert.True(File.Exists(namedShim),
+            $"Expected named-subfolder shim at {namedShim}");
+    }
+
+    // ── Test 11 ───────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void RefreshGlobal_NamedSubfolderShimMatchesRootShim()
+    {
+        var globalRoot = UniqueFolder("global11");
+        using var refresher = new IntelliSenseShimRefresher(
+            globalFolderProvider: () => globalRoot,
+            repoFolderProvider: () => null);
+
+        refresher.RefreshGlobal();
+
+        var rootBytes = File.ReadAllBytes(ExpectedShimPath(globalRoot));
+        var namedBytes = File.ReadAllBytes(ExpectedShimPath(Path.Combine(globalRoot, "Macros")));
+
+        Assert.Equal(rootBytes, namedBytes);
+    }
+
+    // ── Test 12 ───────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void RefreshGlobal_IsIdempotent_BothLocations()
+    {
+        var globalRoot = UniqueFolder("global12");
+        using var refresher = new IntelliSenseShimRefresher(
+            globalFolderProvider: () => globalRoot,
+            repoFolderProvider: () => null);
+
+        // Call twice — must not throw and both shims must exist after each call.
+        refresher.RefreshGlobal();
+        refresher.RefreshGlobal();
+
+        Assert.True(File.Exists(ExpectedShimPath(globalRoot)));
+        Assert.True(File.Exists(ExpectedShimPath(Path.Combine(globalRoot, "Macros"))));
+    }
 }

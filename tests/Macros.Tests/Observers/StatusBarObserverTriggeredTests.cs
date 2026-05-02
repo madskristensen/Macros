@@ -36,6 +36,8 @@ public sealed class StatusBarObserverTriggeredTests
             remove { }
         }
 
+        public event EventHandler<RecordingSavedEventArgs>? RecordingSaved { add { } remove { } }
+
         public event EventHandler<int>? RecordingStepCountChanged
         {
             add { }

@@ -499,6 +499,7 @@ public sealed class CommandObserverTests
 
         public event EventHandler<MacroStateChangedEventArgs>? StateChanged { add { } remove { } }
         public event EventHandler? RecordingCapReached { add { } remove { } }
+        public event EventHandler<RecordingSavedEventArgs>? RecordingSaved { add { } remove { } }
         public event EventHandler<int>? RecordingStepCountChanged { add { } remove { } }
         public event EventHandler<TriggeredExecutionEventArgs>? TriggeredExecutionStarted { add { } remove { } }
         public event EventHandler<TriggeredExecutionEventArgs>? TriggeredExecutionEnded { add { } remove { } }

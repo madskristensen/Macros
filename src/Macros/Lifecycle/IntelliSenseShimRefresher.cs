@@ -1,6 +1,8 @@
 using System;
+using System.IO;
 using System.Threading;
 using Macros.Engine.Scripting;
+using Macros.Engine.Storage;
 
 namespace Macros.Lifecycle;
 
@@ -38,7 +40,22 @@ internal sealed class IntelliSenseShimRefresher : IDisposable
         {
             var root = _globalFolderProvider();
             if (string.IsNullOrWhiteSpace(root)) return;
+
+            // Write shim to <root>\.intellisense\ so current.csx (which lives in the root) resolves
+            // its #load directive against a sibling .intellisense folder.
             IntelliSenseShimWriter.Write(root);
+
+            // Write shim AGAIN to <root>\Macros\.intellisense\ so named macros (which the storage
+            // layer keeps in the GlobalNamedSubfolder) also resolve their #load directive against a
+            // sibling .intellisense folder. The codegen and migrator emit the same constant relative
+            // path (".intellisense/Macros.Intellisense.csx") for every macro file regardless of
+            // whether it's in the root or the named subfolder — placing a shim in both locations
+            // keeps that path correct without any per-file path arithmetic.
+            var namedFolder = Path.Combine(root, FileSystemMacroStore.GlobalNamedSubfolder);
+            IntelliSenseShimWriter.Write(namedFolder);
+
+            // Migrate any pre-existing .csx files (recursive — handles both root and named folder).
+            MacroFileLoadDirectiveMigrator.Migrate(root);
         }
         catch (Exception ex) when (!IsCritical(ex))
         {
@@ -54,6 +71,7 @@ internal sealed class IntelliSenseShimRefresher : IDisposable
             var root = _repoFolderProvider();
             if (string.IsNullOrWhiteSpace(root)) return;
             IntelliSenseShimWriter.Write(root!);
+            MacroFileLoadDirectiveMigrator.Migrate(root!);
         }
         catch (Exception ex) when (!IsCritical(ex))
         {

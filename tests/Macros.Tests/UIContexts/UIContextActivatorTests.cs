@@ -261,6 +261,8 @@ internal sealed class FakeMacroService : IMacroService
         remove => _recordingCapReached -= value;
     }
 
+    public event EventHandler<RecordingSavedEventArgs>? RecordingSaved { add { } remove { } }
+
     public event EventHandler<int>? RecordingStepCountChanged
     {
         add => _recordingStepCountChanged += value;

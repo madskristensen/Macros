@@ -265,6 +265,29 @@ public sealed class MacrosPackage : ToolkitPackage
         _shimRefresher.RefreshGlobal();
         _shimRefresher.RefreshRepo(); // no-op if no solution is open
 
+        // 2a-ter. One-time migration: any .csx macro recorded before this version was
+        //         shipped has no `#load` directive pointing at the IntelliSense shim.
+        //         Walk the global store and inject the directive in-place. Idempotent —
+        //         files already carrying the directive are left untouched.
+        try
+        {
+            var globalRoot = MacrosPaths.ResolveGlobalFolderOrFallback(
+                MacrosOptions.Instance.GlobalMacrosFolder, out _);
+            if (!string.IsNullOrWhiteSpace(globalRoot))
+            {
+                var result = MacroFileLoadDirectiveMigrator.Migrate(globalRoot);
+                if (result.Updated > 0)
+                {
+                    System.Diagnostics.Trace.WriteLine(
+                        $"Macros: migrated {result.Updated} global macro(s) to include IntelliSense #load directive.");
+                }
+            }
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException and not ThreadAbortException)
+        {
+            System.Diagnostics.Trace.WriteLine($"Macros: global migrator failed: {ex}");
+        }
+
         // 2b. Wire the M4 trust-gate InfoBar.Subscribes to SolutionChanged on the tracker
         //     above and shows an InfoBar at the top of the editor whenever a solution opens
         //     that carries repo macros with auto-run triggers and is neither trusted nor

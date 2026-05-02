@@ -290,6 +290,7 @@
          items. The actual key handling happens in MacrosToolWindowControl.MacroRow_PreviewKeyDown
          because WPF list rows swallow Enter/F2 before the IDE keyboard chain sees them. -->
     <KeyBinding guid="guidMacrosPackageCmdSet" id="cmdidMacrosCtxPlay" editor="guidMacrosToolWindow" key1="VK_RETURN" />
+    <KeyBinding guid="guidMacrosPackageCmdSet" id="cmdidMacrosCtxEdit" editor="guidMacrosToolWindow" key1="VK_F7" />
     <KeyBinding guid="guidMacrosPackageCmdSet" id="cmdidMacrosCtxRename" editor="guidMacrosToolWindow" key1="VK_F2" />
   </KeyBindings>
 

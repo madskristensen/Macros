@@ -62,14 +62,44 @@ internal sealed class StopCommand : BaseCommand<StopCommand>
             return;
         }
 
+        // Subscribe BEFORE calling StopRecordingAsync so we can't race the fire-and-forget
+        // save that fires RecordingSaved as soon as it completes the SaveAs.
+        var tcs = new TaskCompletionSource<string>();
+        EventHandler<RecordingSavedEventArgs> handler = (_, args) => tcs.TrySetResult(args.Path);
+        service.RecordingSaved += handler;
+
         try
         {
-            // M1: discard the generated source. M2 will route it through MacroStore.
-            _ = await service.StopRecordingAsync();
+            try
+            {
+                _ = await service.StopRecordingAsync();
+            }
+            catch (InvalidOperationException)
+            {
+                // Engine wasn't recording; the Recording UIContext should normally prevent this.
+                return;
+            }
+
+            // Wait briefly for the background save. If it doesn't land within 5 s (disk full,
+            // permission error, etc.) bail silently — the macro is saved-or-lost regardless.
+            var winner = await Task.WhenAny(tcs.Task, Task.Delay(TimeSpan.FromSeconds(5)));
+            if (winner == tcs.Task)
+            {
+                try
+                {
+                    await VS.Documents.OpenAsync(await tcs.Task);
+                }
+                catch (Exception ex)
+                {
+                    // Opening can fail if the path becomes invalid between save and open.
+                    // Log but don't surface — the macro is already persisted.
+                    await ex.LogAsync();
+                }
+            }
         }
-        catch (InvalidOperationException)
+        finally
         {
-            // Engine wasn't recording; the Recording UIContext should normally prevent this.
+            service.RecordingSaved -= handler;
         }
     }
 
