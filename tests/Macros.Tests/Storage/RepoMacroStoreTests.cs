@@ -439,4 +439,86 @@ public sealed class RepoMacroStoreTests : IDisposable
 
         Assert.NotEmpty(events);
     }
+
+    [Fact]
+    public void NotifySolutionChanged_OnSolutionSwitch_RebindsWatcherToNewFolder()
+    {
+        // Regression: previously the repo watcher bound to the FIRST non-null path it
+        // saw and never restarted. Switching solutions left the watcher pointing at the
+        // old folder, so external edits in the new solution went unobserved.
+        var folderA = Path.Combine(_tempRoot, "solutionA");
+        var folderB = Path.Combine(_tempRoot, "solutionB");
+        Directory.CreateDirectory(folderA);
+        Directory.CreateDirectory(folderB);
+        _additionalRoots.Add(folderA);
+        _additionalRoots.Add(folderB);
+
+        string? currentRepo = folderA;
+        using var store = new RepoMacroStore(() => currentRepo);
+
+        // Hook subscribers AFTER NotifySolutionChanged so the watcher actually starts
+        // (the LibraryChanged add accessor is what kicks off EnsureWatchersStarted in
+        // production; the direct call below mirrors what MacrosPackage does on solution open).
+        store.NotifySolutionChanged();
+
+        var events = new System.Collections.Concurrent.ConcurrentBag<MacroLibraryChangedEventArgs>();
+        store.LibraryChanged += (_, e) => events.Add(e);
+
+        // Warm up watcher A.
+        File.WriteAllText(Path.Combine(folderA, "InA_Warmup.csx"), "// warmup");
+        Assert.True(
+            WaitFor(() => events.Any(e => e.Name == "InA_Warmup")),
+            "Expected initial watcher to fire for folder A.");
+
+        while (events.TryTake(out _)) { }
+
+        // Solution switches to B.
+        currentRepo = folderB;
+        store.NotifySolutionChanged();
+
+        // Edit in folder B must now be observed.
+        File.WriteAllText(Path.Combine(folderB, "InB_AfterSwitch.csx"), "// new solution");
+        Assert.True(
+            WaitFor(() => events.Any(e => e.Name == "InB_AfterSwitch" && e.Scope == MacroScope.Repo)),
+            "Expected watcher to follow solution switch — but no event arrived for the new folder.");
+
+        while (events.TryTake(out _)) { }
+
+        // Edits in the OLD folder (A) must NOT raise events any more — the watcher has
+        // moved on. Give the old watcher generous time to misbehave; absence of an event
+        // after the timeout is the assertion.
+        File.WriteAllText(Path.Combine(folderA, "InA_StaleWrite.csx"), "// stale");
+        Thread.Sleep(500);
+        Assert.DoesNotContain(events, e => e.Name == "InA_StaleWrite");
+    }
+
+    [Fact]
+    public void NotifySolutionChanged_OnSolutionClose_TearsDownWatcher()
+    {
+        // When the user closes a solution the provider returns null. The watcher should
+        // be torn down so subsequent edits in the (now-stale) folder don't raise events.
+        Directory.CreateDirectory(_repoRoot);
+        string? currentRepo = _repoRoot;
+        using var store = new RepoMacroStore(() => currentRepo);
+        store.NotifySolutionChanged();
+
+        var events = new System.Collections.Concurrent.ConcurrentBag<MacroLibraryChangedEventArgs>();
+        store.LibraryChanged += (_, e) => events.Add(e);
+
+        File.WriteAllText(Path.Combine(_repoRoot, "Warmup.csx"), "// warmup");
+        Assert.True(
+            WaitFor(() => events.Any(e => e.Name == "Warmup")),
+            "Expected initial watcher event before close.");
+
+        while (events.TryTake(out _)) { }
+
+        // Solution closes.
+        currentRepo = null;
+        store.NotifySolutionChanged();
+
+        // External edits to the (now-stale) folder must not raise events.
+        File.WriteAllText(Path.Combine(_repoRoot, "AfterClose.csx"), "// stale");
+        Thread.Sleep(500);
+        Assert.DoesNotContain(events, e => e.Name == "AfterClose");
+    }
 }

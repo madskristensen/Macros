@@ -26,6 +26,22 @@ public sealed class SkillInstallerTests
     };
 
     [Fact]
+    public void IsCopilotEnvironmentPresent_DoesNotThrow_AndReflectsCopilotFolder()
+    {
+        // The method's contract: returns true iff %USERPROFILE%\.copilot exists. We exercise
+        // it against the real user profile so we know it survives the path APIs without
+        // throwing; the actual return value depends on whether the dev/CI machine has
+        // Copilot CLI installed, so we check it's consistent with what we observe directly.
+        string userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        bool expected = !string.IsNullOrEmpty(userProfile)
+            && Directory.Exists(Path.Combine(userProfile, ".copilot"));
+
+        bool actual = SkillInstaller.IsCopilotEnvironmentPresent();
+
+        Assert.Equal(expected, actual);
+    }
+
+    [Fact]
     public void BuildInstalledContent_PlacesMarkerOnLastNonEmptyLine()
     {
         const string body = "---\nname: x\ndescription: y\n---\n\n# Heading\n\nBody text.\n";

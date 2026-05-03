@@ -8,7 +8,7 @@ namespace Macros.Engine;
 /// <list type="bullet">
 ///   <item><description><see cref="Idle"/> → <see cref="Recording"/> via <c>StartRecordingAsync</c></description></item>
 ///   <item><description><see cref="Recording"/> → <see cref="Idle"/> via <c>StopRecordingAsync</c> or <c>CancelAsync</c></description></item>
-///   <item><description><see cref="Idle"/> → <see cref="Playing"/> via <c>PlayCurrentAsync</c> / <c>PlayNamedAsync</c></description></item>
+///   <item><description><see cref="Idle"/> → <see cref="Playing"/> via <c>PlayCurrentAsync</c> / <c>PlayByNameAsync</c></description></item>
 ///   <item><description><see cref="Playing"/> → <see cref="Idle"/> when playback completes or is cancelled</description></item>
 /// </list>
 /// Any other transition is invalid and the engine will throw <see cref="System.InvalidOperationException"/>.

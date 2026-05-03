@@ -49,7 +49,6 @@ public sealed class StatusBarObserverTriggeredTests
         public Task StartRecordingAsync(System.Threading.CancellationToken ct = default) => Task.CompletedTask;
         public Task<string> StopRecordingAsync(System.Threading.CancellationToken ct = default) => Task.FromResult("");
         public Task<MacroPlayResult> PlayCurrentAsync(System.Threading.CancellationToken ct = default) => Task.FromResult(new MacroPlayResult(false, "", null, TimeSpan.Zero));
-        public Task PlayNamedAsync(string name, System.Threading.CancellationToken ct = default) => Task.CompletedTask;
         public Task<MacroPlayResult> PlayByNameAsync(string name, MacroScope scope, System.Threading.CancellationToken cancellation = default) => Task.FromResult(new MacroPlayResult(false, "", null, TimeSpan.Zero));
         public Task CancelAsync() => Task.CompletedTask;
         public void CancelActivePlay() { }

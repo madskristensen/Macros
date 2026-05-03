@@ -18,11 +18,6 @@ namespace Macros.Lifecycle;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Closes the M3 deferred TODO in <c>MacrosPackage</c> that read
-/// <c>// TODO(m3-storage-watcher): subscribe to VS.Events.SolutionEvents.OnAfterOpenSolution
-/// / OnAfterCloseSolution to update _solutionDirectory.</c>
-/// </para>
-/// <para>
 /// Lifecycle: constructed once during package init via <see cref="InitializeAsync"/>;
 /// kept alive on a package field so the toolkit's event subscriptions stay rooted; disposed
 /// when the package shuts down. The instance also primes itself on startup so a package

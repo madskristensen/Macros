@@ -651,7 +651,6 @@ public sealed class MacrosToolWindowViewModelTests
         public Task<string> StopRecordingAsync(CancellationToken ct = default) => throw new NotSupportedException();
         public Task<Macros.Engine.Player.MacroPlayResult> PlayCurrentAsync(CancellationToken ct = default)
             => throw new NotSupportedException();
-        public Task PlayNamedAsync(string name, CancellationToken ct = default) => throw new NotSupportedException();
 
         public Task<Macros.Engine.Player.MacroPlayResult> PlayByNameAsync(string name, MacroScope scope, CancellationToken cancellation = default)
         {

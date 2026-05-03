@@ -45,6 +45,17 @@ internal static class SkillInstaller
 
         try
         {
+            // Skip the install entirely when the user does not appear to have Copilot CLI
+            // (or any other %USERPROFILE%\.copilot consumer) on this machine. Creating the
+            // skills folder unconditionally would surprise users who have never opted into
+            // anything Copilot-flavored. The installer remains self-healing: once the
+            // ~/.copilot folder appears (the user installs Copilot CLI), the next package
+            // load picks it up and seeds the bundled skills.
+            if (!IsCopilotEnvironmentPresent())
+            {
+                return;
+            }
+
             string skillRoot = GetSkillRoot();
             Directory.CreateDirectory(skillRoot);
 
@@ -65,6 +76,28 @@ internal static class SkillInstaller
         catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException and not ThreadAbortException)
         {
             await ex.LogAsync().ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
+    /// Returns <see langword="true"/> when <c>%USERPROFILE%\.copilot</c> exists, indicating
+    /// the user has Copilot CLI (or a peer consumer) installed. Used to gate skill seeding
+    /// so non-Copilot users never see a folder appear that they did not ask for.
+    /// </summary>
+    /// <remarks>
+    /// Exposed at <c>internal</c> so unit tests can pin the gating behaviour directly.
+    /// </remarks>
+    internal static bool IsCopilotEnvironmentPresent()
+    {
+        try
+        {
+            string userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            if (string.IsNullOrEmpty(userProfile)) return false;
+            return Directory.Exists(Path.Combine(userProfile, ".copilot"));
+        }
+        catch
+        {
+            return false;
         }
     }
 

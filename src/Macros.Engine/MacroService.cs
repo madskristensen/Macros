@@ -389,28 +389,6 @@ public sealed class MacroService : IMacroService
     }
 
     /// <inheritdoc />
-    public async Task PlayNamedAsync(string name, CancellationToken ct = default)
-    {
-        if (string.IsNullOrWhiteSpace(name))
-        {
-            throw new ArgumentException("Macro name must be non-empty.", nameof(name));
-        }
-
-        ct.ThrowIfCancellationRequested();
-
-        TransitionTo(expected: MacroState.Idle, next: MacroState.Playing);
-        try
-        {
-            // M3 will: load named macro from MacroStore and execute.
-            await Task.Delay(50, ct).ConfigureAwait(false);
-        }
-        finally
-        {
-            TransitionTo(expected: MacroState.Playing, next: MacroState.Idle);
-        }
-    }
-
-    /// <inheritdoc />
     public Task CancelAsync()
     {
         MacroState previous;

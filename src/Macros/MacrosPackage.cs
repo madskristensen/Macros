@@ -107,9 +107,7 @@ public sealed class MacrosPackage : ToolkitPackage
 
     // Solution open / close listener. Owned by the package so its toolkit event
     // subscriptions stay rooted; disposed on package shutdown. Wires the active
-    // solution directory into the repo-folder provider passed to RepoMacroStore,
-    // closing the M3 deferred TODO that read
-    // "TODO(m3-storage-watcher or m3-tool-window): wire solution events".
+    // solution directory into the repo-folder provider passed to RepoMacroStore.
     private SolutionContextTracker? _solutionTracker;
 
     // Keeps the .intellisense/Macros.Intellisense.csx shim files current in both the
@@ -381,6 +379,14 @@ public sealed class MacrosPackage : ToolkitPackage
         // proffered IMacroPlayer service so cache hits are still cross-instance.
         var dispatcherPlayer = new MacroPlayer(JoinableTaskFactory, _scriptCache, dte, new MacroPromptService(), sharedStorage.Value, nuget: null, nugetProgress: nugetProgress);
         var trustPromptService = new TrustPromptService(JoinableTaskFactory, this);
+
+        // Resolve IMacroService eagerly so the dispatchers can raise
+        // TriggeredExecutionStarted/Ended on it for trigger-driven runs. Without this,
+        // the proffered factory wouldn't run until a later consumer (StatusBarObserver,
+        // tool window, …) requested the service, which is too late — the dispatchers
+        // capture the reference at construction time.
+        var triggerMacroService = await GetServiceAsync(typeof(IMacroService)) as IMacroService;
+
         _commandTriggerDispatcher = new CommandTriggerDispatcher(
             _triggerRegistry,
             dispatcherPlayer,
@@ -389,6 +395,7 @@ public sealed class MacrosPackage : ToolkitPackage
             JoinableTaskFactory,
             tracker: _failureTracker,
             guard: reentranceGuard,
+            macroService: triggerMacroService,
             trustGate: trustPromptService.IsAllowedAsync);
 
         // Wire the bus → registry → player pipeline. Without this dispatcher the event bus
@@ -401,6 +408,7 @@ public sealed class MacrosPackage : ToolkitPackage
             dispatcherPlayer,
             JoinableTaskFactory,
             tracker: _failureTracker,
+            macroService: triggerMacroService,
             trustGate: trustPromptService.IsAllowedAsync);
 
         _priorityCommandTarget = await GetServiceAsync(typeof(SVsRegisterPriorityCommandTarget)) as IVsRegisterPriorityCommandTarget;
@@ -660,6 +668,7 @@ public sealed class MacrosPackage : ToolkitPackage
         await RenameCommand.InitializeAsync(this);
         await EditCommand.InitializeAsync(this);
         await NewMacroCommand.InitializeAsync(this);
+        await RefreshCommand.InitializeAsync(this);
         await ToggleTriggersCommand.InitializeAsync(this);
 
         // Context-menu commands

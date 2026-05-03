@@ -1,7 +1,6 @@
 // Wired in MacrosPackage.InitializeAsync.
 
 using System;
-using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using Community.VisualStudio.Toolkit;
@@ -233,33 +232,7 @@ internal static class OnboardingInfoBar
     {
         try
         {
-            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-
-            // TODO(m1-tool-window-empty): once MacrosToolWindow.ShowAsync ships, replace this
-            // reflection probe with a direct static call.
-            Assembly assembly = typeof(OnboardingInfoBar).Assembly;
-            Type? toolWindowType =
-                assembly.GetType("Macros.ToolWindows.MacrosToolWindow", throwOnError: false)
-                ?? assembly.GetType("Macros.MacrosToolWindow", throwOnError: false);
-
-            if (toolWindowType == null)
-            {
-                return;
-            }
-
-            MethodInfo? showMethod = toolWindowType.GetMethod(
-                "ShowAsync",
-                BindingFlags.Public | BindingFlags.Static);
-
-            if (showMethod == null)
-            {
-                return;
-            }
-
-            if (showMethod.Invoke(null, parameters: null) is Task task)
-            {
-                await task;
-            }
+            await Macros.ToolWindows.MacrosToolWindow.ShowAsync();
         }
         catch (Exception ex)
         {

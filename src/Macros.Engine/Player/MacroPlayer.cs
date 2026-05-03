@@ -194,17 +194,45 @@ internal sealed class MacroPlayer : IMacroPlayer
     }
 
     private Script<object> CompileScript(string src, string? csxFilePath) =>
-        CSharpScript.Create<object>(src, BuildScriptOptions(), typeof(MacroGlobals));
+        CSharpScript.Create<object>(src, BuildScriptOptions(csxFilePath), typeof(MacroGlobals));
 
     /// <summary>
-    /// Builds a cache key that incorporates both the source text and the file path.
+    /// Builds a cache key that incorporates both the source text and the (normalized)
+    /// macro file path. The same source text in two different folders must compile to
+    /// distinct <see cref="Script{T}"/> instances because relative <c>#load</c> directives
+    /// resolve against the macro's directory — sharing the cache entry would route them
+    /// to the wrong base directory.
     /// </summary>
-    private static string BuildCacheKey(string source, string? csxFilePath) => source;
+    private static string BuildCacheKey(string source, string? csxFilePath)
+    {
+        if (string.IsNullOrEmpty(csxFilePath)) return source;
+        // OrdinalIgnoreCase mirrors NTFS path comparison; full-path normalization
+        // collapses "..\" segments and case differences. A failure to canonicalize
+        // (e.g. an exotic path) falls back to the literal value — still distinct
+        // from null and from other literals, which preserves correctness.
+        string normalized;
+        try { normalized = Path.GetFullPath(csxFilePath!); }
+        catch { normalized = csxFilePath!; }
+        return string.Concat(normalized.ToUpperInvariant(), "\u0000", source);
+    }
 
-    private ScriptOptions BuildScriptOptions() =>
-        ScriptOptions.Default
+    private ScriptOptions BuildScriptOptions(string? csxFilePath)
+    {
+        // baseDirectory drives where relative #load directives resolve. When the macro has
+        // a known on-disk location, root the resolver at the macro's folder so user-authored
+        // `#load "shared.csx"` finds a sibling file. When the macro is in-memory (current.csx
+        // before save, recorded-not-yet-saved, unit tests), we leave it null and #load only
+        // resolves shim references via the file-name match.
+        string? baseDir = null;
+        if (!string.IsNullOrEmpty(csxFilePath))
+        {
+            try { baseDir = Path.GetDirectoryName(Path.GetFullPath(csxFilePath!)); }
+            catch { baseDir = null; }
+        }
+
+        var options = ScriptOptions.Default
             .WithMetadataResolver(new NuGetMetadataReferenceResolver(InteropAwareMetadataResolver.Instance, _nuget, _nugetProgress))
-            .WithSourceResolver(SkipIntelliSenseShimSourceResolver.Instance)
+            .WithSourceResolver(new SkipIntelliSenseShimSourceResolver(baseDir))
             .WithReferences(
                 // Macros.Engine — Helpers, MacroContext, ReplayGuard.
                 typeof(MacroGlobals).Assembly,
@@ -224,6 +252,16 @@ internal sealed class MacroPlayer : IMacroPlayer
                 "Macros.Engine.Scripting.Helpers",
                 "Macros.Engine.Recording.ReplayGuard",
                 "Community.VisualStudio.Toolkit.VS");
+
+        if (!string.IsNullOrEmpty(csxFilePath))
+        {
+            // WithFilePath surfaces the path in Roslyn diagnostics (Error List navigation,
+            // exception stack traces) instead of the script's anonymous <Submission> name.
+            options = options.WithFilePath(csxFilePath);
+        }
+
+        return options;
+    }
 
     /// <summary>
     /// Resolves <c>#r "EnvDTE"</c> and <c>#r "EnvDTE80"</c> directives that the codegen emits
@@ -304,20 +342,25 @@ internal sealed class MacroPlayer : IMacroPlayer
     /// shim (<c>Macros.Intellisense.csx</c>). The shim exists for the editor — its global
     /// stubs (<c>DTE = null!</c>, etc.) would shadow the real <see cref="MacroGlobals"/>
     /// at runtime if compiled in. All other <c>#load</c> directives are forwarded to
-    /// <see cref="SourceFileResolver"/> so user-authored multi-file scripts keep working.
+    /// <see cref="SourceFileResolver"/> (rooted at the macro's directory when available,
+    /// so user-authored <c>#load "shared.csx"</c> resolves to a sibling file).
     /// </summary>
     private sealed class SkipIntelliSenseShimSourceResolver : SourceReferenceResolver
     {
-        public static readonly SkipIntelliSenseShimSourceResolver Instance = new();
-
         private const string ShimFileName = "Macros.Intellisense.csx";
+        private const string SentinelPath = "<<macros-intellisense-shim>>";
 
-        private static readonly SourceFileResolver Inner = new(ImmutableArray<string>.Empty, baseDirectory: null);
+        private readonly SourceFileResolver _inner;
+        private readonly string? _baseDirectory;
 
-        private SkipIntelliSenseShimSourceResolver() { }
+        public SkipIntelliSenseShimSourceResolver(string? baseDirectory)
+        {
+            _baseDirectory = baseDirectory;
+            _inner = new SourceFileResolver(ImmutableArray<string>.Empty, baseDirectory);
+        }
 
         public override string? NormalizePath(string path, string? baseFilePath) =>
-            Inner.NormalizePath(path, baseFilePath);
+            _inner.NormalizePath(path, baseFilePath);
 
         public override string? ResolveReference(string path, string? baseFilePath)
         {
@@ -328,7 +371,7 @@ internal sealed class MacroPlayer : IMacroPlayer
                 return SentinelPath;
             }
 
-            return path is null ? null : Inner.ResolveReference(path, baseFilePath);
+            return path is null ? null : _inner.ResolveReference(path, baseFilePath);
         }
 
         public override Stream OpenRead(string resolvedPath)
@@ -338,13 +381,18 @@ internal sealed class MacroPlayer : IMacroPlayer
                 return new MemoryStream(Array.Empty<byte>(), writable: false);
             }
 
-            return Inner.OpenRead(resolvedPath);
+            return _inner.OpenRead(resolvedPath);
         }
 
-        public override int GetHashCode() => 0;
-        public override bool Equals(object? other) => other is SkipIntelliSenseShimSourceResolver;
+        // Roslyn requires value equality on resolvers so logically identical script
+        // options can share Compilation state. Two resolvers are equal iff they share
+        // the same base directory (case-insensitive on Windows).
+        public override int GetHashCode() =>
+            _baseDirectory == null ? 0 : StringComparer.OrdinalIgnoreCase.GetHashCode(_baseDirectory);
 
-        private const string SentinelPath = "<<macros-intellisense-shim>>";
+        public override bool Equals(object? other) =>
+            other is SkipIntelliSenseShimSourceResolver r &&
+            string.Equals(_baseDirectory, r._baseDirectory, StringComparison.OrdinalIgnoreCase);
 
         private static bool IsShim(string path)
         {

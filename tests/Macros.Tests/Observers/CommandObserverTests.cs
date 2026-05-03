@@ -508,7 +508,6 @@ public sealed class CommandObserverTests
         public Task<string> StopRecordingAsync(CancellationToken ct = default) => Task.FromResult(string.Empty);
         public Task<MacroPlayResult> PlayCurrentAsync(CancellationToken ct = default)
             => Task.FromResult(new MacroPlayResult(false, null, null, TimeSpan.Zero));
-        public Task PlayNamedAsync(string name, CancellationToken ct = default) => Task.CompletedTask;
         public Task<MacroPlayResult> PlayByNameAsync(string name, MacroScope scope, CancellationToken cancellation = default)
             => Task.FromResult(new MacroPlayResult(false, null, null, TimeSpan.Zero));
         public Task CancelAsync() => Task.CompletedTask;

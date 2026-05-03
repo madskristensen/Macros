@@ -42,8 +42,8 @@ public sealed class MacroPlayerShimSkipTests
             _player = new MacroPlayer(_jtf, new ScriptCompilationCache(), Mock.Of<DTE2>());
         }
 
-        public MacroPlayResult Play(string source, string macroName = "test") =>
-            _jtf.Run(() => _player.PlayAsync(source, macroName, trigger: null, CancellationToken.None));
+        public MacroPlayResult Play(string source, string macroName = "test", string? csxFilePath = null) =>
+            _jtf.Run(() => _player.PlayAsync(source, macroName, trigger: null, CancellationToken.None, csxFilePath));
     }
 
     // ── tests ─────────────────────────────────────────────────────────────────────────
@@ -149,5 +149,106 @@ public sealed class MacroPlayerShimSkipTests
 
         Assert.True(result.Success, result.CompilationError ?? result.RuntimeError?.ToString() ?? "no error");
         Assert.Null(result.CompilationError);
+    }
+
+    /// <summary>
+    /// Regression: when a macro file path is supplied, relative <c>#load</c> directives
+    /// must resolve against the macro's own directory so user-authored multi-file scripts
+    /// (e.g. <c>#load "shared.csx"</c> next to the macro) work as expected. Previously
+    /// the player ignored the path and forwarded to a <c>SourceFileResolver</c> rooted at
+    /// <c>baseDirectory: null</c>, which broke every relative include.
+    /// </summary>
+    [Fact]
+    public void Play_WithRelativeLoad_ResolvesAgainstMacroFolder()
+    {
+        var dir = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "MacrosCsxPathTest_" + System.Guid.NewGuid().ToString("N"));
+        System.IO.Directory.CreateDirectory(dir);
+        try
+        {
+            string sharedPath = System.IO.Path.Combine(dir, "shared.csx");
+            System.IO.File.WriteAllText(sharedPath, "int sharedValue = 42;\n");
+
+            string macroPath = System.IO.Path.Combine(dir, "main.csx");
+            const string source = "#load \"shared.csx\"\nif (sharedValue != 42) throw new System.Exception(\"sharedValue not loaded\");\n";
+
+            var harness = new PlayerHarness();
+            MacroPlayResult result = harness.Play(source, macroName: "main", csxFilePath: macroPath);
+
+            Assert.True(result.Success, result.CompilationError ?? result.RuntimeError?.ToString() ?? "no error");
+            Assert.Null(result.CompilationError);
+            Assert.Null(result.RuntimeError);
+        }
+        finally
+        {
+            try { System.IO.Directory.Delete(dir, recursive: true); } catch { /* best-effort */ }
+        }
+    }
+
+    /// <summary>
+    /// Regression: identical source text at two different macro paths must NOT share the
+    /// compiled-script cache entry, because <c>#load</c> resolution depends on the macro's
+    /// directory. Previously the cache key was <c>source</c> alone, aliasing all paths.
+    /// </summary>
+    [Fact]
+    public void Play_SameSource_DifferentPaths_AreCachedSeparately()
+    {
+        var dirA = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "MacrosCacheKeyA_" + System.Guid.NewGuid().ToString("N"));
+        var dirB = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "MacrosCacheKeyB_" + System.Guid.NewGuid().ToString("N"));
+        System.IO.Directory.CreateDirectory(dirA);
+        System.IO.Directory.CreateDirectory(dirB);
+        try
+        {
+            // Each folder has its own shared.csx with a DIFFERENT integer value. If the
+            // player aliased these two paths in the cache, the second play would observe
+            // the first folder's value and the assertion would fire.
+            System.IO.File.WriteAllText(System.IO.Path.Combine(dirA, "shared.csx"), "int sharedValue = 1;\n");
+            System.IO.File.WriteAllText(System.IO.Path.Combine(dirB, "shared.csx"), "int sharedValue = 2;\n");
+
+            const string source = "#load \"shared.csx\"\nif (sharedValue != EXPECTED) throw new System.Exception(\"got \" + sharedValue);\n";
+
+            var harness = new PlayerHarness();
+
+            string macroA = System.IO.Path.Combine(dirA, "main.csx");
+            string macroB = System.IO.Path.Combine(dirB, "main.csx");
+
+            MacroPlayResult resultA = harness.Play(source.Replace("EXPECTED", "1"), macroName: "a", csxFilePath: macroA);
+            Assert.True(resultA.Success, resultA.CompilationError ?? resultA.RuntimeError?.ToString());
+
+            MacroPlayResult resultB = harness.Play(source.Replace("EXPECTED", "2"), macroName: "b", csxFilePath: macroB);
+            Assert.True(resultB.Success, resultB.CompilationError ?? resultB.RuntimeError?.ToString());
+        }
+        finally
+        {
+            try { System.IO.Directory.Delete(dirA, recursive: true); } catch { }
+            try { System.IO.Directory.Delete(dirB, recursive: true); } catch { }
+        }
+    }
+
+    /// <summary>
+    /// Regression: the shim skip must continue to work when a macro file path is supplied.
+    /// </summary>
+    [Fact]
+    public void Play_WithShimLoad_AndPath_StillSkipsShim()
+    {
+        var dir = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "MacrosShimPathTest_" + System.Guid.NewGuid().ToString("N"));
+        System.IO.Directory.CreateDirectory(dir);
+        try
+        {
+            string macroPath = System.IO.Path.Combine(dir, "main.csx");
+
+            const string source =
+                "#load \".intellisense/Macros.Intellisense.csx\"\n" +
+                "int x = 1 + 1;\n";
+
+            var harness = new PlayerHarness();
+            MacroPlayResult result = harness.Play(source, macroName: "main", csxFilePath: macroPath);
+
+            Assert.True(result.Success, result.CompilationError ?? result.RuntimeError?.ToString() ?? "no error");
+            Assert.Null(result.CompilationError);
+        }
+        finally
+        {
+            try { System.IO.Directory.Delete(dir, recursive: true); } catch { }
+        }
     }
 }

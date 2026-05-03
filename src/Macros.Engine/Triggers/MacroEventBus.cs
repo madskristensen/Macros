@@ -5,7 +5,6 @@ using System.Diagnostics;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
-using System.Threading.Tasks;
 
 namespace Macros.Engine.Triggers;
 
@@ -48,7 +47,6 @@ internal sealed class MacroEventBus : IMacroEventBus
     private readonly IReadOnlyList<KnownVsEvent> _knownEvents;
     private readonly Func<Type, object?> _instanceResolver;
     private readonly ConcurrentDictionary<Type, object> _categoryInstanceCache = new();
-    private readonly TriggerWorkQueue? _queue;
     private readonly Func<bool>? _isDisabledProvider;
     private readonly TriggerReentranceGuard? _reentranceGuard;
 
@@ -56,10 +54,7 @@ internal sealed class MacroEventBus : IMacroEventBus
 
     /// <summary>
     /// Production constructor: discovers events via the toolkit catalog.
-    /// Pass a <see cref="TriggerWorkQueue"/> to dispatch listeners serially via the queue;
-    /// omit (or pass <see langword="null"/>) for the original synchronous in-loop behaviour.
     /// </summary>
-    /// <param name="queue">Optional work queue for serial dispatch.</param>
     /// <param name="isDisabledProvider">
     /// Optional kill-switch callback. When it returns <see langword="true"/> the bus silently
     /// drops the VS event — listeners are not invoked. Production wiring:
@@ -69,11 +64,10 @@ internal sealed class MacroEventBus : IMacroEventBus
     /// <param name="guard">Optional reentrance guard. When supplied, a listener re-firing the
     /// same event (or depth-exceeding recursive chains) is suppressed silently.</param>
     public MacroEventBus(
-        TriggerWorkQueue? queue = null,
         Func<bool>? isDisabledProvider = null,
         TriggerReentranceGuard? guard = null,
         bool prewarmCategoryInstances = false)
-        : this(KnownEvents.All, DefaultResolveCategoryInstance, queue, isDisabledProvider, guard, prewarmCategoryInstances)
+        : this(KnownEvents.All, DefaultResolveCategoryInstance, isDisabledProvider, guard, prewarmCategoryInstances)
     {
     }
 
@@ -85,14 +79,12 @@ internal sealed class MacroEventBus : IMacroEventBus
     internal MacroEventBus(
         IReadOnlyList<KnownVsEvent> knownEvents,
         Func<Type, object?> instanceResolver,
-        TriggerWorkQueue? queue = null,
         Func<bool>? isDisabledProvider = null,
         TriggerReentranceGuard? guard = null,
         bool prewarmCategoryInstances = false)
     {
         _knownEvents = knownEvents ?? throw new ArgumentNullException(nameof(knownEvents));
         _instanceResolver = instanceResolver ?? throw new ArgumentNullException(nameof(instanceResolver));
-        _queue = queue;
         _isDisabledProvider = isDisabledProvider;
         _reentranceGuard = guard;
 
@@ -278,46 +270,22 @@ internal sealed class MacroEventBus : IMacroEventBus
             var l = listener;
             var canonicalName = entry.KnownEvent.CanonicalName;
             var key = $"event:{canonicalName}";
-            if (_queue != null)
-            {
-                var guard = _reentranceGuard;
-                _ = _queue.EnqueueAsync(() =>
-                {
-                    IDisposable? scope = null;
-                    if (guard != null && !guard.TryEnter(key, out scope))
-                    {
-                        return Task.CompletedTask; // suppressed — recursive firing or depth exceeded
-                    }
 
-                    using (scope)
-                    {
-                        try { l(evt); }
-                        catch (Exception ex)
-                        {
-                            Debug.WriteLine($"Macros bus: queued listener for '{canonicalName}' threw: {ex}");
-                        }
-                    }
-                    return Task.CompletedTask;
-                });
+            IDisposable? scope = null;
+            if (_reentranceGuard != null && !_reentranceGuard.TryEnter(key, out scope))
+            {
+                continue; // suppressed — recursive firing or depth exceeded
             }
-            else
-            {
-                IDisposable? scope = null;
-                if (_reentranceGuard != null && !_reentranceGuard.TryEnter(key, out scope))
-                {
-                    continue; // suppressed — recursive firing or depth exceeded
-                }
 
-                using (scope)
+            using (scope)
+            {
+                try
                 {
-                    try
-                    {
-                        l(evt);
-                    }
-                    catch (Exception ex)
-                    {
-                        Debug.WriteLine($"Macros bus: listener for '{canonicalName}' threw: {ex}");
-                    }
+                    l(evt);
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Macros bus: listener for '{canonicalName}' threw: {ex}");
                 }
             }
         }

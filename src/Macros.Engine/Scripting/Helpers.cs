@@ -326,6 +326,14 @@ public static class Helpers
                 $"Macro '{name}' was not found in either the repo or global scope.");
         }
 
+        // Resolve the on-disk path for the nested macro so the player can root #load
+        // directives at the macro's folder and surface the path in diagnostics. Best-effort
+        // — a throw here (e.g. invalid name guarded inside the store) falls through to a
+        // null path, which keeps playback working without the path-aware features.
+        string? csxFilePath = null;
+        try { csxFilePath = store.GetMacroPath(name, resolvedScope); }
+        catch { /* path is informational; player handles null cleanly */ }
+
         // Re-entrance + depth guard, keyed by resolved (scope, name) so a global "fmt" calling a
         // repo "fmt" is allowed; a self-call (same scope+name) is not.
         string key = $"{resolvedScope}:{name}".ToUpperInvariant();
@@ -357,7 +365,7 @@ public static class Helpers
                 name,
                 ManualMacroTrigger.Instance,
                 linked.Token,
-                csxFilePath: null).ConfigureAwait(false);
+                csxFilePath: csxFilePath).ConfigureAwait(false);
 
             if (result.Success)
             {

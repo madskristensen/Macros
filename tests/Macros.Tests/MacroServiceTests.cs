@@ -104,29 +104,6 @@ public sealed class MacroServiceTests
     }
 
     [Fact]
-    public async Task PlayNamedAsync_CyclesPlayingThenIdle()
-    {
-        var svc = CreateService();
-        var events = CaptureStateChanges(svc);
-
-        await svc.PlayNamedAsync("sample");
-
-        Assert.Equal(MacroState.Idle, svc.State);
-        Assert.Equal(2, events.Count);
-        Assert.Equal(MacroState.Playing, events[0].NewState);
-        Assert.Equal(MacroState.Idle, events[1].NewState);
-    }
-
-    [Fact]
-    public async Task PlayNamedAsync_WithEmptyName_Throws()
-    {
-        var svc = CreateService();
-
-        await Assert.ThrowsAsync<ArgumentException>(() => svc.PlayNamedAsync(""));
-        Assert.Equal(MacroState.Idle, svc.State);
-    }
-
-    [Fact]
     public async Task CancelAsync_FromIdle_IsNoOp()
     {
         var svc = CreateService();

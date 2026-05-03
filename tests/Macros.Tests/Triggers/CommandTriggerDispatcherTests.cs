@@ -394,6 +394,99 @@ public sealed class CommandTriggerDispatcherTests
         Assert.Equal(1, tracker.Failures);
     }
 
+    [Fact]
+    public void DispatchBefore_WithMacroService_RaisesTriggeredStartedAndEnded()
+    {
+        // Regression: MacrosPackage previously constructed both dispatchers without
+        // passing macroService, so triggered runs never raised TriggeredExecutionStarted/
+        // Ended and the status-bar observer stayed dark for trigger-driven macros.
+        var entry = MakeEntry("Logger", SampleCommand);
+        var registry = new FakeRegistry();
+        registry.BeforeMatches[SampleCommand] = new List<TriggerMatch>
+        {
+            new(entry, new TriggerBinding(TriggerKind.BeforeCommand, SampleCommand)),
+        };
+        var player = new FakePlayer
+        {
+            OnPlay = (src, name, trigger, ct) => Task.FromResult(SuccessResult()),
+        };
+        var cache = CreateNameCache(SampleGroup, SampleId, SampleCommand);
+
+#pragma warning disable VSSDK005
+        var ctx = new JoinableTaskContext();
+#pragma warning restore VSSDK005
+        var svc = new Macros.Engine.MacroService(ctx.Factory);
+        var started = new List<Macros.Engine.TriggeredExecutionEventArgs>();
+        var ended = new List<Macros.Engine.TriggeredExecutionEventArgs>();
+        svc.TriggeredExecutionStarted += (_, e) => started.Add(e);
+        svc.TriggeredExecutionEnded += (_, e) => ended.Add(e);
+
+        var dispatcher = new CommandTriggerDispatcher(
+            registry, player, cache,
+            beforeTimeoutMsProvider: () => 1000,
+            jtf: ctx.Factory,
+            sourceLoader: _ => "// source",
+            macroService: svc);
+
+        dispatcher.DispatchBefore(SampleGroup, SampleId);
+
+        var s = Assert.Single(started);
+        Assert.Equal(entry.Name, s.MacroName);
+        Assert.Equal(SampleCommand, s.TriggerName);
+        Assert.Equal(TriggerKind.BeforeCommand, s.Kind);
+
+        var e = Assert.Single(ended);
+        Assert.Equal(entry.Name, e.MacroName);
+    }
+
+    [Fact]
+    public async Task DispatchAfter_WithMacroService_RaisesTriggeredStartedAndEnded()
+    {
+        var entry = MakeEntry("AfterLogger", SampleCommand, TriggerKind.AfterCommand);
+        var registry = new FakeRegistry();
+        registry.AfterMatches[SampleCommand] = new List<TriggerMatch>
+        {
+            new(entry, new TriggerBinding(TriggerKind.AfterCommand, SampleCommand)),
+        };
+        var played = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var player = new FakePlayer
+        {
+            OnPlay = (src, name, trigger, ct) =>
+            {
+                played.TrySetResult(true);
+                return Task.FromResult(SuccessResult());
+            },
+        };
+        var cache = CreateNameCache(SampleGroup, SampleId, SampleCommand);
+
+#pragma warning disable VSSDK005
+        var ctx = new JoinableTaskContext();
+#pragma warning restore VSSDK005
+        var svc = new Macros.Engine.MacroService(ctx.Factory);
+        var started = new List<Macros.Engine.TriggeredExecutionEventArgs>();
+        var ended = new List<Macros.Engine.TriggeredExecutionEventArgs>();
+        svc.TriggeredExecutionStarted += (_, e) => started.Add(e);
+        svc.TriggeredExecutionEnded += (_, e) => ended.Add(e);
+
+        var dispatcher = new CommandTriggerDispatcher(
+            registry, player, cache,
+            beforeTimeoutMsProvider: () => 1000,
+            jtf: ctx.Factory,
+            sourceLoader: _ => "// source",
+            macroService: svc);
+
+        dispatcher.DispatchAfter(SampleGroup, SampleId);
+
+        await played.Task;
+        // AfterCommand is fire-and-forget; let the JoinableTask complete before asserting.
+        await Task.Delay(50);
+
+        Assert.Single(started);
+        Assert.Single(ended);
+        Assert.Equal(entry.Name, started[0].MacroName);
+        Assert.Equal(TriggerKind.AfterCommand, started[0].Kind);
+    }
+
     private static MacroPlayResult SuccessResult() =>
         new(Success: true, CompilationError: null, RuntimeError: null, Duration: TimeSpan.Zero);
 

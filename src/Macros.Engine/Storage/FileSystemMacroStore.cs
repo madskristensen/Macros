@@ -174,13 +174,11 @@ public sealed class FileSystemMacroStore : IMacroStore, IDisposable
     /// <see langword="null"/>, repo-scoped operations throw
     /// <see cref="InvalidOperationException"/>.
     /// <para>
-    /// NOTE: The <see cref="FileSystemWatcher"/> for the repo folder binds to the path
-    /// returned by the <em>first</em> invocation of this provider (see
-    /// <c>EnsureWatchersStarted</c>). If the provider returns a different path later
-    /// (e.g., user switches solutions), the watcher does <em>not</em> restart —
-    /// named-macro operations route correctly but external file changes in the new path
-    /// won't raise <see cref="LibraryChanged"/>. Track via
-    /// <c>m5-watcher-restart-on-solution-change</c>.
+    /// The <see cref="FileSystemWatcher"/> for the repo folder follows the active
+    /// solution: <see cref="EnsureWatchersStarted"/> compares the watcher's bound path
+    /// with the provider's current value and recreates the watcher when the user opens,
+    /// closes, or switches solutions. Callers should invoke
+    /// <see cref="EnsureWatchersStarted"/> from a solution-change handler.
     /// </para>
     /// </param>
     /// <exception cref="ArgumentNullException"><paramref name="repoFolderProvider"/> is null.</exception>
@@ -973,12 +971,17 @@ public sealed class FileSystemMacroStore : IMacroStore, IDisposable
     /// something actually subscribes.
     /// </summary>
     /// <remarks>
-    /// NOTE: The repo watcher binds to the path returned by the <em>first</em> invocation
-    /// of <c>repoFolderProvider</c> at which the folder exists on disk. If the provider
-    /// returns a different path later (e.g., the user switches solutions without closing
-    /// the IDE), the watcher does <em>not</em> restart — named-macro operations route to
-    /// the new path correctly, but external file changes in the new path will not raise
-    /// <see cref="LibraryChanged"/>. Track via <c>m5-watcher-restart-on-solution-change</c>.
+    /// The repo watcher follows the active solution. On every call this method:
+    /// <list type="bullet">
+    ///   <item>starts a new watcher if none exists and the current provider yields an existing folder;</item>
+    ///   <item>tears down the existing watcher and starts a fresh one when the current
+    ///         provider yields a <em>different</em> folder (solution switch);</item>
+    ///   <item>tears down the existing watcher when the current provider yields
+    ///         <see langword="null"/> or a non-existent folder (solution closed).</item>
+    /// </list>
+    /// Path comparison is case-insensitive ordinal (NTFS semantics) and uses
+    /// <see cref="Path.GetFullPath(string)"/> normalization so trailing-separator differences
+    /// don't trigger spurious restarts.
     /// </remarks>
     internal void EnsureWatchersStarted()
     {
@@ -990,10 +993,57 @@ public sealed class FileSystemMacroStore : IMacroStore, IDisposable
             }
 
             var repoFolder = _repoFolderProvider?.Invoke();
-            if (_repoWatcher == null && !string.IsNullOrEmpty(repoFolder) && Directory.Exists(repoFolder!))
+            string? normalizedNew = TryNormalize(repoFolder);
+            string? normalizedCurrent = TryNormalize(_repoWatcher?.Path);
+
+            // Solution closed (or no solution active) → tear down any existing watcher.
+            if (string.IsNullOrEmpty(normalizedNew) || !Directory.Exists(repoFolder!))
             {
-                _repoWatcher = StartWatcher(repoFolder!, MacroScope.Repo);
+                if (_repoWatcher != null)
+                {
+                    DisposeWatcher(_repoWatcher);
+                    _repoWatcher = null;
+                }
+                return;
             }
+
+            // Solution unchanged from the watcher's perspective → nothing to do.
+            if (_repoWatcher != null &&
+                string.Equals(normalizedCurrent, normalizedNew, StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            // Solution switched → recreate the watcher rooted at the new folder.
+            if (_repoWatcher != null)
+            {
+                DisposeWatcher(_repoWatcher);
+                _repoWatcher = null;
+            }
+
+            _repoWatcher = StartWatcher(repoFolder!, MacroScope.Repo);
+        }
+    }
+
+    private static string? TryNormalize(string? path)
+    {
+        if (string.IsNullOrEmpty(path)) return null;
+        try { return Path.GetFullPath(path!).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar); }
+        catch { return path; }
+    }
+
+    private static void DisposeWatcher(FileSystemWatcher w)
+    {
+        try
+        {
+            w.EnableRaisingEvents = false;
+            w.Dispose();
+        }
+        catch
+        {
+            // Disposal-during-shutdown races: best-effort, never throw to the caller
+            // because EnsureWatchersStarted is invoked from event handlers and a throw
+            // would tear down the surrounding event source.
         }
     }
 

@@ -140,17 +140,6 @@ public interface IMacroService
     Task<MacroPlayResult> PlayCurrentAsync(CancellationToken ct = default);
 
     /// <summary>
-    /// Loads a macro by name from the macro store and plays it back.
-    /// Transitions <see cref="MacroState.Idle"/> → <see cref="MacroState.Playing"/> → <see cref="MacroState.Idle"/>.
-    /// </summary>
-    /// <param name="name">Logical name of the macro to load (without file extension).</param>
-    /// <param name="ct">Token that cancels playback at the next safe point.</param>
-    /// <returns>A task that completes when playback finishes (or is cancelled).</returns>
-    /// <exception cref="ArgumentException"><paramref name="name"/> is null or whitespace.</exception>
-    /// <exception cref="InvalidOperationException">The engine is not in <see cref="MacroState.Idle"/>.</exception>
-    Task PlayNamedAsync(string name, CancellationToken ct = default);
-
-    /// <summary>
     /// Loads the macro identified by <paramref name="name"/> and <paramref name="scope"/>
     /// from the macro store and plays it back. Transitions
     /// <see cref="MacroState.Idle"/> → <see cref="MacroState.Playing"/> → <see cref="MacroState.Idle"/>

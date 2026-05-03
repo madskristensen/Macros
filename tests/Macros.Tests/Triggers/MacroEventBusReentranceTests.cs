@@ -34,7 +34,6 @@ public sealed class MacroEventBusReentranceTests
         var bus = new MacroEventBus(
             new[] { known },
             t => t == typeof(FakeSource) ? source : null,
-            queue: null,
             isDisabledProvider: null,
             guard: guard);
 
@@ -150,7 +149,6 @@ public sealed class MacroEventBusReentranceTests
         var bus1 = new MacroEventBus(
             new[] { known1 },
             t => t == typeof(FakeSource) ? src1 : null,
-            queue: null,
             isDisabledProvider: null,
             guard: guard);
 
