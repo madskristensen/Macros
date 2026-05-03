@@ -34,8 +34,10 @@ namespace Macros.Engine.Codegen;
 ///     directives are provided by the shim's <c>#load</c> and by
 ///     <see cref="Player.MacroPlayer"/>'s <c>ScriptOptions.WithImports</c>, so the
 ///     macro file itself needs none;
-/// (3) emits one helper call per step preceded by an inline
-///     <c>// step N: …</c> comment that mirrors the source <see cref="RecordedStep"/>.
+/// (3) emits one helper call per step; the source of each step's <see cref="RecordedStep"/>
+///     subtype is implicit in the helper name (<c>OpenFileAsync</c>, <c>TypeAsync</c>, …).
+///     <em>No</em> per-step <c>// step N</c> comment is emitted — they added noise without
+///     adding value; users editing macros only care about the actual code.
 /// </para>
 /// <para>
 /// <b>Line endings.</b> All emitted line breaks are bare <c>\n</c>. Roslyn's
@@ -96,7 +98,7 @@ public static class CSharpCodeGenerator
 
         for (int i = 0; i < emittable.Count; i++)
         {
-            EmitStep(sb, emittable[i], stepNumber: i + 1);
+            EmitStep(sb, emittable[i]);
         }
 
         return sb.ToString();
@@ -146,49 +148,52 @@ public static class CSharpCodeGenerator
         sb.Append('\n');
     }
 
-    private static void EmitStep(StringBuilder sb, RecordedStep step, int stepNumber)
+    private static void EmitStep(StringBuilder sb, RecordedStep step)
     {
         switch (step)
         {
             case RecordedStep.CommandStep cmd:
-                EmitCommandStep(sb, cmd, stepNumber);
+                EmitCommandStep(sb, cmd);
                 break;
             case RecordedStep.FileOpenStep fileOpen:
-                EmitFileOpenStep(sb, fileOpen, stepNumber);
+                EmitFileOpenStep(sb, fileOpen);
                 break;
             case RecordedStep.FileCloseStep fileClose:
-                EmitFileCloseStep(sb, fileClose, stepNumber);
+                EmitFileCloseStep(sb, fileClose);
+                break;
+            case RecordedStep.ToolWindowClosedStep twClose:
+                EmitToolWindowClosedStep(sb, twClose);
                 break;
             case TextEditStep edit:
-                EmitTextEditStep(sb, edit, stepNumber);
+                EmitTextEditStep(sb, edit);
                 break;
             default:
                 // Defensive: a future RecordedStep subtype that lands before this
                 // generator is updated still produces parseable output rather than
                 // throwing at codegen time and stranding the user's recording.
-                sb.Append("// step ").Append(stepNumber)
-                  .Append(": unknown step kind ")
+                sb.Append("// unknown step kind ")
                   .Append(step.GetType().Name)
                   .Append(" (skipped — generator needs an update)\n");
                 break;
         }
     }
 
-    private static void EmitFileOpenStep(StringBuilder sb, RecordedStep.FileOpenStep step, int stepNumber)
+    private static void EmitFileOpenStep(StringBuilder sb, RecordedStep.FileOpenStep step)
     {
-        sb.Append("// step ").Append(stepNumber)
-          .Append(": open ").Append(step.Path).Append('\n');
         sb.Append("await OpenFileAsync(").Append(QuoteVerbatim(step.Path)).Append(");\n");
     }
 
-    private static void EmitFileCloseStep(StringBuilder sb, RecordedStep.FileCloseStep step, int stepNumber)
+    private static void EmitFileCloseStep(StringBuilder sb, RecordedStep.FileCloseStep step)
     {
-        sb.Append("// step ").Append(stepNumber)
-          .Append(": close ").Append(step.Path).Append('\n');
         sb.Append("await CloseFileAsync(").Append(QuoteVerbatim(step.Path)).Append(");\n");
     }
 
-    private static void EmitCommandStep(StringBuilder sb, RecordedStep.CommandStep cmd, int stepNumber)
+    private static void EmitToolWindowClosedStep(StringBuilder sb, RecordedStep.ToolWindowClosedStep step)
+    {
+        sb.Append("await CloseToolWindowAsync(").Append(QuoteRegular(step.Caption)).Append(");\n");
+    }
+
+    private static void EmitCommandStep(StringBuilder sb, RecordedStep.CommandStep cmd)
     {
         // Generate() pre-filters via IsEmittable — Name is guaranteed non-null and regex-matched here.
         if (string.IsNullOrWhiteSpace(cmd.Name) || !DteNameRegex.IsMatch(cmd.Name!))
@@ -198,49 +203,32 @@ public static class CSharpCodeGenerator
                 "IsEmittable should have filtered this step out.");
         }
 
-        sb.Append("// step ").Append(stepNumber)
-          .Append(": command ").Append(cmd.Name).Append('\n');
         sb.Append("await ExecuteCommandAsync(").Append(QuoteRegular(cmd.Name!)).Append(");\n");
     }
 
-    private static void EmitTextEditStep(StringBuilder sb, TextEditStep edit, int stepNumber)
+    private static void EmitTextEditStep(StringBuilder sb, TextEditStep edit)
     {
         bool hasInsert = !string.IsNullOrEmpty(edit.NewText);
         bool hasDelete = edit.OldLength > 0;
 
         if (!hasInsert && !hasDelete)
         {
-            // OldLength==0 AND NewText=="" should never escape the aggregator, but
-            // emit a self-describing comment rather than silently dropping the step
-            // so a recorder bug shows up in the generated source instead of as a
-            // mysterious off-by-one in playback.
-            sb.Append("// step ").Append(stepNumber)
-              .Append(": no-op text edit @ pos ")
-              .Append(edit.OldPosition.ToString(CultureInfo.InvariantCulture))
-              .Append(" (skipped)\n");
+            // OldLength==0 AND NewText=="" should never escape the aggregator, but emit
+            // nothing rather than silently dropping the step so a recorder bug becomes
+            // visible as an unexplained "skipped" entry rather than a mysterious off-by-one
+            // in playback.
+            sb.Append("// (no-op text edit skipped)\n");
             return;
         }
 
         if (hasInsert && !hasDelete)
         {
-            sb.Append("// step ").Append(stepNumber)
-              .Append(": insert ")
-              .Append(edit.NewText.Length.ToString(CultureInfo.InvariantCulture))
-              .Append(" char(s) @ pos ")
-              .Append(edit.OldPosition.ToString(CultureInfo.InvariantCulture))
-              .Append('\n');
             sb.Append("await TypeAsync(").Append(Quote(edit.NewText)).Append(");\n");
             return;
         }
 
         if (hasDelete && !hasInsert)
         {
-            sb.Append("// step ").Append(stepNumber)
-              .Append(": delete ")
-              .Append(edit.OldLength.ToString(CultureInfo.InvariantCulture))
-              .Append(" char(s) @ pos ")
-              .Append(edit.OldPosition.ToString(CultureInfo.InvariantCulture))
-              .Append('\n');
             sb.Append("// ").Append(TodoDeletion).Append('\n');
             sb.Append("await ExecuteCommandAsync(\"Edit.Delete\");\n");
             return;
@@ -250,14 +238,6 @@ public static class CSharpCodeGenerator
         // teach the generator to map (pos, length) back to (line, col) ranges and
         // emit SelectAsync(...) + Edit.Delete + TypeAsync(...) so this becomes
         // semantically faithful instead of "delete current selection".
-        sb.Append("// step ").Append(stepNumber)
-          .Append(": replace ")
-          .Append(edit.OldLength.ToString(CultureInfo.InvariantCulture))
-          .Append(" char(s) with ")
-          .Append(edit.NewText.Length.ToString(CultureInfo.InvariantCulture))
-          .Append(" char(s) @ pos ")
-          .Append(edit.OldPosition.ToString(CultureInfo.InvariantCulture))
-          .Append('\n');
         sb.Append("// ").Append(TodoDeletion).Append('\n');
         sb.Append("await ExecuteCommandAsync(\"Edit.Delete\");\n");
         sb.Append("await TypeAsync(").Append(Quote(edit.NewText)).Append(");\n");

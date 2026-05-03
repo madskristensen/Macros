@@ -14,17 +14,17 @@ namespace Macros.Tests.ToolWindows;
 public sealed class TriggerSummaryFormatterTests
 {
     [Fact]
-    public void Summary_NoBindings_ReturnsEmDash()
+    public void Summary_NoBindings_ReturnsManual()
     {
-        Assert.Equal(TriggerSummaryFormatter.NoTriggersPlaceholder, TriggerSummaryFormatter.Summary(Array.Empty<TriggerBinding>()));
-        Assert.Equal(TriggerSummaryFormatter.NoTriggersPlaceholder, TriggerSummaryFormatter.Summary(null));
+        Assert.Equal(TriggerSummaryFormatter.ManualSummary, TriggerSummaryFormatter.Summary(Array.Empty<TriggerBinding>()));
+        Assert.Equal(TriggerSummaryFormatter.ManualSummary, TriggerSummaryFormatter.Summary(null));
     }
 
     [Fact]
-    public void Summary_ManualOnly_ReturnsEmDash()
+    public void Summary_ManualOnly_ReturnsManual()
     {
         var bindings = new[] { TriggerBinding.Manual };
-        Assert.Equal(TriggerSummaryFormatter.NoTriggersPlaceholder, TriggerSummaryFormatter.Summary(bindings));
+        Assert.Equal(TriggerSummaryFormatter.ManualSummary, TriggerSummaryFormatter.Summary(bindings));
     }
 
     [Fact]

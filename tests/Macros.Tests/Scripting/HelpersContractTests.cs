@@ -184,6 +184,7 @@ public sealed class HelpersContractTests
     [InlineData(nameof(Helpers.WaitAsync))]
     [InlineData(nameof(Helpers.OpenFileAsync))]
     [InlineData(nameof(Helpers.CloseFileAsync))]
+    [InlineData(nameof(Helpers.CloseToolWindowAsync))]
     public void Helpers_CommandVerbsAreStaticAsync(string methodName)
     {
         MethodInfo? method = typeof(Helpers).GetMethod(methodName, BindingFlags.Public | BindingFlags.Static);
@@ -210,6 +211,7 @@ public sealed class HelpersContractTests
     [InlineData(nameof(Helpers.WaitAsync))]
     [InlineData(nameof(Helpers.OpenFileAsync))]
     [InlineData(nameof(Helpers.CloseFileAsync))]
+    [InlineData(nameof(Helpers.CloseToolWindowAsync))]
     public void Helpers_AllVerbsAcceptOptionalCancellationToken(string methodName)
     {
         MethodInfo method = typeof(Helpers).GetMethod(methodName, BindingFlags.Public | BindingFlags.Static)!;
@@ -233,6 +235,7 @@ public sealed class HelpersContractTests
             nameof(Helpers.WaitAsync),
             nameof(Helpers.OpenFileAsync),
             nameof(Helpers.CloseFileAsync),
+            nameof(Helpers.CloseToolWindowAsync),
             nameof(Helpers.PromptAsync),
             nameof(Helpers.RunMacroAsync),
             nameof(Helpers.InsertSnippetAsync),

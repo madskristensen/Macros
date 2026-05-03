@@ -77,14 +77,12 @@ internal sealed class RecordCommand : BaseCommand<RecordCommand>
 
         try
         {
-            if (service.State == MacroState.Recording)
-            {
-                await RecordingCommandUtilities.StopRecordingAndOpenAsync(service);
-            }
-            else if (service.State == MacroState.Idle)
+            if (service.State == MacroState.Idle)
             {
                 await service.StartRecordingAsync();
             }
+            // Recording state: BeforeQueryStatus disables the command so it shouldn't fire
+            // here. The defensive no-op stays in case a UIContext race lets the click through.
         }
         catch (InvalidOperationException)
         {
@@ -96,6 +94,10 @@ internal sealed class RecordCommand : BaseCommand<RecordCommand>
     protected override void BeforeQueryStatus(EventArgs e)
     {
         EnsureResolveStarted();
-        Command.Enabled = _service is { State: MacroState.Idle or MacroState.Recording };
+        // Issue #6: disable Record while a recording is in progress. The visible Stop
+        // button (swapped in via VSCT VisibilityItem on guidMacrosRecordingContext) is the
+        // only path for ending the recording from the toolbar; the Ctrl+Shift+R hotkey
+        // stops being a toggle as a result.
+        Command.Enabled = _service is { State: MacroState.Idle };
     }
 }

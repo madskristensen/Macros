@@ -75,5 +75,18 @@ public interface IRecordingSink
     /// </remarks>
     void OnFileClose(string path);
 
+    /// <summary>
+    /// Records that a tool window was hidden (closed via the X button or programmatically)
+    /// during the recording session. Captures the window caption so the generated <c>.csx</c>
+    /// can replay the close via <c>CloseToolWindowAsync("Caption")</c>.
+    /// </summary>
+    /// <param name="caption">The display caption of the tool window that was closed.</param>
+    /// <remarks>
+    /// MUST be a no-op when <see cref="IsCapturing"/> is <see langword="false"/>. The caller
+    /// is responsible for filtering document frames (we only record tool windows) and for
+    /// excluding the Macros tool window itself.
+    /// </remarks>
+    void OnToolWindowClose(string caption);
+
     // void OnTextEdit(...) — to be added by m2-text-observer (don't add now, leave for them).
 }

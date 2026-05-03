@@ -324,6 +324,34 @@ public sealed class RecordingSessionTests
     }
 
     [Fact]
+    public async Task OnToolWindowClose_NonEmptyCaption_IsAccepted_AndEmitsStep()
+    {
+        var svc = CreateService();
+        await svc.StartRecordingAsync();
+        var session = svc.CurrentSession!;
+
+        session.OnToolWindowClose("Server Explorer");
+
+        var steps = session.DrainAndStop();
+        var step = Assert.Single(steps);
+        var tw = Assert.IsType<RecordedStep.ToolWindowClosedStep>(step);
+        Assert.Equal("Server Explorer", tw.Caption);
+    }
+
+    [Fact]
+    public async Task OnToolWindowClose_EmptyOrNull_IsNoOp()
+    {
+        var svc = CreateService();
+        await svc.StartRecordingAsync();
+        var session = svc.CurrentSession!;
+
+        session.OnToolWindowClose("");
+        session.OnToolWindowClose(null!);
+
+        Assert.Equal(0, session.Count);
+    }
+
+    [Fact]
     public async Task OnFileOpen_FlushesAggregatorPending_BeforeRecordingFileOpen()
     {
         // A pending CommandStep in the aggregator should be committed when a

@@ -41,5 +41,13 @@ public abstract record class RecordedStep
     /// <param name="Path">The full absolute path of the file that was closed.</param>
     public sealed record class FileCloseStep(string Path) : RecordedStep;
 
+    /// <summary>
+    /// A tool window close captured from <c>WindowEvents.FrameIsVisibleChanged</c> when
+    /// the new visibility is <see langword="false"/>. Generated code emits
+    /// <c>await CloseToolWindowAsync("Caption")</c>.
+    /// </summary>
+    /// <param name="Caption">Display caption of the tool window (e.g. <c>"Server Explorer"</c>).</param>
+    public sealed record class ToolWindowClosedStep(string Caption) : RecordedStep;
+
     // TextEditStep — to be added by m2-text-observer.
 }

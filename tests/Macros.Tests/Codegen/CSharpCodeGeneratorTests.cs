@@ -48,7 +48,7 @@ public sealed class CSharpCodeGeneratorTests
         string src = CSharpCodeGenerator.Generate(new RecordedStep[] { step }, "M", FixedUtc);
 
         Assert.Contains("await TypeAsync(\"hello\");", src);
-        Assert.Contains("// step 1: insert 5 char(s) @ pos 0", src);
+        Assert.DoesNotContain("// step", src);
         AssertNoSyntaxErrors(src);
     }
 
@@ -82,7 +82,7 @@ public sealed class CSharpCodeGeneratorTests
         string src = CSharpCodeGenerator.Generate(new RecordedStep[] { cmd }, "M", FixedUtc);
 
         Assert.Contains("await ExecuteCommandAsync(\"Edit.Copy\");", src);
-        Assert.Contains("// step 1: command Edit.Copy", src);
+        Assert.DoesNotContain("// step", src);
         Assert.DoesNotContain("RunCommandAsync", src);
         AssertNoSyntaxErrors(src);
     }
@@ -127,7 +127,7 @@ public sealed class CSharpCodeGeneratorTests
         string src = CSharpCodeGenerator.Generate(new RecordedStep[] { step }, "M", FixedUtc);
 
         Assert.Contains(@"await OpenFileAsync(@""C:\projects\MyRepo\src\Foo.cs"");", src);
-        Assert.Contains(@"// step 1: open C:\projects\MyRepo\src\Foo.cs", src);
+        Assert.DoesNotContain("// step", src);
         Assert.DoesNotContain("RunCommandAsync", src);
         Assert.DoesNotContain("ExecuteCommandAsync", src);
         AssertNoSyntaxErrors(src);
@@ -155,7 +155,19 @@ public sealed class CSharpCodeGeneratorTests
         string src = CSharpCodeGenerator.Generate(new RecordedStep[] { step }, "M", FixedUtc);
 
         Assert.Contains(@"await CloseFileAsync(@""C:\projects\MyRepo\src\Foo.cs"");", src);
-        Assert.Contains(@"// step 1: close C:\projects\MyRepo\src\Foo.cs", src);
+        Assert.DoesNotContain("// step", src);
+        AssertNoSyntaxErrors(src);
+    }
+
+    [Fact]
+    public void Generate_ToolWindowClosedStep_EmitsCloseToolWindowAsync()
+    {
+        var step = new RecordedStep.ToolWindowClosedStep("Server Explorer");
+
+        string src = CSharpCodeGenerator.Generate(new RecordedStep[] { step }, "M", FixedUtc);
+
+        Assert.Contains(@"await CloseToolWindowAsync(""Server Explorer"");", src);
+        Assert.DoesNotContain("// step", src);
         AssertNoSyntaxErrors(src);
     }
 
@@ -166,7 +178,7 @@ public sealed class CSharpCodeGeneratorTests
 
         string src = CSharpCodeGenerator.Generate(new RecordedStep[] { step }, "M", FixedUtc);
 
-        Assert.Contains("// step 1: delete 3 char(s) @ pos 5", src);
+        Assert.DoesNotContain("// step", src);
         Assert.Contains("// TODO(m4-deletion-replay)", src);
         Assert.Contains("await ExecuteCommandAsync(\"Edit.Delete\");", src);
         Assert.DoesNotContain("await TypeAsync(", src);
@@ -179,7 +191,7 @@ public sealed class CSharpCodeGeneratorTests
 
         string src = CSharpCodeGenerator.Generate(new RecordedStep[] { step }, "M", FixedUtc);
 
-        Assert.Contains("// step 1: replace 3 char(s) with 3 char(s) @ pos 5", src);
+        Assert.DoesNotContain("// step", src);
         Assert.Contains("// TODO(m4-deletion-replay)", src);
         Assert.Contains("await ExecuteCommandAsync(\"Edit.Delete\");", src);
         Assert.Contains("await TypeAsync(\"XYZ\");", src);
@@ -219,8 +231,9 @@ public sealed class CSharpCodeGeneratorTests
     }
 
     [Fact]
-    public void Generate_StepCommentsAreOneBased()
+    public void Generate_NoStepCommentsEmitted()
     {
+        // Issue #7: step comments removed from generated source — they were noise.
         var steps = new RecordedStep[]
         {
             new TextEditStep(0, 0, "", "a"),
@@ -229,9 +242,10 @@ public sealed class CSharpCodeGeneratorTests
 
         string src = CSharpCodeGenerator.Generate(steps, "M", FixedUtc);
 
-        Assert.Contains("// step 1:", src);
-        Assert.Contains("// step 2:", src);
-        Assert.DoesNotContain("// step 0:", src);
+        Assert.DoesNotContain("// step ", src);
+        // The actual helper calls are still emitted (one per step).
+        Assert.Contains(@"await TypeAsync(""a"");", src);
+        Assert.Contains(@"await TypeAsync(""b"");", src);
     }
 
     [Fact]
@@ -307,10 +321,9 @@ public sealed class CSharpCodeGeneratorTests
 
         string src = CSharpCodeGenerator.Generate(new RecordedStep[] { fileOpen1, unresolved, fileOpen2 }, "M", FixedUtc);
 
-        Assert.DoesNotContain("// Steps:", src);
-        Assert.Contains("// step 1:", src);
-        Assert.Contains("// step 2:", src);
-        Assert.DoesNotContain("// step 3:", src);
+        Assert.DoesNotContain("// step", src);
+        Assert.Contains(@"await OpenFileAsync(@""C:\a.cs"");", src);
+        Assert.Contains(@"await OpenFileAsync(@""C:\b.cs"");", src);
         Assert.DoesNotContain("Guid", src);
         Assert.DoesNotContain("RunCommandAsync", src);
         Assert.DoesNotContain("901", src);
@@ -325,9 +338,8 @@ public sealed class CSharpCodeGeneratorTests
 
         string src = CSharpCodeGenerator.Generate(new RecordedStep[] { unresolved, fileOpen }, "M", FixedUtc);
 
-        Assert.DoesNotContain("// Steps:", src);
-        Assert.Contains("// step 1:", src);
-        Assert.DoesNotContain("// step 2:", src);
+        Assert.DoesNotContain("// step", src);
+        Assert.Contains(@"await OpenFileAsync(@""C:\a.cs"");", src);
         Assert.DoesNotContain("Guid", src);
         Assert.DoesNotContain("RunCommandAsync", src);
         Assert.DoesNotContain("Some Random Command", src);
@@ -341,33 +353,29 @@ public sealed class CSharpCodeGeneratorTests
 
         string src = CSharpCodeGenerator.Generate(new RecordedStep[] { cmd }, "M", FixedUtc);
 
-        Assert.DoesNotContain("// Steps:", src);
-        Assert.Contains("// step 1: command Edit.Copy", src);
+        Assert.DoesNotContain("// step", src);
         Assert.Contains("await ExecuteCommandAsync(\"Edit.Copy\");", src);
         Assert.DoesNotContain("RunCommandAsync", src);
         AssertNoSyntaxErrors(src);
     }
 
     [Fact]
-    public void Generate_RenumbersStepsAfterDrop()
+    public void Generate_DropsUnemittableSteps()
     {
         var steps = new RecordedStep[]
         {
-            new TextEditStep(0, 0, "", "a"),                                         // emittable → step 1
+            new TextEditStep(0, 0, "", "a"),                                         // emittable
             new RecordedStep.CommandStep(Guid.NewGuid(), 1u, null),                  // dropped
-            new TextEditStep(1, 0, "", "b"),                                         // emittable → step 2
+            new TextEditStep(1, 0, "", "b"),                                         // emittable
             new RecordedStep.CommandStep(Guid.NewGuid(), 2u, "Broken Command Name"), // dropped
-            new TextEditStep(2, 0, "", "c"),                                         // emittable → step 3
+            new TextEditStep(2, 0, "", "c"),                                         // emittable
         };
 
         string src = CSharpCodeGenerator.Generate(steps, "M", FixedUtc);
 
-        Assert.DoesNotContain("// Steps:", src);
-        Assert.Contains("// step 1:", src);
-        Assert.Contains("// step 2:", src);
-        Assert.Contains("// step 3:", src);
-        Assert.DoesNotContain("// step 4:", src);
-        Assert.DoesNotContain("// step 5:", src);
+        Assert.DoesNotContain("// step", src);
+        // Three TypeAsync calls for the three emittable TextEditSteps; commands are dropped.
+        Assert.Equal(3, System.Text.RegularExpressions.Regex.Matches(src, @"await TypeAsync\(").Count);
         AssertNoSyntaxErrors(src);
     }
 

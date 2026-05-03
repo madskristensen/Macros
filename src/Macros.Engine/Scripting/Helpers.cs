@@ -290,6 +290,83 @@ public static class Helpers
     }
 
     /// <summary>
+    /// Closes (hides) the tool window matching <paramref name="caption"/>, if any. No-op when
+    /// no open tool window has that caption. Replays the user's "click X on the tool window
+    /// header" action.
+    /// </summary>
+    /// <param name="caption">
+    /// Display caption of the tool window to close (e.g. <c>"Server Explorer"</c>,
+    /// <c>"Test Explorer"</c>). Comparison is case-insensitive ordinal. Captions are
+    /// localized — a macro recorded on English VS may not match on a non-English locale.
+    /// </param>
+    /// <param name="cancellation">Token honoured before switching to the UI thread.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="caption"/> is <see langword="null"/>.</exception>
+    /// <exception cref="ArgumentException"><paramref name="caption"/> is empty.</exception>
+    /// <exception cref="InvalidOperationException">No ambient <see cref="MacroGlobals"/> is set.</exception>
+    public static async Task CloseToolWindowAsync(string caption, CancellationToken cancellation = default)
+    {
+        if (caption is null) throw new ArgumentNullException(nameof(caption));
+        if (string.IsNullOrWhiteSpace(caption))
+        {
+            throw new ArgumentException("Caption must be non-empty.", nameof(caption));
+        }
+
+        cancellation.ThrowIfCancellationRequested();
+        _ = RequireGlobals();
+
+        await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(cancellation);
+
+        // Walk every tool window known to the shell and find the one whose caption matches.
+        // We use IVsUIShell4.EnumWindows + the FrameType filter so document frames don't
+        // accidentally match a doc with a coincidentally identical caption.
+        if (Package.GetGlobalService(typeof(SVsUIShell)) is not IVsUIShell uiShell)
+        {
+            // No shell available — fall through silently. Replay must never crash on a stale macro.
+            return;
+        }
+
+        if (uiShell.GetToolWindowEnum(out IEnumWindowFrames? enumerator) != VSConstants.S_OK
+            || enumerator is null)
+        {
+            return;
+        }
+
+        var frames = new IVsWindowFrame[1];
+        while (enumerator.Next(1, frames, out uint fetched) == VSConstants.S_OK && fetched == 1)
+        {
+            cancellation.ThrowIfCancellationRequested();
+            var frame = frames[0];
+            if (frame is null) continue;
+
+            string? frameCaption = TryGetFrameCaption(frame);
+            if (string.Equals(frameCaption, caption, StringComparison.OrdinalIgnoreCase))
+            {
+                // Hide leaves the tool window registered with the shell so subsequent
+                // View.<Name> commands re-show it instantly. CloseFrame is more aggressive
+                // and would dispose the pane state (selection, scroll position).
+                frame.Hide();
+                return;
+            }
+        }
+    }
+
+    private static string? TryGetFrameCaption(IVsWindowFrame frame)
+    {
+        try
+        {
+            if (frame.GetProperty((int)__VSFPROPID.VSFPROPID_Caption, out object? caption) == VSConstants.S_OK)
+            {
+                return caption as string;
+            }
+        }
+        catch
+        {
+            // Defensive: a misbehaving frame must not break enumeration.
+        }
+        return null;
+    }
+
+    /// <summary>
     /// Shows a Visual Studio input dialog and returns the user's input.
     /// If the user cancels, returns the default value.
     /// </summary>

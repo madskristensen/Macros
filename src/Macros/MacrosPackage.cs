@@ -137,6 +137,10 @@ public sealed class MacrosPackage : ToolkitPackage
     // deterministically on package dispose (same pattern as _commandEvents).
     private Community.VisualStudio.Toolkit.DocumentEvents? _recordingDocumentEvents;
 
+    // WindowEvents subscription used to forward tool window closes (visibility flips to false)
+    // into the recording session.
+    private Community.VisualStudio.Toolkit.WindowEvents? _recordingWindowEvents;
+
     /// <inheritdoc />
     protected override async Task InitializeAsync(CancellationToken cancellationToken, IProgress<ServiceProgressData> progress)
     {
@@ -468,6 +472,13 @@ public sealed class MacrosPackage : ToolkitPackage
         _recordingDocumentEvents.Opened += OnDocumentOpenedForRecording;
         _recordingDocumentEvents.Closed += OnDocumentClosedForRecording;
 
+        // Subscribe to WindowEvents.FrameIsVisibleChanged so the recording session captures
+        // tool window closes (Server Explorer, Test Explorer, Output, …) as the user clicks
+        // X. The handler filters to "becoming invisible" and to tool-window frame types so
+        // document tab closes (already handled via DocumentEvents.Closed) don't double-fire.
+        _recordingWindowEvents = VS.Events.WindowEvents;
+        _recordingWindowEvents.FrameIsVisibleChanged += OnFrameIsVisibleChangedForRecording;
+
         // 4. Register tool windows (scans this assembly for BaseToolWindow<T> subclasses).
         this.RegisterToolWindows();
 
@@ -697,6 +708,75 @@ public sealed class MacrosPackage : ToolkitPackage
             }
 
             _recordingDocumentEvents = null;
+        }
+
+        if (_recordingWindowEvents is not null)
+        {
+            try
+            {
+                _recordingWindowEvents.FrameIsVisibleChanged -= OnFrameIsVisibleChangedForRecording;
+            }
+            catch
+            {
+                // Shutdown path.
+            }
+
+            _recordingWindowEvents = null;
+        }
+    }
+
+    /// <summary>
+    /// Handler forwarded from <c>VS.Events.WindowEvents.FrameIsVisibleChanged</c>. Pushes a
+    /// <see cref="RecordedStep.ToolWindowClosedStep"/> when a tool window's visibility flips
+    /// to <see langword="false"/>. Document frames and the Macros tool window itself are
+    /// filtered out.
+    /// </summary>
+    private void OnFrameIsVisibleChangedForRecording(Community.VisualStudio.Toolkit.FrameVisibilityEventArgs e)
+    {
+        try
+        {
+            // Toolkit WindowEvents fire on the UI thread; assert it so the COM property
+            // accesses below are analyzer-clean.
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            // Only record "becoming hidden" — true means show / activate, which is captured
+            // separately via the View.<Name> command path (CommandObserver) when the user
+            // invokes it via menu/keyboard.
+            if (e is null || e.IsNewVisible) return;
+
+            var session = _recordingServiceRef?.CurrentSession;
+            if (session is not { IsCapturing: true }) return;
+
+            var frame = e.Frame;
+            if (frame is null) return;
+
+            // Filter to tool windows; document tabs already feed OnFileClose via DocumentEvents.
+            if (frame.GetProperty((int)__VSFPROPID.VSFPROPID_Type, out object? typeBox) != VSConstants.S_OK ||
+                typeBox is not int frameType ||
+                frameType != (int)__WindowFrameTypeFlags.WINDOWFRAMETYPE_Tool)
+            {
+                return;
+            }
+
+            if (frame.GetProperty((int)__VSFPROPID.VSFPROPID_Caption, out object? captionBox) != VSConstants.S_OK ||
+                captionBox is not string caption ||
+                string.IsNullOrEmpty(caption))
+            {
+                return;
+            }
+
+            // Don't record closing the Macros tool window itself — it's how the user invokes
+            // recording in the first place, and replaying its close mid-script would disorient.
+            if (string.Equals(caption, "Macros", StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            session.OnToolWindowClose(caption);
+        }
+        catch
+        {
+            // Defensive: recording infrastructure must never crash the VS event system.
         }
     }
 

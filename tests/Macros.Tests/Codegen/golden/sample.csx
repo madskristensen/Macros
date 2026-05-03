@@ -8,13 +8,9 @@
 using Community.VisualStudio.Toolkit;
 using static Macros.Engine.Scripting.Helpers;
 
-// step 1: insert 5 char(s) @ pos 0
 await TypeAsync("Hello");
-// step 2: command Edit.Copy
 await ExecuteCommandAsync("Edit.Copy");
-// step 3: insert 20 char(s) @ pos 10
 await TypeAsync(@"Line1
 Line2 ""quoted""");
-// step 4: delete 3 char(s) @ pos 20
 // TODO(m4-deletion-replay): deletion replay not yet supported; replaying via raw Edit.Delete which deletes the current selection, not the recorded range.
 await ExecuteCommandAsync("Edit.Delete");

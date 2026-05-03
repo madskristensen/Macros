@@ -126,9 +126,13 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ListViewItem">
+                        <!-- Issue #5: 4px symmetric horizontal margin on the row Border so
+                             the highlighted/selected background has an even gutter on both
+                             sides and doesn't visually run into the tool-window edges. -->
                         <Border x:Name="Bd"
                                 Background="{TemplateBinding Background}"
                                 Padding="{TemplateBinding Padding}"
+                                Margin="4,0"
                                 SnapsToDevicePixels="True">
                             <GridViewRowPresenter
                                 Content="{TemplateBinding Content}"
@@ -141,15 +145,20 @@
                                 <Setter TargetName="Bd" Property="Background"
                                         Value="{DynamicResource {x:Static vsui:TreeViewColors.HighlightedSpanBrushKey}}" />
                             </Trigger>
+                            <!-- Issue #5: the previous TreeViewColors.SelectedItemActiveBrushKey is the
+                                 strong "selected tree node" color used by Solution Explorer. List-style
+                                 tool windows (Test Explorer, Error List) use the milder
+                                 EnvironmentColors.CommandBarSelectedBrushKey so the selection feels less
+                                 aggressive; mirror that here. -->
                             <MultiTrigger>
                                 <MultiTrigger.Conditions>
                                     <Condition Property="IsSelected" Value="True" />
                                     <Condition Property="Selector.IsSelectionActive" Value="True" />
                                 </MultiTrigger.Conditions>
                                 <Setter TargetName="Bd" Property="Background"
-                                        Value="{DynamicResource {x:Static vsui:TreeViewColors.SelectedItemActiveBrushKey}}" />
+                                        Value="{DynamicResource {x:Static vsui:EnvironmentColors.CommandBarSelectedBrushKey}}" />
                                 <Setter Property="Foreground"
-                                        Value="{DynamicResource {x:Static vsui:TreeViewColors.SelectedItemActiveTextBrushKey}}" />
+                                        Value="{DynamicResource {x:Static vsui:EnvironmentColors.CommandBarTextSelectedBrushKey}}" />
                             </MultiTrigger>
                             <MultiTrigger>
                                 <MultiTrigger.Conditions>
@@ -157,9 +166,9 @@
                                     <Condition Property="Selector.IsSelectionActive" Value="False" />
                                 </MultiTrigger.Conditions>
                                 <Setter TargetName="Bd" Property="Background"
-                                        Value="{DynamicResource {x:Static vsui:TreeViewColors.SelectedItemInactiveBrushKey}}" />
+                                        Value="{DynamicResource {x:Static vsui:EnvironmentColors.CommandBarHoverBrushKey}}" />
                                 <Setter Property="Foreground"
-                                        Value="{DynamicResource {x:Static vsui:TreeViewColors.SelectedItemInactiveTextBrushKey}}" />
+                                        Value="{DynamicResource {x:Static vsui:EnvironmentColors.CommandBarTextHoverBrushKey}}" />
                             </MultiTrigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -188,6 +197,7 @@
                                 <Border x:Name="Bd"
                                         Background="{TemplateBinding Background}"
                                         Padding="{TemplateBinding Padding}"
+                                        Margin="4,0"
                                         SnapsToDevicePixels="True">
                                     <TextBlock Text="{Binding Name}"
                                                VerticalAlignment="Center"
@@ -204,9 +214,9 @@
                                             <Condition Property="Selector.IsSelectionActive" Value="True" />
                                         </MultiTrigger.Conditions>
                                         <Setter TargetName="Bd" Property="Background"
-                                                Value="{DynamicResource {x:Static vsui:TreeViewColors.SelectedItemActiveBrushKey}}" />
+                                                Value="{DynamicResource {x:Static vsui:EnvironmentColors.CommandBarSelectedBrushKey}}" />
                                         <Setter Property="Foreground"
-                                                Value="{DynamicResource {x:Static vsui:TreeViewColors.SelectedItemActiveTextBrushKey}}" />
+                                                Value="{DynamicResource {x:Static vsui:EnvironmentColors.CommandBarTextSelectedBrushKey}}" />
                                     </MultiTrigger>
                                     <MultiTrigger>
                                         <MultiTrigger.Conditions>
@@ -214,9 +224,9 @@
                                             <Condition Property="Selector.IsSelectionActive" Value="False" />
                                         </MultiTrigger.Conditions>
                                         <Setter TargetName="Bd" Property="Background"
-                                                Value="{DynamicResource {x:Static vsui:TreeViewColors.SelectedItemInactiveBrushKey}}" />
+                                                Value="{DynamicResource {x:Static vsui:EnvironmentColors.CommandBarHoverBrushKey}}" />
                                         <Setter Property="Foreground"
-                                                Value="{DynamicResource {x:Static vsui:TreeViewColors.SelectedItemInactiveTextBrushKey}}" />
+                                                Value="{DynamicResource {x:Static vsui:EnvironmentColors.CommandBarTextHoverBrushKey}}" />
                                     </MultiTrigger>
                                 </ControlTemplate.Triggers>
                             </ControlTemplate>

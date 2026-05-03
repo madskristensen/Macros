@@ -49,6 +49,7 @@ Helper methods are available directly in your macro (no import needed — the In
 | `WaitAsync(int ms)`                                                 | Pause the script.                                                     |
 | `OpenFileAsync(string path)`                                        | Open a file in the VS editor (or bring it to front if already open).  |
 | `CloseFileAsync(string path)`                                       | Close the open document at `path`. No-op if the file is not open.     |
+| `CloseToolWindowAsync(string caption)`                              | Hide the tool window with the given caption (e.g. `"Server Explorer"`). No-op if not open. |
 | `RunMacroAsync(string name)`                                        | Run another saved macro by name (repo-wins). Cycles + depth >3 throw. |
 | `InsertSnippetAsync(string prefix)`                                 | Type a snippet shortcut and ask VS to expand it.                      |
 

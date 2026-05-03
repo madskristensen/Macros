@@ -267,6 +267,52 @@ internal sealed class RecordingSession : IRecordingSink, ITextEditSink
     }
 
     /// <inheritdoc />
+    public void OnToolWindowClose(string caption)
+    {
+        if (string.IsNullOrEmpty(caption))
+        {
+            return;
+        }
+
+        int committedCount = 0;
+        bool fireCap = false;
+
+        lock (_gate)
+        {
+            if (!IsCapturing || _capFired)
+            {
+                return;
+            }
+
+            var finalized = _aggregator.Push(
+                new RecordedStep.ToolWindowClosedStep(caption),
+                DateTime.UtcNow);
+            if (finalized is not null)
+            {
+                _steps.Add(finalized);
+                committedCount = _steps.Count;
+
+                if (_steps.Count >= _maxSteps)
+                {
+                    _capFired = true;
+                    _aggregator.Reset();
+                    fireCap = true;
+                }
+            }
+        }
+
+        if (committedCount > 0)
+        {
+            StepCountChanged?.Invoke(this, committedCount);
+        }
+
+        if (fireCap)
+        {
+            CapReached?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    /// <inheritdoc />
     public void OnTextEdit(TextEditStep step)
     {
         if (step is null)

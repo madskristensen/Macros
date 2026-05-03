@@ -30,8 +30,12 @@ public static class TriggerSummaryFormatter
     /// <summary>The bell glyph prefix used when the summary collapses 2+ bindings into a count.</summary>
     public const string BellGlyph = "\U0001F514";
 
-    /// <summary>The placeholder rendered when there is nothing event-bound to summarise.</summary>
-    public const string NoTriggersPlaceholder = "\u2014"; // em-dash
+    /// <summary>
+    /// The summary rendered for macros without any meaningful (non-Manual) triggers — the
+    /// macro can only be run from the UI. The word "Manual" is more communicative than a
+    /// blank dash and immediately tells the user how the macro is invoked.
+    /// </summary>
+    public const string ManualSummary = "Manual";
 
     /// <summary>
     /// Returns the short single-line summary suitable for the "Triggers" column cell.
@@ -42,7 +46,7 @@ public static class TriggerSummaryFormatter
         var meaningful = NonManual(bindings);
         if (meaningful.Count == 0)
         {
-            return NoTriggersPlaceholder;
+            return ManualSummary;
         }
 
         if (meaningful.Count == 1)
