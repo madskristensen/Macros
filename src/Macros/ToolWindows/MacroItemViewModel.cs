@@ -10,6 +10,7 @@ using Macros.Engine.Player;
 using Macros.Engine.Storage;
 using Macros.Errors;
 using Macros.Mvvm;
+using Macros.Samples;
 
 namespace Macros.ToolWindows;
 
@@ -113,7 +114,15 @@ public sealed class MacroItemViewModel : INotifyPropertyChanged
     /// <see cref="AccessibilityHelpers.FormatMacroAutomationName"/> so Narrator/JAWS announce
     /// "Macro Greeting, Manual, modified 5m" instead of just "Greeting".
     /// </summary>
-    public string AutomationName => AccessibilityHelpers.FormatMacroAutomationName(Descriptor, TriggersSummary, ModifiedRelative);
+    public string AutomationName => IsSample
+        ? $"Sample macro {Name}, {SampleTemplate?.Description ?? "read only sample"}"
+        : AccessibilityHelpers.FormatMacroAutomationName(Descriptor, TriggersSummary, ModifiedRelative);
+
+    /// <summary>Gets or sets whether this item represents a read-only sample template.</summary>
+    public bool IsSample { get; init; }
+
+    /// <summary>Gets the associated sample template, if this is a sample item.</summary>
+    public SampleTemplate? SampleTemplate { get; init; }
 
     /// <summary>
     /// Gets the group label this row belongs to in the tool window's grouped ListView. The
@@ -121,13 +130,13 @@ public sealed class MacroItemViewModel : INotifyPropertyChanged
     /// identical to the corresponding <see cref="MacroGroupViewModel.Header"/>.
     /// </summary>
     /// <remarks>
-    /// Repo entries are <c>"Repo"</c>; non-shadowed global entries are <c>"Global"</c>;
-    /// shadowed global entries (a global macro of the same name is overridden by a repo
-    /// macro) are <c>"Shadowed Global Macros"</c>.
+    /// Repo entries are <c>"Repo"</c>; sample entries are <c>"Samples"</c>; non-shadowed
+    /// global entries are <c>"Global"</c>; shadowed global entries (a global macro of the
+    /// same name is overridden by a repo macro) are <c>"Shadowed Global Macros"</c>.
     /// </remarks>
-    public string GroupName => Scope == MacroScope.Repo
-        ? "Repo"
-        : (IsShadowed ? "Shadowed Global Macros" : "Global");
+    public string GroupName => IsSample
+        ? "Samples"
+        : (Scope == MacroScope.Repo ? "Repo" : (IsShadowed ? "Shadowed Global Macros" : "Global"));
 
     /// <summary>
     /// Gets or sets a value indicating whether this row represents a global macro that is
@@ -148,6 +157,7 @@ public sealed class MacroItemViewModel : INotifyPropertyChanged
             OnPropertyChanged();
             OnPropertyChanged(nameof(GroupName));
             OnPropertyChanged(nameof(ShadowedTooltip));
+            OnPropertyChanged(nameof(ItemToolTip));
         }
     }
 
@@ -158,6 +168,15 @@ public sealed class MacroItemViewModel : INotifyPropertyChanged
     public string? ShadowedTooltip => IsShadowed
         ? "Shadowed by repo macro of the same name."
         : null;
+
+    /// <summary>Gets the per-row tooltip shown in the Name column.</summary>
+    public string? ItemToolTip => IsSample ? SampleTemplate?.Description : ShadowedTooltip;
+
+    /// <summary>Gets the button tooltip for the row's primary action.</summary>
+    public string PrimaryActionToolTip => IsSample ? "Open sample" : "Play macro";
+
+    /// <summary>Gets the accessibility label for the row's primary-action button.</summary>
+    public string PrimaryActionAutomationName => IsSample ? "Open sample" : "Play macro";
 
     /// <summary>
     /// Gets or sets a value indicating whether the per-row commands are currently invocable.
@@ -176,9 +195,13 @@ public sealed class MacroItemViewModel : INotifyPropertyChanged
 
             _canInvoke = value;
             OnPropertyChanged();
+            OnPropertyChanged(nameof(CanPrimaryAction));
             _playCommand.RaiseCanExecuteChanged();
         }
     }
+
+    /// <summary>Gets a value indicating whether the primary action button is enabled.</summary>
+    public bool CanPrimaryAction => IsSample || (CanInvoke && _service is not null);
 
     /// <summary>Gets the WPF command bound to the row's play button / row activation.</summary>
     public ICommand PlayCommand { get; }

@@ -128,16 +128,42 @@ public sealed class MacrosToolWindowViewModelTests
 
         Assert.False(vm.SamplesGroup.IsExpanded);
         Assert.Equal(3, vm.SamplesGroup.VisibleItems.Count);
+        Assert.Equal(3, vm.AllItems.Count(item => item.IsSample));
 
         vm.FilterText = "header";
         Assert.Collection(
             vm.SamplesGroup.VisibleItems,
+            item => Assert.Equal("Insert file header", item.Name));
+        Assert.Collection(
+            vm.GroupedItemsView.Cast<MacroItemViewModel>().Where(item => item.IsSample),
             item => Assert.Equal("Insert file header", item.Name));
 
         vm.FilterText = "document open";
         Assert.Collection(
             vm.SamplesGroup.VisibleItems,
             item => Assert.Equal("Auto-collapse #region blocks on open", item.Name));
+        Assert.Collection(
+            vm.GroupedItemsView.Cast<MacroItemViewModel>().Where(item => item.IsSample),
+            item => Assert.Equal("Auto-collapse #region blocks on open", item.Name));
+    }
+
+    [Fact]
+    public async Task LoadAsync_AddsSamplesToAllItems_AsReadOnlySampleRows()
+    {
+        var storage = new FakeStorage(repoAvailable: false);
+
+        using var vm = new MacrosToolWindowViewModel(storage, debounceInterval: TimeSpan.Zero);
+        await vm.LoadAsync();
+
+        var samples = vm.AllItems.Where(item => item.IsSample).ToList();
+        Assert.Equal(3, samples.Count);
+        Assert.All(samples, item =>
+        {
+            Assert.Equal("Samples", item.GroupName);
+            Assert.NotNull(item.SampleTemplate);
+            Assert.True(item.CanPrimaryAction);
+        });
+        Assert.Equal(samples.Select(item => item.Name), vm.AllItems.Skip(vm.AllItems.Count - 3).Select(item => item.Name));
     }
 
     [Fact]

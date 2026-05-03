@@ -84,10 +84,15 @@ public partial class MacrosToolWindowControl : UserControl
     }
 
     private void MacroRow_PreviewMouseMove(object sender, MouseEventArgs e)
-        => TryStartDrag(sender, e, MacroDragDataFormat, DragDropEffects.Move);
+    {
+        if (sender is FrameworkElement fe && fe.DataContext is MacroItemViewModel item && item.IsSample)
+        {
+            TryStartDrag(sender, e, SampleDragDataFormat, DragDropEffects.Copy);
+            return;
+        }
 
-    private void SampleRow_PreviewMouseMove(object sender, MouseEventArgs e)
-        => TryStartDrag(sender, e, SampleDragDataFormat, DragDropEffects.Copy);
+        TryStartDrag(sender, e, MacroDragDataFormat, DragDropEffects.Move);
+    }
 
 #pragma warning disable VSTHRD100 // WPF drag/drop handlers are event-based; exceptions are handled by the VM methods.
     private async void MacroGroups_Drop(object sender, DragEventArgs e)
@@ -110,6 +115,7 @@ public partial class MacrosToolWindowControl : UserControl
 
         bool completed = payload switch
         {
+            MacroItemViewModel macro when macro.IsSample => await viewModel.CopySampleToScopeAsync(macro, targetScope.Value),
             MacroItemViewModel macro => await viewModel.MoveMacroAsync(macro, targetScope.Value),
             SampleTemplateItemViewModel sample => await viewModel.CopySampleToScopeAsync(sample, targetScope.Value),
             _ => false,
@@ -137,32 +143,20 @@ public partial class MacrosToolWindowControl : UserControl
             return;
         }
 
-        if (item.PlayCommand.CanExecute(null))
+        if (item.IsSample && item.SampleTemplate is not null)
         {
-            item.PlayCommand.Execute(null);
-            e.Handled = true;
-        }
-    }
+            if (DataContext is MacrosToolWindowViewModel viewModel)
+            {
+                _ = viewModel.OpenSampleByTemplateAsync(item.SampleTemplate);
+            }
 
-    private void SampleRow_MouseDoubleClick(object sender, MouseButtonEventArgs e)
-    {
-        if (sender is FrameworkElement fe && fe.DataContext is SampleTemplateItemViewModel item && item.OpenCommand.CanExecute(null))
-        {
-            item.OpenCommand.Execute(null);
             e.Handled = true;
-        }
-    }
-
-    private void SampleRow_PreviewKeyDown(object sender, KeyEventArgs e)
-    {
-        if (e.Key != Key.Enter || Keyboard.Modifiers != ModifierKeys.None)
-        {
             return;
         }
 
-        if (sender is FrameworkElement fe && fe.DataContext is SampleTemplateItemViewModel item && item.OpenCommand.CanExecute(null))
+        if (item.PlayCommand.CanExecute(null))
         {
-            item.OpenCommand.Execute(null);
+            item.PlayCommand.Execute(null);
             e.Handled = true;
         }
     }
@@ -173,6 +167,11 @@ public partial class MacrosToolWindowControl : UserControl
 
         if (sender is FrameworkElement fe && fe.DataContext is MacroItemViewModel item)
         {
+            if (item.IsSample)
+            {
+                return;
+            }
+
             MacroSelectionContext.Current = item.Descriptor;
             try
             {
@@ -230,9 +229,26 @@ public partial class MacrosToolWindowControl : UserControl
 
         if (isEnter)
         {
-            MacroSelectionContext.Current = item.Descriptor;
-            ExecuteContextCommand(PackageIds.cmdidMacrosCtxPlay);
+            if (item.IsSample)
+            {
+                if (DataContext is MacrosToolWindowViewModel viewModel && item.SampleTemplate is not null)
+                {
+                    _ = viewModel.OpenSampleByTemplateAsync(item.SampleTemplate);
+                }
+            }
+            else
+            {
+                MacroSelectionContext.Current = item.Descriptor;
+                ExecuteContextCommand(PackageIds.cmdidMacrosCtxPlay);
+            }
+
             e.Handled = true;
+            return;
+        }
+
+        if (item.IsSample)
+        {
+            e.Handled = isF7 || isF2 || isContextMenu;
             return;
         }
 
@@ -312,6 +328,11 @@ public partial class MacrosToolWindowControl : UserControl
         if (e.Data.GetDataPresent(MacroDragDataFormat) && e.Data.GetData(MacroDragDataFormat) is MacroItemViewModel macro)
         {
             payload = macro;
+            if (macro.IsSample)
+            {
+                return macro.SampleTemplate is null ? DragDropEffects.None : DragDropEffects.Copy;
+            }
+
             return macro.Scope == scope ? DragDropEffects.None : DragDropEffects.Move;
         }
 
@@ -345,11 +366,17 @@ public partial class MacrosToolWindowControl : UserControl
     {
         switch (dataContext)
         {
+            case MacroItemViewModel macro when macro.IsSample:
+                scope = default;
+                return false;
             case MacroItemViewModel macro:
                 scope = macro.Scope;
                 return true;
             case CollectionViewGroup group:
                 return TryMapDropScope(group.Name?.ToString(), out scope);
+            case string header when header == "Samples":
+                scope = default;
+                return false;
             case string header when header == "Repo":
                 scope = MacroScope.Repo;
                 return true;
@@ -359,6 +386,33 @@ public partial class MacrosToolWindowControl : UserControl
             default:
                 scope = default;
                 return false;
+        }
+    }
+
+#pragma warning disable VSTHRD100 // WPF click handlers are event-based; exceptions are handled by the VM methods.
+    private async void PrimaryActionButton_Click(object sender, RoutedEventArgs e)
+#pragma warning restore VSTHRD100
+    {
+        if (sender is not FrameworkElement fe || fe.DataContext is not MacroItemViewModel item)
+        {
+            return;
+        }
+
+        if (item.IsSample)
+        {
+            if (DataContext is MacrosToolWindowViewModel viewModel && item.SampleTemplate is not null)
+            {
+                await viewModel.OpenSampleByTemplateAsync(item.SampleTemplate);
+                e.Handled = true;
+            }
+
+            return;
+        }
+
+        if (item.PlayCommand.CanExecute(null))
+        {
+            item.PlayCommand.Execute(null);
+            e.Handled = true;
         }
     }
 

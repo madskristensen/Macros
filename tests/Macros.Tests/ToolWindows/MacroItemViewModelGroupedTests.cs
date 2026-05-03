@@ -1,6 +1,7 @@
 using System;
 using Macros.Engine.Storage;
 using Macros.Engine.Triggers;
+using Macros.Samples;
 using Macros.ToolWindows;
 using Xunit;
 
@@ -52,6 +53,25 @@ public sealed class MacroItemViewModelGroupedTests
         // remain "Repo" — repo entries never live in the shadowed bucket by construction.
         item.IsShadowed = true;
         Assert.Equal("Repo", item.GroupName);
+    }
+
+    [Fact]
+    public void SampleRows_ReportSamplesGroup_AndOpenAffordance()
+    {
+        var template = new SampleTemplate("Insert file header", "Adds a header.", "Macros.Sample.csx");
+        var entry = new MacroEntry("Insert file header", MacroScope.Global, "sample:Insert file header", 0, DateTimeOffset.MinValue, 0, new[] { TriggerBinding.Manual });
+        var item = new MacroItemViewModel(entry, service: null)
+        {
+            IsSample = true,
+            SampleTemplate = template,
+        };
+
+        Assert.Equal("Samples", item.GroupName);
+        Assert.Equal("Adds a header.", item.ItemToolTip);
+        Assert.Equal("Open sample", item.PrimaryActionToolTip);
+        Assert.Equal("Open sample", item.PrimaryActionAutomationName);
+        Assert.True(item.CanPrimaryAction);
+        Assert.Contains("Adds a header.", item.AutomationName);
     }
 
     [Fact]

@@ -184,14 +184,6 @@
             </Style.Triggers>
         </Style>
 
-        <Style x:Key="SampleListViewItemStyle"
-               TargetType="ListViewItem"
-               BasedOn="{StaticResource ToolWindowListViewItemStyle}">
-            <EventSetter Event="PreviewMouseLeftButtonDown" Handler="Row_PreviewMouseLeftButtonDown" />
-            <EventSetter Event="PreviewMouseMove" Handler="SampleRow_PreviewMouseMove" />
-            <EventSetter Event="MouseDoubleClick" Handler="SampleRow_MouseDoubleClick" />
-            <EventSetter Event="PreviewKeyDown" Handler="SampleRow_PreviewKeyDown" />
-        </Style>
     </UserControl.Resources>
 
     <DockPanel LastChildFill="True">
@@ -208,52 +200,6 @@
                        AutomationProperties.Name="Macros status"
                        Foreground="{DynamicResource {x:Static vsui:EnvironmentColors.SystemInfoTextBrushKey}}" />
         </Border>
-
-        <Expander DockPanel.Dock="Bottom"
-                  IsExpanded="{Binding SamplesGroup.IsExpanded}"
-                  Style="{StaticResource GroupExpanderStyle}"
-                  Margin="0,8,0,0"
-                  ToolTip="Double-click a sample to open its .csx file in the editor."
-                  Foreground="{DynamicResource {x:Static vsui:EnvironmentColors.ToolWindowTextBrushKey}}">
-            <Expander.Header>
-                <TextBlock Text="{Binding SamplesGroup.Header}"
-                           FontWeight="SemiBold"
-                           Foreground="{DynamicResource {x:Static vsui:EnvironmentColors.ToolWindowTextBrushKey}}" />
-            </Expander.Header>
-            <ListView ItemsSource="{Binding SamplesGroup.VisibleItems}"
-                      AutomationProperties.Name="Sample macro templates"
-                      Background="{DynamicResource {x:Static vsui:EnvironmentColors.ToolWindowBackgroundBrushKey}}"
-                      Foreground="{DynamicResource {x:Static vsui:EnvironmentColors.ToolWindowTextBrushKey}}"
-                      BorderThickness="0"
-                      ScrollViewer.HorizontalScrollBarVisibility="Auto"
-                      ScrollViewer.VerticalScrollBarVisibility="Disabled">
-                <ListView.View>
-                    <GridView ColumnHeaderContainerStyle="{StaticResource MacroGridViewHeaderStyle}">
-                        <GridViewColumn Header="Name" Width="140">
-                            <GridViewColumn.CellTemplate>
-                                <DataTemplate DataType="{x:Type local:SampleTemplateItemViewModel}">
-                                    <TextBlock Text="{Binding Name}"
-                                               TextTrimming="CharacterEllipsis"
-                                               ToolTip="{Binding Description}" />
-                                </DataTemplate>
-                            </GridViewColumn.CellTemplate>
-                        </GridViewColumn>
-                        <GridViewColumn Header="Description" Width="268">
-                            <GridViewColumn.CellTemplate>
-                                <DataTemplate DataType="{x:Type local:SampleTemplateItemViewModel}">
-                                    <TextBlock Text="{Binding Description}"
-                                               TextTrimming="CharacterEllipsis"
-                                               Foreground="{DynamicResource {x:Static vsui:EnvironmentColors.SystemGrayTextBrushKey}}" />
-                                </DataTemplate>
-                            </GridViewColumn.CellTemplate>
-                        </GridViewColumn>
-                    </GridView>
-                </ListView.View>
-                <ListView.ItemContainerStyle>
-                    <StaticResource ResourceKey="SampleListViewItemStyle" />
-                </ListView.ItemContainerStyle>
-            </ListView>
-        </Expander>
 
         <!-- ─── Macro list / empty state ────────────────────────────────────────────────── -->
         <Grid>
@@ -275,7 +221,7 @@
                                 <DataTemplate DataType="{x:Type local:MacroItemViewModel}">
                                     <TextBlock Text="{Binding Name}"
                                                TextTrimming="CharacterEllipsis"
-                                               ToolTip="{Binding ShadowedTooltip}" />
+                                               ToolTip="{Binding ItemToolTip}" />
                                 </DataTemplate>
                             </GridViewColumn.CellTemplate>
                         </GridViewColumn>
@@ -300,15 +246,23 @@
                         <GridViewColumn Header="" Width="32">
                             <GridViewColumn.CellTemplate>
                                 <DataTemplate DataType="{x:Type local:MacroItemViewModel}">
-                                    <Button Command="{Binding PlayCommand}"
-                                            ToolTip="Play macro"
-                                            AutomationProperties.Name="Play macro"
+                                    <Button Click="PrimaryActionButton_Click"
+                                            ToolTip="{Binding PrimaryActionToolTip}"
+                                            AutomationProperties.Name="{Binding PrimaryActionAutomationName}"
+                                            IsEnabled="{Binding CanPrimaryAction}"
                                             Padding="2"
                                             Background="Transparent"
                                             BorderBrush="Transparent">
-                                        <imaging:CrispImage Width="14" Height="14"
+                                        <imaging:CrispImage x:Name="PrimaryActionIcon"
+                                                            Width="14"
+                                                            Height="14"
                                                             Moniker="{x:Static catalog:KnownMonikers.Run}" />
                                     </Button>
+                                    <DataTemplate.Triggers>
+                                        <DataTrigger Binding="{Binding IsSample}" Value="True">
+                                            <Setter TargetName="PrimaryActionIcon" Property="Moniker" Value="{x:Static catalog:KnownMonikers.Open}" />
+                                        </DataTrigger>
+                                    </DataTemplate.Triggers>
                                 </DataTemplate>
                             </GridViewColumn.CellTemplate>
                         </GridViewColumn>

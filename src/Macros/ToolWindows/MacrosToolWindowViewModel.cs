@@ -9,6 +9,7 @@ using Macros.Samples;
 using Microsoft.VisualStudio.Shell;
 
 using System;
+using Macros.Engine.Triggers;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
@@ -208,7 +209,7 @@ public sealed class MacrosToolWindowViewModel : INotifyPropertyChanged, IDisposa
     /// <inheritdoc />
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    /// <summary>Gets the read-only sample gallery shown below the saved macro groups.</summary>
+    /// <summary>Gets the backing sample-template gallery mirrored into the grouped main list.</summary>
     public SampleGroupViewModel SamplesGroup { get; }
 
     /// <summary>Gets the Repo + Global + ShadowedGlobal section view-models, in display order.</summary>
@@ -216,7 +217,8 @@ public sealed class MacrosToolWindowViewModel : INotifyPropertyChanged, IDisposa
 
     /// <summary>
     /// Gets the flat list of every <see cref="MacroItemViewModel"/> currently shown, in the
-    /// order Repo / Global / Shadowed-Global, name-sorted within each section. Drives the
+    /// order Repo / Global / Shadowed-Global / Samples, name-sorted within each section.
+    /// Drives the
     /// XAML's grouped <see cref="System.Windows.Controls.ListView"/> via
     /// <see cref="GroupedItemsView"/>.
     /// </summary>
@@ -310,11 +312,36 @@ public sealed class MacrosToolWindowViewModel : INotifyPropertyChanged, IDisposa
         }
     }
 
-    public async Task<bool> CopySampleToScopeAsync(SampleTemplateItemViewModel item, MacroScope target, CancellationToken cancellation = default)
+    public Task<bool> CopySampleToScopeAsync(SampleTemplateItemViewModel item, MacroScope target, CancellationToken cancellation = default)
     {
         if (item is null)
         {
             throw new ArgumentNullException(nameof(item));
+        }
+
+        return CopySampleToScopeAsync(item.Template, target, cancellation);
+    }
+
+    public Task<bool> CopySampleToScopeAsync(MacroItemViewModel item, MacroScope target, CancellationToken cancellation = default)
+    {
+        if (item is null)
+        {
+            throw new ArgumentNullException(nameof(item));
+        }
+
+        if (!item.IsSample || item.SampleTemplate is null)
+        {
+            throw new ArgumentException("Item must be a sample row.", nameof(item));
+        }
+
+        return CopySampleToScopeAsync(item.SampleTemplate, target, cancellation);
+    }
+
+    public async Task<bool> CopySampleToScopeAsync(SampleTemplate template, MacroScope target, CancellationToken cancellation = default)
+    {
+        if (template is null)
+        {
+            throw new ArgumentNullException(nameof(template));
         }
 
         if (target == MacroScope.Repo && SolutionContextTracker.Current?.HasSolution != true)
@@ -325,7 +352,7 @@ public sealed class MacrosToolWindowViewModel : INotifyPropertyChanged, IDisposa
 
         try
         {
-            string createdPath = await _instantiateSampleAsync(item.Template, target, cancellation).ConfigureAwait(true);
+            string createdPath = await _instantiateSampleAsync(template, target, cancellation).ConfigureAwait(true);
             string createdName = Path.GetFileNameWithoutExtension(createdPath);
             await _statusReporter($"Macros: Added sample \"{createdName}\" to {ScopeLabel(target)}").ConfigureAwait(true);
             return true;
@@ -338,6 +365,23 @@ public sealed class MacrosToolWindowViewModel : INotifyPropertyChanged, IDisposa
         {
             await _showErrorAsync($"Copy sample to {ScopeTitle(target)}", ex.Message).ConfigureAwait(true);
             return false;
+        }
+    }
+
+    public async Task OpenSampleByTemplateAsync(SampleTemplate template)
+    {
+        if (template is null)
+        {
+            throw new ArgumentNullException(nameof(template));
+        }
+
+        try
+        {
+            await OpenSampleAsync(template, CancellationToken.None).ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            await _errorReporter(ex).ConfigureAwait(true);
         }
     }
 
@@ -437,8 +481,9 @@ public sealed class MacrosToolWindowViewModel : INotifyPropertyChanged, IDisposa
     }
 
     /// <summary>
-    /// Loads the macro library from <see cref="IMacroStore.ListAllAsync"/>, partitions
-    /// into Global / Repo groups, and refreshes the view-model. Errors are caught and
+    /// Loads the macro library from per-scope <see cref="IMacroStore.ListAsync"/> calls,
+    /// partitions into Global / Repo groups, appends Samples, and refreshes the view-model.
+    /// Errors are caught and
     /// surfaced via <see cref="HasError"/>.
     /// </summary>
     /// <param name="cancellation">Cancels the underlying enumeration.</param>
@@ -687,6 +732,28 @@ public sealed class MacrosToolWindowViewModel : INotifyPropertyChanged, IDisposa
             }
         }
 
+        foreach (var sampleVm in SamplesGroup.Items)
+        {
+            var sampleEntry = new MacroEntry(
+                sampleVm.Name,
+                MacroScope.Global,
+                $"sample:{sampleVm.Name}",
+                0,
+                DateTimeOffset.MinValue,
+                0,
+                new[] { TriggerBinding.Manual });
+            var sampleItem = new MacroItemViewModel(sampleEntry, null)
+            {
+                CanInvoke = true,
+                IsSample = true,
+                SampleTemplate = sampleVm.Template,
+            };
+            if (onFlatViewThread)
+            {
+                AllItems.Add(sampleItem);
+            }
+        }
+
         repoGroup.IsAvailable = repoAvailable;
         globalGroup.IsAvailable = true;
         // The shadowed section is "available" only when there's something to display; when
@@ -711,7 +778,8 @@ public sealed class MacrosToolWindowViewModel : INotifyPropertyChanged, IDisposa
         string trimmed = _filterText?.Trim() ?? string.Empty;
         Func<MacroItemViewModel, bool> predicate = trimmed.Length == 0
             ? static _ => true
-            : item => item.Name.IndexOf(trimmed, StringComparison.OrdinalIgnoreCase) >= 0;
+            : item => item.Name.IndexOf(trimmed, StringComparison.OrdinalIgnoreCase) >= 0
+                || (item.IsSample && item.SampleTemplate?.Description?.IndexOf(trimmed, StringComparison.OrdinalIgnoreCase) >= 0);
 
         Func<SampleTemplateItemViewModel, bool> samplePredicate = trimmed.Length == 0
             ? static _ => true
