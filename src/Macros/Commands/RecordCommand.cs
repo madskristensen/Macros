@@ -8,15 +8,14 @@ using Task = System.Threading.Tasks.Task;
 namespace Macros.Commands;
 
 /// <summary>
-/// Handler for the <c>Macros: Record</c> command. Asks <see cref="IMacroService"/> to leave
-/// <see cref="MacroState.Idle"/> and start a new recording session.
+/// Handler for the <c>Macros: Record</c> command. Starts a new recording session when idle,
+/// and stops the active recording when invoked by its keyboard shortcut while recording.
 /// </summary>
 /// <remarks>
 /// <para>
 /// Visibility is primarily driven from the .vsct via the NotRecording UIContext (so the button
-/// disappears while a recording is in progress). The <see cref="BeforeQueryStatus"/> override
-/// is a belt-and-suspenders disable for keyboard-bound invocations that bypass the visibility
-/// constraint.
+/// disappears while a recording is in progress). The command remains enabled while recording so
+/// the Ctrl+Shift+R key binding can stop the session.
 /// </para>
 /// </remarks>
 [Command(PackageGuids.guidMacrosPackageCmdSetString, PackageIds.cmdidMacrosRecord)]
@@ -78,12 +77,18 @@ internal sealed class RecordCommand : BaseCommand<RecordCommand>
 
         try
         {
-            await service.StartRecordingAsync();
+            if (service.State == MacroState.Recording)
+            {
+                await RecordingCommandUtilities.StopRecordingAndOpenAsync(service);
+            }
+            else if (service.State == MacroState.Idle)
+            {
+                await service.StartRecordingAsync();
+            }
         }
         catch (InvalidOperationException)
         {
-            // UIContext should already prevent invocation while not Idle; silently no-op if it
-            // races (e.g. a keybinding fires twice before VS re-queries status).
+            // UIContext should already prevent invalid transitions; silently no-op if it races.
         }
     }
 
@@ -91,6 +96,6 @@ internal sealed class RecordCommand : BaseCommand<RecordCommand>
     protected override void BeforeQueryStatus(EventArgs e)
     {
         EnsureResolveStarted();
-        Command.Enabled = _service is { State: MacroState.Idle };
+        Command.Enabled = _service is { State: MacroState.Idle or MacroState.Recording };
     }
 }

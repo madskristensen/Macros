@@ -23,7 +23,7 @@ namespace Macros.StatusBar;
 /// <para>
 /// Uses the same visual-tree reflection technique as the Modes StatusBarInjector: walks
 /// <see cref="Application.Current"/>.<c>MainWindow</c> to find the <c>StatusBarPanel</c>
-/// <see cref="DockPanel"/>, then appends a <see cref="StackPanel"/> with
+/// <see cref="DockPanel"/>, then inserts a <see cref="StackPanel"/> with
 /// <see cref="DockPanel.DockProperty"/> set to <see cref="Dock.Left"/>. This places the
 /// indicator in the left portion of the status bar alongside cursor position, encoding, etc.
 /// </para>
@@ -150,11 +150,7 @@ internal static class RecordingStatusBarInjector
                 _indicator = BuildIndicator(package);
             }
 
-            if (!_leftPanel.Children.Contains(_indicator))
-            {
-                _indicator.SetValue(DockPanel.DockProperty, Dock.Left);
-                _leftPanel.Children.Add(_indicator);
-            }
+            PlaceIndicatorAtFarLeft(_leftPanel, _indicator);
         }
         catch (Exception ex)
         {
@@ -185,6 +181,24 @@ internal static class RecordingStatusBarInjector
         }
     }
 
+    private static void PlaceIndicatorAtFarLeft(Panel panel, FrameworkElement indicator)
+    {
+        ThreadHelper.ThrowIfNotOnUIThread();
+
+        indicator.SetValue(DockPanel.DockProperty, Dock.Left);
+
+        int index = panel.Children.IndexOf(indicator);
+        if (index == 0) return;
+
+        // If the indicator is already elsewhere in the panel, remove it before reinserting at the far left.
+        if (index != -1)
+        {
+            panel.Children.RemoveAt(index);
+        }
+
+        panel.Children.Insert(0, indicator);
+    }
+
     // ── WPF element construction ─────────────────────────────────────────────────
 
     private static FrameworkElement BuildIndicator(AsyncPackage package)
@@ -193,8 +207,8 @@ internal static class RecordingStatusBarInjector
 
         var dot = new Ellipse
         {
-            Width = 8,
-            Height = 8,
+            Width = 10,
+            Height = 10,
             Fill = new SolidColorBrush(Color.FromRgb(0xE5, 0x14, 0x00)),
             VerticalAlignment = VerticalAlignment.Center,
             Margin = new Thickness(0, 0, 4, 0),
