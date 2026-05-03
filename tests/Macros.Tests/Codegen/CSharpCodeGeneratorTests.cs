@@ -260,23 +260,11 @@ public sealed class CSharpCodeGeneratorTests
     }
 
     [Fact]
-    public void Generate_Header_IncludesTriggerGuidance()
+    public void Generate_Header_IncludesTriggerLink()
     {
-        // Verify that the trigger guidance section is included in the header
         string src = CSharpCodeGenerator.Generate(Array.Empty<RecordedStep>(), "TestMacro", FixedUtc);
 
-        // Check for the guidance comment block
-        Assert.Contains("To make this macro run automatically", src);
-        Assert.Contains("remove the leading \"// EXAMPLE: \" prefix", src);
-        
-        // Check for all four example trigger lines
-        Assert.Contains("// EXAMPLE: // @trigger Build.SolutionBuildDone", src);
-        Assert.Contains("// EXAMPLE: // @trigger Document.Saved when filename=*.cs", src);
-        Assert.Contains("// EXAMPLE: // @trigger BeforeCommand File.Save", src);
-        Assert.Contains("// EXAMPLE: // @trigger AfterCommand Build.BuildSolution", src);
-        
-        // Check for the reference to Tools menu
-        Assert.Contains("See Tools → Options → Macros → Available Triggers", src);
+        Assert.Contains("// Triggers: https://github.com/madskristensen/Macros#triggers", src);
     }
 
     [Fact]
