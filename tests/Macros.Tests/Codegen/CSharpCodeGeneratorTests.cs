@@ -260,11 +260,11 @@ public sealed class CSharpCodeGeneratorTests
     }
 
     [Fact]
-    public void Generate_Header_IncludesTriggerLink()
+    public void Generate_Header_IncludesDocsLink()
     {
         string src = CSharpCodeGenerator.Generate(Array.Empty<RecordedStep>(), "TestMacro", FixedUtc);
 
-        Assert.Contains("// Triggers: https://github.com/madskristensen/Macros#triggers", src);
+        Assert.Contains("// Documentation: https://github.com/madskristensen/Macros/tree/master/docs", src);
     }
 
     [Fact]
