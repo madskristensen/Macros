@@ -48,6 +48,18 @@ Helper methods are available directly in your macro (no import needed — the In
 | `RunCommandAsync(Guid group, uint id, object? args = null)`         | Invoke a command by GUID + ID for cases without a public name.        |
 | `WaitAsync(int ms)`                                                 | Pause the script.                                                     |
 | `OpenFileAsync(string path)`                                        | Open a file in the VS editor (or bring it to front if already open).  |
+| `RunMacroAsync(string name)`                                        | Run another saved macro by name (repo-wins). Cycles + depth >3 throw. |
+| `InsertSnippetAsync(string prefix)`                                 | Type a snippet shortcut and ask VS to expand it.                      |
+
+For diagnostics, the static `Log` class writes to the **Macros** Output pane:
+
+| Method                  | Purpose                                          |
+| ----------------------- | ------------------------------------------------ |
+| `Log.InfoAsync(string)`  | Write an `INFO`-tagged line to the Macros pane.  |
+| `Log.WarnAsync(string)`  | Write a `WARN`-tagged line to the Macros pane.   |
+| `Log.ErrorAsync(string)` | Write an `ERROR`-tagged line to the Macros pane. |
+
+Each line is prefixed with `[HH:mm:ss SEVERITY MacroName]`, so output from multiple macros stays attributable.
 
 ## The `MacroGlobals` object
 

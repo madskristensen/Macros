@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Community.VisualStudio.Toolkit;
 using Macros.Options;
+using Macros.Samples;
 using Microsoft.VisualStudio.Imaging;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
@@ -37,13 +38,30 @@ namespace Macros.Onboarding;
 /// </remarks>
 internal static class OnboardingInfoBar
 {
-    private const string OnboardingMessage =
-        "Macros installed. Press Ctrl+Shift+R to record, Ctrl+Shift+P to play.";
-
     private const string OpenWindowActionContext = "macros.onboarding.openWindow";
     private const string DismissActionContext = "macros.onboarding.dismiss";
 
     private static int _attemptInFlight;
+
+    /// <summary>
+    /// Builds the onboarding message text. Derives the sample count from
+    /// <see cref="SampleTemplateProvider"/> so the message stays accurate as the gallery grows
+    /// or shrinks; falls back to a count-free phrasing if the provider can't be queried.
+    /// </summary>
+    /// <param name="sampleCount">
+    /// Number of built-in samples. Pass <c>0</c> or a negative value to omit the gallery hint.
+    /// </param>
+    /// <returns>The complete InfoBar message string.</returns>
+    internal static string BuildOnboardingMessage(int sampleCount)
+    {
+        if (sampleCount > 0)
+        {
+            return $"Macros installed — {sampleCount} ready-to-use samples are in the tool window. " +
+                "Press Ctrl+Shift+R to record, Ctrl+Shift+P to play.";
+        }
+
+        return "Macros installed. Press Ctrl+Shift+R to record, Ctrl+Shift+P to play.";
+    }
 
     /// <summary>
     /// Shows the first-run onboarding InfoBar if it has not yet been seen. Safe to call multiple
@@ -110,8 +128,9 @@ internal static class OnboardingInfoBar
 
     private static InfoBarModel BuildModel()
     {
+        int sampleCount = TryGetSampleCount();
         return new InfoBarModel(
-            textSpans: new[] { new InfoBarTextSpan(OnboardingMessage) },
+            textSpans: new[] { new InfoBarTextSpan(BuildOnboardingMessage(sampleCount)) },
             actionItems: new[]
             {
                 new InfoBarHyperlink("Open Macros window", OpenWindowActionContext),
@@ -119,6 +138,21 @@ internal static class OnboardingInfoBar
             },
             image: KnownMonikers.StatusInformation,
             isCloseButtonVisible: true);
+    }
+
+    private static int TryGetSampleCount()
+    {
+        try
+        {
+            return new SampleTemplateProvider().GetTemplates().Count;
+        }
+        catch
+        {
+            // The provider reads embedded resource manifest entries — failures here would
+            // indicate a packaging bug. Degrade to the count-free message instead of failing
+            // the entire onboarding flow.
+            return 0;
+        }
     }
 
     private static async Task<InfoBar?> TryCreateInfoBarAsync(InfoBarModel model)

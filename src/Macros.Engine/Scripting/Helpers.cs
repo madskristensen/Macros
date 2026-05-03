@@ -1,8 +1,12 @@
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using EnvDTE;
 using EnvDTE80;
+using Macros.Engine.Player;
+using Macros.Engine.Storage;
+using Macros.Engine.Triggers;
 using Microsoft.VisualStudio;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
@@ -45,6 +49,22 @@ public static class Helpers
     /// player and unit tests can set it; user code never sees it directly.
     /// </summary>
     internal static readonly AsyncLocal<MacroGlobals?> CurrentGlobals = new();
+
+    /// <summary>Maximum nesting depth for <see cref="RunMacroAsync"/> calls.</summary>
+    /// <remarks>
+    /// Matches <see cref="TriggerReentranceGuard.MaxDepth"/> so the helper-side budget is the
+    /// same shape users already learn for trigger composition. Note that the two budgets are
+    /// <em>independent</em>: a triggered macro that nests three more <see cref="RunMacroAsync"/>
+    /// calls is allowed by design — the trigger system already guards its own pipeline.
+    /// </remarks>
+    internal const int MaxNestedRunMacroDepth = 3;
+
+    /// <summary>
+    /// Tracks the resolved <c>(scope, name)</c> identities currently on the call stack so a
+    /// macro cannot directly or transitively invoke itself. <see cref="AsyncLocal{T}"/>
+    /// flows the active set across <see langword="await"/> hops. Entries are case-insensitive.
+    /// </summary>
+    private static readonly AsyncLocal<HashSet<string>?> ActiveRunKeys = new();
 
     /// <summary>
     /// Inserts <paramref name="text"/> at the active document's caret / selection insertion point.
@@ -248,6 +268,179 @@ public static class Helpers
         }
 
         return Task.Delay(milliseconds, cancellation);
+    }
+
+    /// <summary>
+    /// Loads another macro by name and runs it inline within the current macro. Repo macros
+    /// take precedence over global macros of the same name (matches the tool window's
+    /// repo-wins semantics). Use this to compose a long sequence out of small reusable pieces.
+    /// </summary>
+    /// <param name="name">
+    /// The macro name (file stem, no <c>.csx</c> extension). Validated by the underlying store.
+    /// </param>
+    /// <param name="cancellation">
+    /// Token that cancels the nested execution. Linked with <see cref="IMacroContext.Cancellation"/>
+    /// so an Esc on the parent also cancels the child.
+    /// </param>
+    /// <exception cref="ArgumentException"><paramref name="name"/> is null or whitespace.</exception>
+    /// <exception cref="InvalidOperationException">
+    /// The ambient macro context is missing a store / player (helper called outside a macro
+    /// invocation), the macro could not be found, the call would create a cycle (A → A or
+    /// A → B → A), or nesting depth would exceed <see cref="MaxNestedRunMacroDepth"/>.
+    /// </exception>
+    /// <remarks>
+    /// <para>
+    /// The nested macro runs with a fresh <see cref="ManualMacroTrigger"/> so the called macro
+    /// sees <c>Trigger.IsManual == true</c> regardless of why the parent was invoked. This is
+    /// deliberate — the call site is "deliberate composition", not the original event.
+    /// </para>
+    /// <para>
+    /// The nested macro's compile / runtime errors propagate as exceptions so the parent
+    /// macro can <c>try / catch</c> them. A cancellation surfaces as
+    /// <see cref="OperationCanceledException"/>; a compile error surfaces as
+    /// <see cref="InvalidOperationException"/> with the diagnostic text in the message.
+    /// </para>
+    /// </remarks>
+    public static async Task RunMacroAsync(string name, CancellationToken cancellation = default)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            throw new ArgumentException("Macro name must be non-empty.", nameof(name));
+        }
+
+        MacroGlobals globals = RequireGlobals();
+        IMacroStore store = globals.Store
+            ?? throw new InvalidOperationException(
+                "RunMacroAsync requires a macro store; the current macro context was created without one.");
+        IMacroPlayer player = globals.Player
+            ?? throw new InvalidOperationException(
+                "RunMacroAsync requires a macro player; the current macro context was created without one.");
+
+        // Resolve macro source: repo first when a solution is open, then global. We deliberately
+        // try repo even if it would throw for missing solution — IMacroStore implementations are
+        // expected to skip the repo half cleanly when no solution is open.
+        (string? source, MacroScope resolvedScope) = await ResolveMacroAsync(store, name, cancellation).ConfigureAwait(false);
+        if (source is null)
+        {
+            throw new InvalidOperationException(
+                $"Macro '{name}' was not found in either the repo or global scope.");
+        }
+
+        // Re-entrance + depth guard, keyed by resolved (scope, name) so a global "fmt" calling a
+        // repo "fmt" is allowed; a self-call (same scope+name) is not.
+        string key = $"{resolvedScope}:{name}".ToUpperInvariant();
+        HashSet<string> currentSet = ActiveRunKeys.Value ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (currentSet.Count >= MaxNestedRunMacroDepth)
+        {
+            throw new InvalidOperationException(
+                $"RunMacroAsync nesting depth exceeded ({MaxNestedRunMacroDepth}); refusing to run '{name}'.");
+        }
+
+        if (currentSet.Contains(key))
+        {
+            throw new InvalidOperationException(
+                $"RunMacroAsync cycle detected: macro '{name}' (scope={resolvedScope}) is already running on the call stack.");
+        }
+
+        var nextSet = new HashSet<string>(currentSet, StringComparer.OrdinalIgnoreCase) { key };
+        HashSet<string>? previousSet = ActiveRunKeys.Value;
+        ActiveRunKeys.Value = nextSet;
+
+        // Link the ambient context's cancellation with the caller-supplied one so an Esc on
+        // the parent (which trips Context.Cancellation) also cancels the child.
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellation, globals.Context.Cancellation);
+
+        try
+        {
+            MacroPlayResult result = await player.PlayAsync(
+                source,
+                name,
+                ManualMacroTrigger.Instance,
+                linked.Token,
+                csxFilePath: null).ConfigureAwait(false);
+
+            if (result.Success)
+            {
+                return;
+            }
+
+            // Translate failed result into an exception so callers can catch normally rather
+            // than have nested failures silently swallowed.
+            if (result.RuntimeError is OperationCanceledException oce)
+            {
+                throw oce;
+            }
+
+            if (result.RuntimeError is not null)
+            {
+                throw new InvalidOperationException(
+                    $"Nested macro '{name}' failed: {result.RuntimeError.Message}",
+                    result.RuntimeError);
+            }
+
+            throw new InvalidOperationException(
+                $"Nested macro '{name}' failed to compile:\n{result.CompilationError}");
+        }
+        finally
+        {
+            ActiveRunKeys.Value = previousSet;
+        }
+    }
+
+    /// <summary>
+    /// Inserts a code snippet by typing its <paramref name="prefix"/> at the caret and asking
+    /// Visual Studio to expand it. Equivalent to typing the prefix and pressing
+    /// <c>Tab</c> in the C# editor.
+    /// </summary>
+    /// <param name="prefix">
+    /// The snippet shortcut (e.g. <c>"prop"</c>, <c>"for"</c>, <c>"cw"</c>) — must be non-empty.
+    /// </param>
+    /// <param name="cancellation">Token that aborts the operation between the type and expand steps.</param>
+    /// <exception cref="ArgumentException"><paramref name="prefix"/> is null or whitespace.</exception>
+    /// <exception cref="InvalidOperationException">No ambient <see cref="MacroGlobals"/> is set.</exception>
+    /// <remarks>
+    /// The caret must be in a snippet-aware editor surface (e.g. a C# document) for the
+    /// expansion to fire; otherwise Visual Studio shows the snippet picker instead. This is a
+    /// thin convenience over <see cref="TypeAsync"/> + <see cref="ExecuteCommandAsync"/> with
+    /// <c>"Edit.InsertSnippet"</c>.
+    /// </remarks>
+    public static async Task InsertSnippetAsync(string prefix, CancellationToken cancellation = default)
+    {
+        if (string.IsNullOrWhiteSpace(prefix))
+        {
+            throw new ArgumentException("Snippet prefix must be non-empty.", nameof(prefix));
+        }
+
+        await TypeAsync(prefix, cancellation).ConfigureAwait(false);
+        await ExecuteCommandAsync("Edit.InsertSnippet", string.Empty, cancellation).ConfigureAwait(false);
+    }
+
+    private static async Task<(string? Source, MacroScope Scope)> ResolveMacroAsync(IMacroStore store, string name, CancellationToken cancellation)
+    {
+        // Try repo first to honour repo-wins. IMacroStore.LoadByNameAsync throws
+        // InvalidOperationException for repo scope when no solution is open; treat that as
+        // "not found in repo" rather than propagating it to the script.
+        try
+        {
+            string? repoSrc = await store.LoadByNameAsync(name, MacroScope.Repo, cancellation).ConfigureAwait(false);
+            if (repoSrc is not null)
+            {
+                return (repoSrc, MacroScope.Repo);
+            }
+        }
+        catch (InvalidOperationException)
+        {
+            // No solution open — fall through to global lookup.
+        }
+        catch (ArgumentException)
+        {
+            // Invalid macro name (e.g. contains a path separator). Re-thrown by the global
+            // attempt below; surface that single failure to the caller instead of silently
+            // skipping it here.
+        }
+
+        string? globalSrc = await store.LoadByNameAsync(name, MacroScope.Global, cancellation).ConfigureAwait(false);
+        return (globalSrc, MacroScope.Global);
     }
 
     private static MacroGlobals RequireGlobals()

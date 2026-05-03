@@ -10,6 +10,7 @@ using EnvDTE;
 using EnvDTE80;
 using Macros.Engine.Recording;
 using Macros.Engine.Scripting;
+using Macros.Engine.Storage;
 using Macros.Engine.Triggers;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Scripting;
@@ -46,6 +47,7 @@ internal sealed class MacroPlayer : IMacroPlayer
     private readonly ScriptCompilationCache _cache;
     private readonly DTE2 _dte;
     private readonly IMacroPromptService? _promptService;
+    private readonly IMacroStore? _store;
 
     /// <summary>
     /// Initializes a new <see cref="MacroPlayer"/>.
@@ -54,13 +56,20 @@ internal sealed class MacroPlayer : IMacroPlayer
     /// <param name="cache">Shared script compilation cache (process-singleton).</param>
     /// <param name="dte">The hosting Visual Studio's DTE automation root.</param>
     /// <param name="promptService">Optional UI prompt service for <see cref="Helpers.PromptAsync"/>.</param>
+    /// <param name="store">
+    /// Optional macro store; required for <see cref="Helpers.RunMacroAsync"/> to be able to
+    /// resolve nested macro names. <see langword="null"/> in unit-test scenarios that don't
+    /// exercise nested play; the helper surfaces a clear <see cref="InvalidOperationException"/>
+    /// in that case.
+    /// </param>
     /// <exception cref="ArgumentNullException">Any required argument is <see langword="null"/>.</exception>
-    public MacroPlayer(JoinableTaskFactory jtf, ScriptCompilationCache cache, DTE2 dte, IMacroPromptService? promptService = null)
+    public MacroPlayer(JoinableTaskFactory jtf, ScriptCompilationCache cache, DTE2 dte, IMacroPromptService? promptService = null, IMacroStore? store = null)
     {
         _jtf = jtf ?? throw new ArgumentNullException(nameof(jtf));
         _cache = cache ?? throw new ArgumentNullException(nameof(cache));
         _dte = dte ?? throw new ArgumentNullException(nameof(dte));
         _promptService = promptService;
+        _store = store;
     }
 
     /// <inheritdoc />
@@ -128,10 +137,16 @@ internal sealed class MacroPlayer : IMacroPlayer
         {
             UiThreadFactory = _jtf,
             PromptService = _promptService,
+            Store = _store,
+            Player = this,
         };
 
         using (ReplayGuard.Enter())
         {
+            // Stack semantics: a script can call Helpers.RunMacroAsync which re-enters this
+            // method. We must restore the previous ambient globals on exit, not null them,
+            // or the parent script's next helper call will throw "No ambient MacroGlobals".
+            MacroGlobals? previousGlobals = Helpers.CurrentGlobals.Value;
             Helpers.CurrentGlobals.Value = globals;
             try
             {
@@ -159,7 +174,7 @@ internal sealed class MacroPlayer : IMacroPlayer
             }
             finally
             {
-                Helpers.CurrentGlobals.Value = null;
+                Helpers.CurrentGlobals.Value = previousGlobals;
             }
         }
     }

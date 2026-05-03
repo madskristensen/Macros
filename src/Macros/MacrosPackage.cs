@@ -296,7 +296,7 @@ public sealed class MacrosPackage : ToolkitPackage
         this.AddService(
             typeof(IMacroPlayer),
             (_, _, _) => Task.FromResult<object>(
-                new MacroPlayer(this.JoinableTaskFactory, _scriptCache, dte, new MacroPromptService())),
+                new MacroPlayer(this.JoinableTaskFactory, _scriptCache, dte, new MacroPromptService(), sharedStorage.Value)),
             promote: true);
 
         // 4. Register the priority command target so CommandObserver sees every shell command
@@ -377,7 +377,7 @@ public sealed class MacrosPackage : ToolkitPackage
         // InitializeAsync without risking a deadlock against the service container that
         // hasn't finished registering us yet. The script cache and DTE are shared with the
         // proffered IMacroPlayer service so cache hits are still cross-instance.
-        var dispatcherPlayer = new MacroPlayer(JoinableTaskFactory, _scriptCache, dte, new MacroPromptService());
+        var dispatcherPlayer = new MacroPlayer(JoinableTaskFactory, _scriptCache, dte, new MacroPromptService(), sharedStorage.Value);
         var trustPromptService = new TrustPromptService(JoinableTaskFactory, this);
         _commandTriggerDispatcher = new CommandTriggerDispatcher(
             _triggerRegistry,

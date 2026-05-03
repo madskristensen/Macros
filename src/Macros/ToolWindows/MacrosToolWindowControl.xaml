@@ -327,18 +327,17 @@
                                                 <Expander.Header>
                                                     <Border Background="Transparent"
                                                             PreviewMouseRightButtonUp="MacroGroupHeader_PreviewMouseRightButtonUp">
-                                                        <TextBlock Text="{Binding Name}"
-                                                                   FontWeight="SemiBold"
-                                                                   Foreground="{DynamicResource {x:Static vsui:EnvironmentColors.ToolWindowTextBrushKey}}" />
+                                                        <TextBlock FontWeight="SemiBold"
+                                                                   Foreground="{DynamicResource {x:Static vsui:EnvironmentColors.ToolWindowTextBrushKey}}">
+                                                            <Run Text="{Binding Name, Mode=OneWay}" />
+                                                            <Run Text=" (" />
+                                                            <Run Text="{Binding ItemCount, Mode=OneWay}" />
+                                                            <Run Text=")" />
+                                                        </TextBlock>
                                                     </Border>
                                                 </Expander.Header>
                                                 <ItemsPresenter />
                                             </Expander>
-                                            <ControlTemplate.Triggers>
-                                                <DataTrigger Binding="{Binding Name}" Value="Samples">
-                                                    <Setter TargetName="GroupExpander" Property="IsExpanded" Value="False" />
-                                                </DataTrigger>
-                                            </ControlTemplate.Triggers>
                                         </ControlTemplate>
                                     </Setter.Value>
                                 </Setter>

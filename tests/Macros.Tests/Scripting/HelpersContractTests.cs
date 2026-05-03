@@ -217,7 +217,7 @@ public sealed class HelpersContractTests
     }
 
     [Fact]
-    public void Helpers_PublicSurfaceIsExactlyTheEightVerbs()
+    public void Helpers_PublicSurfaceIsExactlyTheKnownVerbs()
     {
         // Lock the surface so accidentally adding a public method without updating the codegen
         // contract fails the test loudly.
@@ -231,6 +231,8 @@ public sealed class HelpersContractTests
             nameof(Helpers.WaitAsync),
             nameof(Helpers.OpenFileAsync),
             nameof(Helpers.PromptAsync),
+            nameof(Helpers.RunMacroAsync),
+            nameof(Helpers.InsertSnippetAsync),
         };
 
         var actual = typeof(Helpers)

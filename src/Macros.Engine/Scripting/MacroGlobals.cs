@@ -1,4 +1,6 @@
 using System;
+using Macros.Engine.Player;
+using Macros.Engine.Storage;
 using Macros.Engine.Triggers;
 using EnvDTE80;
 using Microsoft.VisualStudio.Threading;
@@ -61,4 +63,21 @@ public sealed class MacroGlobals
     internal JoinableTaskFactory? UiThreadFactory { get; set; }
 
     internal IMacroPromptService? PromptService { get; set; }
+
+    /// <summary>
+    /// Gets or sets the macro store used by <see cref="Helpers.RunMacroAsync"/> to look up
+    /// nested macros by name. Internal because user code should never read it directly —
+    /// the helper is the documented surface. <see langword="null"/> in unit tests that
+    /// construct globals manually without storage; <see cref="Helpers.RunMacroAsync"/>
+    /// throws a clear <see cref="InvalidOperationException"/> in that case.
+    /// </summary>
+    internal IMacroStore? Store { get; set; }
+
+    /// <summary>
+    /// Gets or sets the macro player used by <see cref="Helpers.RunMacroAsync"/> to execute
+    /// nested macros without re-entering <see cref="MacroService"/>'s state machine. Set by
+    /// <see cref="MacroPlayer"/> to <c>this</c> immediately before the script is invoked, so
+    /// nested calls share the same compilation cache and resolver configuration.
+    /// </summary>
+    internal IMacroPlayer? Player { get; set; }
 }

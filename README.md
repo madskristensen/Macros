@@ -50,6 +50,29 @@ Requires **Visual Studio 2022** (17.10+) on Windows.
 - **[Troubleshooting](docs/troubleshooting.md)** — Common issues and fixes.
 - **[Architecture](docs/architecture.md)** — For contributors: how it works under the hood.
 
+## How does this compare?
+
+<details>
+<summary>Macros for VS vs. the alternatives</summary>
+
+| Feature                                               | **Macros for VS** | Old VS Macros (≤2010) | Visual Commander | VS Code (any macro extension) |
+| ----------------------------------------------------- | :---------------: | :-------------------: | :--------------: | :---------------------------: |
+| Record edits + replay                                 |         ✅         |           ✅           |        ✅         |               ◐               |
+| Macros are transparent, editable C# scripts           |         ✅         |       VBA only        |        ✅         |               ◐               |
+| Full IntelliSense in the macro editor                 |         ✅         |           ✅           |        ◐         |               ❌               |
+| Event triggers (build, save, debugger, …)             |         ✅         |           ✅           |        ✅         |               ❌               |
+| `BeforeCommand` interception (cancel a VS command)    |         ✅         |           ✅           |        ✅         |               ❌               |
+| Trigger filters (`when filename=*.cs`)                |         ✅         |           ❌           |        ❌         |               ❌               |
+| **Per-repo, version-controllable, team-shared scope** |         ✅         |           ❌           |        ❌         |               ❌               |
+| **Trust gate / consent prompt for shared macros**     |         ✅         |           ❌           |        ❌         |               ❌               |
+| Re-entrance guard + auto-disable + kill switch        |         ✅         |           ❌           |        ❌         |               ❌               |
+| Built-in sample gallery                               |   ✅ (15 ready)    |           ❌           |     examples     |               ❌               |
+| Actively maintained                                   |         ✅         |           ❌           |        ✅         |               ◐               |
+
+The combination "**recorded + scriptable + triggered + team-shared + trust-gated + sample-seeded**" is unique to Macros for VS. Visual Commander has the first three; nobody else has the last three.
+
+</details>
+
 ## Contributing
 
 Issues, ideas, and PRs welcome on [GitHub](https://github.com/MadsKristensen/Macros).
