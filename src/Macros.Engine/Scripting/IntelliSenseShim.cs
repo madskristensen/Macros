@@ -121,11 +121,12 @@ public static class IntelliSenseShim
         sb.Append("// Editor-only stubs for script globals (MacroGlobals shape).\n");
         sb.Append("// At runtime these are never seen — the player swaps in a SourceReferenceResolver\n");
         sb.Append("// that returns empty source for this file.\n");
-        // Use `global::` to skip past EnvDTE.Macros (deprecated VBA-macros type, in scope via
-        // `using EnvDTE;` above) — without it, the C# resolver flags these declarations as
-        // referencing a deprecated type even though we mean our own Macros assembly.
-        sb.Append("EnvDTE80.DTE2 DTE = null!;\n");
-        sb.Append("global::Macros.Engine.Scripting.IMacroContext Context = null!;\n");
-        sb.Append("global::Macros.Engine.Triggers.IMacroTrigger Trigger = null!;\n");
+        // Use short type names (usings are above) with plain `= null` assignment.
+        // Avoid `null!` (C# 8.0 null-forgiving) which breaks .csx IntelliSense in VS 18 Preview.
+        sb.Append("#nullable disable\n");
+        sb.Append("DTE2 DTE = null;\n");
+        sb.Append("IMacroContext Context = null;\n");
+        sb.Append("IMacroTrigger Trigger = null;\n");
+        sb.Append("#nullable restore\n");
     }
 }

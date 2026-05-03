@@ -132,32 +132,31 @@ public sealed class IntelliSenseShimTests
     public void Generate_ContainsDTEStub()
     {
         string shim = IntelliSenseShim.Generate(SamplePaths);
-        Assert.Contains("EnvDTE80.DTE2 DTE = null!;", shim, StringComparison.Ordinal);
+        Assert.Contains("DTE2 DTE = null;", shim, StringComparison.Ordinal);
     }
 
     [Fact]
     public void Generate_ContainsContextStub()
     {
         string shim = IntelliSenseShim.Generate(SamplePaths);
-        Assert.Contains("global::Macros.Engine.Scripting.IMacroContext Context = null!;", shim, StringComparison.Ordinal);
+        Assert.Contains("IMacroContext Context = null;", shim, StringComparison.Ordinal);
     }
 
     [Fact]
     public void Generate_ContainsTriggerStub()
     {
         string shim = IntelliSenseShim.Generate(SamplePaths);
-        Assert.Contains("global::Macros.Engine.Triggers.IMacroTrigger Trigger = null!;", shim, StringComparison.Ordinal);
+        Assert.Contains("IMacroTrigger Trigger = null;", shim, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void Generate_GlobalStubsUseGlobalNamespacePrefix_ToAvoidEnvDTEMacrosClash()
+    public void Generate_StubsUseShortTypeNames()
     {
-        // Guards against a future "tidy-up" that strips the global:: prefix.
-        // EnvDTE defines a deprecated `Macros` type (old VBA-macros API); without global::
-        // the C# resolver shadows our Macros assembly with that deprecated type.
+        // Short type names are used because usings above resolve them; avoids editor quirks.
         string shim = IntelliSenseShim.Generate(SamplePaths);
-        Assert.Contains("global::Macros.Engine.Scripting.IMacroContext Context = null!;", shim, StringComparison.Ordinal);
-        Assert.Contains("global::Macros.Engine.Triggers.IMacroTrigger Trigger = null!;", shim, StringComparison.Ordinal);
+        Assert.Contains("DTE2 DTE = null;", shim, StringComparison.Ordinal);
+        Assert.Contains("IMacroContext Context = null;", shim, StringComparison.Ordinal);
+        Assert.Contains("IMacroTrigger Trigger = null;", shim, StringComparison.Ordinal);
     }
 
     // ── determinism + output contract ────────────────────────────────────────────────
@@ -188,7 +187,7 @@ public sealed class IntelliSenseShimTests
         Assert.DoesNotContain("\n#r \"", shim, StringComparison.Ordinal);
         // Usings and stubs must still be emitted.
         Assert.Contains("using System;", shim, StringComparison.Ordinal);
-        Assert.Contains("EnvDTE80.DTE2 DTE = null!;", shim, StringComparison.Ordinal);
+        Assert.Contains("DTE2 DTE = null;", shim, StringComparison.Ordinal);
     }
 
     // ── argument validation ───────────────────────────────────────────────────────────

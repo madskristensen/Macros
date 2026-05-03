@@ -181,8 +181,8 @@ public sealed class MacroFileLoadDirectiveMigratorTests : IDisposable
         Assert.Empty(result.Errors);
         string migrated = Read("modern.csx");
         Assert.Contains("#load \".intellisense/Macros.Intellisense.csx\"", migrated);
-        Assert.Contains("using EnvDTE;", migrated);
-        Assert.Contains("using static Community.VisualStudio.Toolkit.VS;", migrated);
+        Assert.Contains("using Community.VisualStudio.Toolkit;", migrated);
+        Assert.Contains("using static Macros.Engine.Scripting.Helpers;", migrated);
     }
 
     // ── 6. File with different #load is NOT skipped (no shim reference) ──────────
@@ -828,6 +828,7 @@ public sealed class MacroFileLoadDirectiveMigratorTests : IDisposable
     public void Migrate_InjectsMissingUsingsIntoExistingFile()
     {
         const string nl = "\n";
+        // File has #load and some usings but is MISSING "using static Macros.Engine.Scripting.Helpers;"
         string content = string.Join(nl, new[]
         {
             "// Macro: WithUsings",
@@ -838,13 +839,7 @@ public sealed class MacroFileLoadDirectiveMigratorTests : IDisposable
             "#load \".intellisense/Macros.Intellisense.csx\"",
             "",
             "using System;",
-            "using System.Threading.Tasks;",
-            "using EnvDTE;",
-            "using EnvDTE80;",
             "using Community.VisualStudio.Toolkit;",
-            "using Macros.Engine.Scripting;",
-            "using static Macros.Engine.Scripting.Helpers;",
-            "using static Community.VisualStudio.Toolkit.VS;",
             "",
             "await TypeAsync(\"hello\");",
             "",
@@ -861,10 +856,10 @@ public sealed class MacroFileLoadDirectiveMigratorTests : IDisposable
 
         string afterFirst = Read("with-usings.csx");
 
-        // Missing "using Macros.Engine.Triggers;" was injected.
-        Assert.Contains("using Macros.Engine.Triggers;", afterFirst);
+        // Missing "using static Macros.Engine.Scripting.Helpers;" was injected.
+        Assert.Contains("using static Macros.Engine.Scripting.Helpers;", afterFirst);
         // Existing usings and body preserved.
-        Assert.Contains("using EnvDTE;", afterFirst);
+        Assert.Contains("using Community.VisualStudio.Toolkit;", afterFirst);
         Assert.Contains("await TypeAsync(\"hello\");", afterFirst);
         Assert.Contains("#load \".intellisense/Macros.Intellisense.csx\"", afterFirst);
 
@@ -881,6 +876,7 @@ public sealed class MacroFileLoadDirectiveMigratorTests : IDisposable
     public void Migrate_PreservesUserAddedUsings()
     {
         const string nl = "\n";
+        // File has #load but is MISSING "using static Macros.Engine.Scripting.Helpers;"
         string content = string.Join(nl, new[]
         {
             "// Macro: Mixed",
@@ -892,12 +888,7 @@ public sealed class MacroFileLoadDirectiveMigratorTests : IDisposable
             "",
             "using System;",
             "using System.IO;",
-            "using EnvDTE;",
-            "using EnvDTE80;",
             "using Community.VisualStudio.Toolkit;",
-            "using Macros.Engine.Scripting;",
-            "using static Macros.Engine.Scripting.Helpers;",
-            "using static Community.VisualStudio.Toolkit.VS;",
             "using MyCompany.Custom;",
             "",
             "await TypeAsync(\"hello\");",
@@ -910,11 +901,10 @@ public sealed class MacroFileLoadDirectiveMigratorTests : IDisposable
 
         string result = Read("mixed-usings.csx");
 
-        // Missing "using Macros.Engine.Triggers;" was injected after #load.
-        Assert.Contains("using Macros.Engine.Triggers;", result);
-        // All existing usings (standard + user-added) survive.
-        Assert.Contains("using EnvDTE;", result);
+        // Missing "using static Macros.Engine.Scripting.Helpers;" was injected.
         Assert.Contains("using static Macros.Engine.Scripting.Helpers;", result);
+        // Existing usings survive.
+        Assert.Contains("using Community.VisualStudio.Toolkit;", result);
 
         // User-added usings survive.
         Assert.Contains("using System.IO;", result);
