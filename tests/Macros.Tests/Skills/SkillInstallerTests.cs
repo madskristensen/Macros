@@ -178,6 +178,61 @@ public sealed class SkillInstallerTests
             $"{resourceName}'s description must include a `Use when ...` (or `Use this ...`) trigger clause for skills routing.");
     }
 
+    [Theory]
+    [MemberData(nameof(BundledResources))]
+    public void BundledResource_DescriptionLengthIsWithinBudget(string resourceName)
+    {
+        // Extract the description value from the YAML frontmatter and assert a sane length.
+        // The lower bound (200 chars) ensures the description has enough trigger keywords for
+        // the router to pick it up reliably; the upper bound (900) keeps authors from
+        // dumping the whole skill into the YAML.
+        string content = ReadEmbeddedResource(resourceName);
+        string fm = ExtractFrontmatter(content);
+        var match = Regex.Match(fm, @"^description:\s*(.+?)$", RegexOptions.Multiline);
+
+        Assert.True(match.Success, $"{resourceName} has no `description:` line.");
+        string description = match.Groups[1].Value.Trim();
+
+        Assert.InRange(description.Length, 200, 900);
+    }
+
+    [Theory]
+    [MemberData(nameof(BundledResources))]
+    public void BundledResource_LinksToAtLeastOneOtherSkill(string resourceName)
+    {
+        // Cross-skill links are how the agent learns the skill graph. A skill that doesn't
+        // link to any sibling will be loaded in isolation, missing context the user almost
+        // always needs.
+        string content = ReadEmbeddedResource(resourceName);
+
+        // Match the canonical reference pattern `../<skill-name>/SKILL.md`.
+        var matches = Regex.Matches(content, @"\.\./(?<name>[a-z][a-z0-9-]*)/SKILL\.md", RegexOptions.IgnoreCase);
+
+        Assert.True(matches.Count > 0,
+            $"{resourceName} must link to at least one sibling skill via `../<skill-name>/SKILL.md`.");
+
+        // Sanity: a skill must not link only to itself (would be vacuously true otherwise).
+        string ownName = ExtractName(content);
+        bool linksOnlyToSelf = true;
+        foreach (Match m in matches)
+        {
+            if (!string.Equals(m.Groups["name"].Value, ownName, StringComparison.OrdinalIgnoreCase))
+            {
+                linksOnlyToSelf = false;
+                break;
+            }
+        }
+
+        Assert.False(linksOnlyToSelf, $"{resourceName} only links to itself; cross-link to a different sibling skill.");
+    }
+
+    private static string ExtractName(string content)
+    {
+        string fm = ExtractFrontmatter(content);
+        var match = Regex.Match(fm, @"^name:\s*([a-z][a-z0-9-]*)\s*$", RegexOptions.Multiline | RegexOptions.IgnoreCase);
+        return match.Success ? match.Groups[1].Value : string.Empty;
+    }
+
     public static System.Collections.Generic.IEnumerable<object[]> BundledResources()
     {
         foreach (string n in BundledResourceNames)
