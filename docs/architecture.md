@@ -67,7 +67,7 @@ The shim is a machine-local artifact (gitignored under `.vs/` for repo scope). R
 ## Trust and lifecycle
 
 - **`SolutionContextTracker`** subscribes to `VS.Events.SolutionEvents` open/close, tracks the current repo store path, and raises `SolutionChanged`.
-- **`TrustGateInfoBar`** + **`TrustGateLogic`** consult `MacrosOptions.IsSolutionTrusted` / `IsSolutionBlocked` on solution-open and decide whether to show the gold-bar prompt.
+- **`TrustGate`** stays as the pure allow/deny helper, while **`TrustPromptService`** shows a just-in-time modal Visual Studio message box the first time an automatic repo macro trigger needs a trust decision.
 
 ## Requirements
 

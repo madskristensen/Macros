@@ -47,6 +47,7 @@ internal sealed class MacroEventBus : IMacroEventBus
     private readonly object _sync = new();
     private readonly IReadOnlyList<KnownVsEvent> _knownEvents;
     private readonly Func<Type, object?> _instanceResolver;
+    private readonly ConcurrentDictionary<Type, object> _categoryInstanceCache = new();
     private readonly TriggerWorkQueue? _queue;
     private readonly Func<bool>? _isDisabledProvider;
     private readonly TriggerReentranceGuard? _reentranceGuard;
@@ -67,8 +68,12 @@ internal sealed class MacroEventBus : IMacroEventBus
     /// </param>
     /// <param name="guard">Optional reentrance guard. When supplied, a listener re-firing the
     /// same event (or depth-exceeding recursive chains) is suppressed silently.</param>
-    public MacroEventBus(TriggerWorkQueue? queue = null, Func<bool>? isDisabledProvider = null, TriggerReentranceGuard? guard = null)
-        : this(KnownEvents.All, DefaultResolveCategoryInstance, queue, isDisabledProvider, guard)
+    public MacroEventBus(
+        TriggerWorkQueue? queue = null,
+        Func<bool>? isDisabledProvider = null,
+        TriggerReentranceGuard? guard = null,
+        bool prewarmCategoryInstances = false)
+        : this(KnownEvents.All, DefaultResolveCategoryInstance, queue, isDisabledProvider, guard, prewarmCategoryInstances)
     {
     }
 
@@ -82,13 +87,19 @@ internal sealed class MacroEventBus : IMacroEventBus
         Func<Type, object?> instanceResolver,
         TriggerWorkQueue? queue = null,
         Func<bool>? isDisabledProvider = null,
-        TriggerReentranceGuard? guard = null)
+        TriggerReentranceGuard? guard = null,
+        bool prewarmCategoryInstances = false)
     {
         _knownEvents = knownEvents ?? throw new ArgumentNullException(nameof(knownEvents));
         _instanceResolver = instanceResolver ?? throw new ArgumentNullException(nameof(instanceResolver));
         _queue = queue;
         _isDisabledProvider = isDisabledProvider;
         _reentranceGuard = guard;
+
+        if (prewarmCategoryInstances)
+        {
+            WarmCategoryInstanceCache();
+        }
     }
 
     public IReadOnlyList<KnownVsEvent> GetKnownEvents() => _knownEvents;
@@ -176,6 +187,8 @@ internal sealed class MacroEventBus : IMacroEventBus
         {
             _entries.Clear();
         }
+
+        _categoryInstanceCache.Clear();
     }
 
     private void Unsubscribe(BusEntry entry, Action<MacroEvent> handler)
@@ -211,12 +224,14 @@ internal sealed class MacroEventBus : IMacroEventBus
             BindingFlags.Public | BindingFlags.Instance);
         if (ev == null || ev.EventHandlerType == null) return;
 
-        var instance = _instanceResolver(entry.KnownEvent.DeclaringType);
+        var instance = entry.CategoryInstance ?? ResolveCategoryInstance(entry.KnownEvent.DeclaringType);
         if (instance == null)
         {
             Debug.WriteLine($"Macros bus: no instance resolved for category '{entry.KnownEvent.DeclaringType.FullName}'.");
             return;
         }
+
+        entry.CategoryInstance = instance;
 
         Action<object?> raiser = args => RaiseListeners(entry, args);
         var del = BuildDelegate(ev.EventHandlerType, raiser);
@@ -230,7 +245,12 @@ internal sealed class MacroEventBus : IMacroEventBus
         var ev = entry.KnownEvent.DeclaringType.GetEvent(
             entry.KnownEvent.EventName,
             BindingFlags.Public | BindingFlags.Instance);
-        var instance = _instanceResolver(entry.KnownEvent.DeclaringType);
+        var instance = entry.CategoryInstance ?? ResolveCategoryInstance(entry.KnownEvent.DeclaringType);
+        if (instance != null)
+        {
+            entry.CategoryInstance = instance;
+        }
+
         if (ev != null && instance != null)
         {
             ev.RemoveEventHandler(instance, entry.AttachedHandler);
@@ -402,6 +422,31 @@ internal sealed class MacroEventBus : IMacroEventBus
         return factoryExpr.Compile();
     }
 
+    private object? ResolveCategoryInstance(Type categoryType)
+    {
+        if (_categoryInstanceCache.TryGetValue(categoryType, out var cached))
+        {
+            return cached;
+        }
+
+        var resolved = _instanceResolver(categoryType);
+        if (resolved != null)
+        {
+            _categoryInstanceCache.TryAdd(categoryType, resolved);
+        }
+
+        return resolved;
+    }
+
+    private void WarmCategoryInstanceCache()
+    {
+        foreach (var categoryType in _knownEvents.Select(e => e.DeclaringType).Distinct())
+        {
+            try { _ = ResolveCategoryInstance(categoryType); }
+            catch { }
+        }
+    }
+
     /// <summary>
     /// Default resolver: walks <c>Community.VisualStudio.Toolkit.VS.Events</c> and returns the
     /// category instance whose runtime type matches <paramref name="categoryType"/>. Returns
@@ -422,11 +467,13 @@ internal sealed class MacroEventBus : IMacroEventBus
             object? candidate;
             try { candidate = p.GetValue(events); }
             catch { continue; }
+
             if (candidate != null && categoryType.IsInstanceOfType(candidate))
             {
                 return candidate;
             }
         }
+
         return null;
     }
 
@@ -440,6 +487,7 @@ internal sealed class MacroEventBus : IMacroEventBus
         public KnownVsEvent KnownEvent { get; }
         public List<Action<MacroEvent>> Listeners { get; } = new();
         public Delegate? AttachedHandler { get; set; }
+        public object? CategoryInstance { get; set; }
 
         public BusEntry(KnownVsEvent ev) => KnownEvent = ev;
     }

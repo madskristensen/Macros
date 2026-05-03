@@ -63,7 +63,7 @@ public sealed class CommandTriggerDispatcherTrustTests
             beforeTimeoutMsProvider: () => 1000,
             jtf: CreateJtf(),
             sourceLoader: _ => "// source",
-            trustGate: _ => false); // hard-deny — solution is untrusted
+            trustGate: (_, _) => Task.FromResult(false)); // hard-deny — solution is untrusted
 
         var cancelled = dispatcher.DispatchBefore(SampleGroup, SampleId);
 
@@ -86,7 +86,7 @@ public sealed class CommandTriggerDispatcherTrustTests
             beforeTimeoutMsProvider: () => 1000,
             jtf: CreateJtf(),
             sourceLoader: _ => "// source",
-            trustGate: _ => true);
+            trustGate: (_, _) => Task.FromResult(true));
 
         var cancelled = dispatcher.DispatchBefore(SampleGroup, SampleId);
 
@@ -114,7 +114,7 @@ public sealed class CommandTriggerDispatcherTrustTests
             beforeTimeoutMsProvider: () => 1000,
             jtf: CreateJtf(),
             sourceLoader: _ => "// source",
-            trustGate: e => e.Scope == MacroScope.Global); // mirror real TrustGate semantics
+            trustGate: (e, _) => Task.FromResult(e.Scope == MacroScope.Global)); // mirror real TrustGate semantics
 
         dispatcher.DispatchBefore(SampleGroup, SampleId);
 
@@ -137,7 +137,7 @@ public sealed class CommandTriggerDispatcherTrustTests
             beforeTimeoutMsProvider: () => 1000,
             jtf: CreateJtf(),
             sourceLoader: _ => "// source",
-            trustGate: _ => false);
+            trustGate: (_, _) => Task.FromResult(false));
 
         dispatcher.DispatchAfter(SampleGroup, SampleId);
 
@@ -161,7 +161,7 @@ public sealed class CommandTriggerDispatcherTrustTests
             beforeTimeoutMsProvider: () => 1000,
             jtf: CreateJtf(),
             sourceLoader: _ => "// source",
-            trustGate: _ => true);
+            trustGate: (_, _) => Task.FromResult(true));
 
         dispatcher.DispatchAfter(SampleGroup, SampleId);
 
@@ -184,7 +184,7 @@ public sealed class CommandTriggerDispatcherTrustTests
             beforeTimeoutMsProvider: () => 1000,
             jtf: CreateJtf(),
             sourceLoader: _ => "// source",
-            trustGate: _ => throw new InvalidOperationException("gate exploded"));
+            trustGate: (_, _) => throw new InvalidOperationException("gate exploded"));
 
         var cancelled = dispatcher.DispatchBefore(SampleGroup, SampleId);
 

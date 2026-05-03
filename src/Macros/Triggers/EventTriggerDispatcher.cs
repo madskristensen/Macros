@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading;
+using System.Threading.Tasks;
 using Macros.Engine;
 using Macros.Engine.Player;
 using Macros.Engine.Storage;
@@ -60,7 +61,7 @@ internal sealed class EventTriggerDispatcher : IDisposable
     private readonly IMacroFailureTracker? _tracker;
     private readonly Func<MacroEntry, string?> _sourceLoader;
     private readonly IMacroService? _macroService;
-    private readonly Func<MacroEntry, bool> _trustGate;
+    private readonly Func<MacroEntry, CancellationToken, Task<bool>> _trustGate;
 
     private readonly object _sync = new();
     private readonly Dictionary<string, IDisposable> _subscriptions =
@@ -85,9 +86,10 @@ internal sealed class EventTriggerDispatcher : IDisposable
     /// <c>TriggeredExecutionStarted</c> / <c>TriggeredExecutionEnded</c> so the status bar
     /// can mirror VS-event-driven runs the same way it does command-driven ones.</param>
     /// <param name="trustGate">Optional override for the per-entry trust check. When
-    /// <see langword="null"/>, defaults to <see cref="TrustGate.IsAllowed"/> against
-    /// <see cref="MacrosOptions.Instance"/> and the active solution path tracked by
-    /// <see cref="SolutionContextTracker.Current"/>. Tests inject a deterministic predicate.</param>
+    /// <see langword="null"/>, defaults to a pure <see cref="TrustGate.IsAllowed"/> check
+    /// against <see cref="MacrosOptions.Instance"/> and the active solution path tracked by
+    /// <see cref="SolutionContextTracker.Current"/>. Production wiring can supply a prompting
+    /// callback; tests inject a deterministic async predicate.</param>
     public EventTriggerDispatcher(
         IMacroTriggerRegistry registry,
         IMacroEventBus bus,
@@ -96,7 +98,7 @@ internal sealed class EventTriggerDispatcher : IDisposable
         IMacroFailureTracker? tracker = null,
         Func<MacroEntry, string?>? sourceLoader = null,
         IMacroService? macroService = null,
-        Func<MacroEntry, bool>? trustGate = null)
+        Func<MacroEntry, CancellationToken, Task<bool>>? trustGate = null)
     {
         _registry = registry ?? throw new ArgumentNullException(nameof(registry));
         _bus = bus ?? throw new ArgumentNullException(nameof(bus));
@@ -105,7 +107,7 @@ internal sealed class EventTriggerDispatcher : IDisposable
         _tracker = tracker;
         _sourceLoader = sourceLoader ?? DefaultSourceLoader;
         _macroService = macroService;
-        _trustGate = trustGate ?? DefaultTrustGate;
+        _trustGate = trustGate ?? DefaultTrustGateAsync;
 
         _registry.Changed += OnRegistryChanged;
         SyncSubscriptions();
@@ -209,15 +211,6 @@ internal sealed class EventTriggerDispatcher : IDisposable
         foreach (var match in matches)
         {
             var entry = match.Entry;
-
-            // Trust gate: skip repo-scoped macros whose solution is not currently trusted.
-            // Mirrors CommandTriggerDispatcher — manual play through the tool window
-            // remains unaffected; only auto-fire from VS events is gated.
-            bool allowed;
-            try { allowed = _trustGate(entry); }
-            catch { allowed = false; }
-            if (!allowed) continue;
-
             var canonicalName = evt.CanonicalName;
             var firedAt = evt.FiredAt;
             var payload = evt.Payload;
@@ -226,6 +219,11 @@ internal sealed class EventTriggerDispatcher : IDisposable
             {
                 try
                 {
+                    bool allowed;
+                    try { allowed = await _trustGate(entry, CancellationToken.None).ConfigureAwait(true); }
+                    catch { allowed = false; }
+                    if (!allowed) return;
+
                     var source = _sourceLoader(entry);
                     if (source is null)
                     {
@@ -295,17 +293,17 @@ internal sealed class EventTriggerDispatcher : IDisposable
         catch { return null; }
     }
 
-    private static bool DefaultTrustGate(MacroEntry entry)
+    private static Task<bool> DefaultTrustGateAsync(MacroEntry entry, CancellationToken cancellationToken)
     {
         try
         {
             var soln = SolutionContextTracker.Current?.GetCurrentSolutionPath();
-            return TrustGate.IsAllowed(entry, MacrosOptions.Instance, soln);
+            return Task.FromResult(TrustGate.IsAllowed(entry, MacrosOptions.Instance, soln));
         }
         catch
         {
             // Fail-safe: only Global entries when the static state isn't reachable.
-            return entry?.Scope == MacroScope.Global;
+            return Task.FromResult(entry?.Scope == MacroScope.Global);
         }
     }
 }

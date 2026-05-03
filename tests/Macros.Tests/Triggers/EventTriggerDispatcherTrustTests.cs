@@ -72,7 +72,7 @@ public sealed class EventTriggerDispatcherTrustTests
         using var dispatcher = new EventTriggerDispatcher(
             registry, bus, player, CreateJtf(),
             sourceLoader: _ => "// source",
-            trustGate: _ => false);
+            trustGate: (_, _) => Task.FromResult(false));
 
         cat.RaiseFired(new FakeEventArgs());
 
@@ -96,7 +96,7 @@ public sealed class EventTriggerDispatcherTrustTests
         using var dispatcher = new EventTriggerDispatcher(
             registry, bus, player, CreateJtf(),
             sourceLoader: _ => "// source",
-            trustGate: _ => true);
+            trustGate: (_, _) => Task.FromResult(true));
 
         cat.RaiseFired(new FakeEventArgs());
 
@@ -121,7 +121,7 @@ public sealed class EventTriggerDispatcherTrustTests
         using var dispatcher = new EventTriggerDispatcher(
             registry, bus, player, CreateJtf(),
             sourceLoader: _ => "// source",
-            trustGate: e => e.Scope == MacroScope.Global);
+            trustGate: (e, _) => Task.FromResult(e.Scope == MacroScope.Global));
 
         cat.RaiseFired(new FakeEventArgs());
 
@@ -145,7 +145,7 @@ public sealed class EventTriggerDispatcherTrustTests
         using var dispatcher = new EventTriggerDispatcher(
             registry, bus, player, CreateJtf(),
             sourceLoader: _ => "// source",
-            trustGate: _ => throw new InvalidOperationException("gate exploded"));
+            trustGate: (_, _) => throw new InvalidOperationException("gate exploded"));
 
         cat.RaiseFired(new FakeEventArgs());
 

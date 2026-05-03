@@ -35,16 +35,19 @@ public sealed class MacroEventBusTests
         public void RaisePinged() => Pinged?.Invoke(this, EventArgs.Empty);
     }
 
-    private static (MacroEventBus bus, FakeEventCategory category, KnownVsEvent known)
-        CreateBusWithFakeFiredEvent()
-    {
-        var category = new FakeEventCategory();
-        var known = new KnownVsEvent(
+    private static KnownVsEvent CreateFakeFiredKnownEvent()
+        => new(
             CanonicalName: "Fake.Fired",
             Category: "Fake",
             EventName: nameof(FakeEventCategory.Fired),
             EventArgsType: typeof(FakeEventArgs),
             DeclaringType: typeof(FakeEventCategory));
+
+    private static (MacroEventBus bus, FakeEventCategory category, KnownVsEvent known)
+        CreateBusWithFakeFiredEvent()
+    {
+        var category = new FakeEventCategory();
+        var known = CreateFakeFiredKnownEvent();
 
         var bus = new MacroEventBus(
             new[] { known },
@@ -229,6 +232,92 @@ public sealed class MacroEventBusTests
         }
     }
 
+    [Fact]
+    public void CategoryResolution_IsCachedAcrossResubscribe()
+    {
+        var category = new FakeEventCategory();
+        var known = CreateFakeFiredKnownEvent();
+        var resolveCalls = 0;
+        using var bus = new MacroEventBus(
+            new[] { known },
+            t =>
+            {
+                if (t != typeof(FakeEventCategory))
+                {
+                    return null;
+                }
+
+                resolveCalls++;
+                return category;
+            });
+
+        var first = bus.Subscribe("Fake.Fired", _ => { });
+        first.Dispose();
+
+        using (bus.Subscribe("Fake.Fired", _ => { }))
+        {
+            Assert.NotNull(GetAttachedHandler(bus, "Fake.Fired"));
+        }
+
+        Assert.Equal(1, resolveCalls);
+    }
+
+    [Fact]
+    public void CachedInstance_AllowsDetachWhenResolverStopsResolving()
+    {
+        var category = new FakeEventCategory();
+        var known = CreateFakeFiredKnownEvent();
+        var resolveCalls = 0;
+        using var bus = new MacroEventBus(
+            new[] { known },
+            t =>
+            {
+                if (t != typeof(FakeEventCategory))
+                {
+                    return null;
+                }
+
+                resolveCalls++;
+                return resolveCalls == 1 ? category : null;
+            });
+
+        var sub = bus.Subscribe("Fake.Fired", _ => { });
+        Assert.Equal(1, GetEventSubscriberCount(category, nameof(FakeEventCategory.Fired)));
+
+        sub.Dispose();
+
+        Assert.Equal(0, GetEventSubscriberCount(category, nameof(FakeEventCategory.Fired)));
+        Assert.Equal(1, resolveCalls);
+    }
+
+    [Fact]
+    public void PrewarmCategoryInstances_SeedsCacheBeforeFirstSubscribe()
+    {
+        var category = new FakeEventCategory();
+        var known = CreateFakeFiredKnownEvent();
+        var resolveCalls = 0;
+        using var bus = new MacroEventBus(
+            new[] { known },
+            t =>
+            {
+                if (t != typeof(FakeEventCategory))
+                {
+                    return null;
+                }
+
+                resolveCalls++;
+                return category;
+            },
+            prewarmCategoryInstances: true);
+
+        Assert.Equal(1, resolveCalls);
+
+        using (bus.Subscribe("Fake.Fired", _ => { }))
+        {
+            Assert.Equal(1, resolveCalls);
+        }
+    }
+
     // --- listener fault isolation ---------------------------------------------------------
 
     [Fact]
@@ -335,6 +424,13 @@ public sealed class MacroEventBusTests
         }
 
         return null;
+    }
+
+    private static int GetEventSubscriberCount(object target, string eventName)
+    {
+        var field = target.GetType().GetField(eventName, BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.NotNull(field);
+        return ((Delegate?)field!.GetValue(target))?.GetInvocationList().Length ?? 0;
     }
 
     private static IReadOnlyDictionary<string, object?> InvokeExtractPayload(object? eventArgs)

@@ -19,14 +19,16 @@ Repo macros are committed to source control. A fresh clone could ship macros tha
 
 ### The prompt
 
-When you open a solution that contains repo macros with **non-`Manual` triggers**, you'll see a gold info bar:
+The first time an automatic trigger fires for a repo macro in an untrusted solution, a modal message box appears:
 
-> *"This solution contains N macro(s) with auto-run triggers. They are blocked until you trust this solution. [Review Macros] [Trust this solution] [Block] [Dismiss]"*
+> *"This solution contains macros with automatic triggers. Allow them to run?"*
+>
+> **Yes** / **No**
 
-- **Review Macros** — Opens the tool window so you can inspect the macros before deciding.
-- **Trust this solution** — Auto-triggers register immediately; remembered across restarts (per solution path).
-- **Block this solution** — Auto-triggers stay disabled; remembered.
-- **Dismiss** — Decide later. Triggers stay disabled until you act.
+- **Yes** — Trusts the solution; auto-triggers run immediately and on every future open.
+- **No** — Blocks the solution; auto-triggers stay disabled.
+
+The prompt is **per solution** — you decide once for all repo macros in that solution, not per individual macro.
 
 ### Manual invocation is always allowed
 
@@ -34,12 +36,10 @@ Running a macro via **Play** (from tool window, hotkey, Quick Launch) is **not**
 
 ### Trust persistence
 
-Your trust decisions are stored in **Tools → Options → Macros → Trusted Solutions**. Two lists:
+Your trust decisions are stored internally per solution path. Two lists:
 
 - **Trusted solutions** — solution paths whose repo macros are allowed to register triggers automatically.
 - **Blocked solutions** — solution paths whose repo macro triggers are explicitly suppressed.
-
-Edit them directly to revoke trust, unblock, or pre-seed trusted solution paths.
 
 ## Auto-disable on failure
 

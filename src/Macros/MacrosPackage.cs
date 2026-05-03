@@ -76,8 +76,6 @@ namespace Macros;
     VSConstants.UICONTEXT.NoSolution_string)]
 [ProvideOptionPage(typeof(OptionsProvider.GeneralOptionsPage), "Macros", "General",
     categoryResourceID: 0, pageNameResourceID: 0, supportsAutomation: true)]
-[ProvideOptionPage(typeof(TrustedSolutionsPage), "Macros", "Trusted Solutions",
-    categoryResourceID: 0, pageNameResourceID: 0, supportsAutomation: true)]
 [Guid(PackageGuids.guidMacrosPackageString)]
 public sealed class MacrosPackage : ToolkitPackage
 {
@@ -125,12 +123,6 @@ public sealed class MacrosPackage : ToolkitPackage
     private GlobalMacroStore? _globalMacroStore;
     private RepoMacroStore? _repoMacroStore;
     private CompositeMacroStore? _compositeMacroStore;
-
-    // M4 trust gate: surfaces an InfoBar on solution open whenever the active solution
-    // contains repo macros with auto-run triggers and the user has neither trusted nor
-    // blocked it yet. Owned on a field so the SolutionChanged subscription stays rooted
-    // and is unwired deterministically on package dispose.
-    private TrustGateInfoBar? _trustGateInfoBar;
 
     // One-shot InfoBar shown the first time a .csx macro file is opened in the editor.
     // Persists HasShownTriggerHint so the hint never reappears after dismissal.
@@ -236,7 +228,10 @@ public sealed class MacrosPackage : ToolkitPackage
         // Register IMacroEventBus with the kill-switch provider so VS event triggers
         // honour DisableAllTriggers without requiring a registry rebuild.
         var reentranceGuard = new TriggerReentranceGuard();
-        _eventBus = new MacroEventBus(isDisabledProvider: () => MacrosOptions.Instance.DisableAllTriggers, guard: reentranceGuard);
+        _eventBus = new MacroEventBus(
+            isDisabledProvider: () => MacrosOptions.Instance.DisableAllTriggers,
+            guard: reentranceGuard,
+            prewarmCategoryInstances: true);
         this.AddService(
             typeof(IMacroEventBus),
             (_, _, _) => Task.FromResult<object>(_eventBus),
@@ -295,13 +290,7 @@ public sealed class MacrosPackage : ToolkitPackage
             System.Diagnostics.Trace.WriteLine($"Macros: global migrator failed: {ex}");
         }
 
-        // 2b. Wire the M4 trust-gate InfoBar.Subscribes to SolutionChanged on the tracker
-        //     above and shows an InfoBar at the top of the editor whenever a solution opens
-        //     that carries repo macros with auto-run triggers and is neither trusted nor
-        //     blocked. Triggers stay dormant until the user makes a choice.
-        _trustGateInfoBar = await TrustGateInfoBar.InitializeAsync(this, _solutionTracker);
-
-        // 2c. Wire the trigger-hint InfoBar. Listens for .csx macro files being opened in
+        // 2b. Wire the trigger-hint InfoBar. Listens for .csx macro files being opened in
         //     the editor and shows a one-time tip about Manage Triggers.
         _triggerHintInfoBar = await TriggerHintInfoBar.InitializeAsync(this);
 
@@ -381,6 +370,7 @@ public sealed class MacrosPackage : ToolkitPackage
         // hasn't finished registering us yet. The script cache and DTE are shared with the
         // proffered IMacroPlayer service so cache hits are still cross-instance.
         var dispatcherPlayer = new MacroPlayer(JoinableTaskFactory, _scriptCache, dte, new MacroPromptService());
+        var trustPromptService = new TrustPromptService(JoinableTaskFactory, this);
         _commandTriggerDispatcher = new CommandTriggerDispatcher(
             _triggerRegistry,
             dispatcherPlayer,
@@ -388,7 +378,8 @@ public sealed class MacrosPackage : ToolkitPackage
             beforeTimeoutMsProvider: () => MacrosOptions.Instance.BeforeCommandTimeoutMs,
             JoinableTaskFactory,
             tracker: _failureTracker,
-            guard: reentranceGuard);
+            guard: reentranceGuard,
+            trustGate: trustPromptService.IsAllowedAsync);
 
         // Wire the bus → registry → player pipeline. Without this dispatcher the event bus
         // is dormant: VS.Events.* fires, but no listener turns the firing into a player
@@ -399,7 +390,8 @@ public sealed class MacrosPackage : ToolkitPackage
             _eventBus,
             dispatcherPlayer,
             JoinableTaskFactory,
-            tracker: _failureTracker);
+            tracker: _failureTracker,
+            trustGate: trustPromptService.IsAllowedAsync);
 
         _priorityCommandTarget = await GetServiceAsync(typeof(SVsRegisterPriorityCommandTarget)) as IVsRegisterPriorityCommandTarget;
         if (_priorityCommandTarget is not null)
@@ -505,7 +497,6 @@ public sealed class MacrosPackage : ToolkitPackage
             _eventTriggerDispatcher?.Dispose();
             _triggerRegistry?.Dispose();
             _eventBus?.Dispose();
-            _trustGateInfoBar?.Dispose();
             _triggerHintInfoBar?.Dispose();
             _shimRefresher?.Dispose();
             _solutionTracker?.Dispose();

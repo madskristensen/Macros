@@ -41,3 +41,9 @@
 **What:** Ditch the TrustedSolutionsPage options page entirely. Instead, the first time an automated repo macro trigger fires, pop a message box asking for permission. Store the trust decision in settings but remove the dedicated options page UI.
 **Why:** User request — the current trust InfoBar + options page UX doesn't work well. Just-in-time consent at the moment of first auto-run is clearer.
 
+
+### 2026-05-03T08:31:31-07:00: User directive — trust prompt covers all repo macros, not per-macro
+**By:** Mads (via Copilot)
+**What:** The trust message box should prompt once per repo/solution, not per individual macro. When any repo macro trigger fires for the first time, the prompt covers all macros in that solution — not just the one that triggered.
+**Why:** User request — avoids spamming the user with repeated prompts for each macro in the same repo.
+
