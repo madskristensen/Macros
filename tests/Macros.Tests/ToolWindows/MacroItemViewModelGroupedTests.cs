@@ -68,7 +68,8 @@ public sealed class MacroItemViewModelGroupedTests
 
         Assert.Equal("Samples", item.GroupName);
         Assert.Equal("Adds a header.", item.SampleDescription);
-        Assert.Equal("Adds a header.", item.TriggersSummary);
+        // Samples show only title in the list; TriggersSummary is empty.
+        Assert.Equal(string.Empty, item.TriggersSummary);
         Assert.Equal("Adds a header.", item.TriggersDetail);
         Assert.Equal(string.Empty, item.StepCountDisplay);
         Assert.Equal("Adds a header.", item.ItemToolTip);

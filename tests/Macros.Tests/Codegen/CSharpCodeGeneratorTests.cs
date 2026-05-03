@@ -392,18 +392,22 @@ public sealed class CSharpCodeGeneratorTests
     }
 
     [Fact]
-    public void Generate_DoesNotEmitRegularUsingDirectives()
+    public void Generate_EmitsRequiredUsingDirectives()
     {
         string src = CSharpCodeGenerator.Generate(Array.Empty<RecordedStep>(), "M", FixedUtc);
 
+        // These usings must be present for VS scripting IntelliSense (not propagated from #load).
+        Assert.Contains("using EnvDTE;", src);
+        Assert.Contains("using EnvDTE80;", src);
+        Assert.Contains("using Community.VisualStudio.Toolkit;", src);
+        Assert.Contains("using Macros.Engine.Scripting;", src);
+        Assert.Contains("using Macros.Engine.Triggers;", src);
+        Assert.Contains("using static Macros.Engine.Scripting.Helpers;", src);
+        Assert.Contains("using static Community.VisualStudio.Toolkit.VS;", src);
+
+        // System usings are NOT emitted (they're only in the shim for Roslyn runtime).
         Assert.DoesNotContain("using System;", src);
         Assert.DoesNotContain("using System.Threading.Tasks;", src);
-        Assert.DoesNotContain("using EnvDTE;", src);
-        Assert.DoesNotContain("using EnvDTE80;", src);
-        Assert.DoesNotContain("using Community.VisualStudio.Toolkit;", src);
-        Assert.DoesNotContain("using Macros.Engine.Scripting;", src);
-        Assert.DoesNotContain("using static Macros.Engine.Scripting.Helpers;", src);
-        Assert.DoesNotContain("using static Community.VisualStudio.Toolkit.VS;", src);
     }
 
     [Fact]

@@ -44,7 +44,7 @@ public sealed class SampleTemplateProviderTests : IDisposable
         Assert.Equal(Path.Combine(_workspaceRoot, "collapse-regions-on-open-2.csx"), secondPath);
 
         string source = File.ReadAllText(secondPath);
-        Assert.Contains("// Macro: Auto-collapse #region blocks on open", source);
+        Assert.Contains("// Collapses outlining in newly opened documents", source);
         Assert.Contains("// @trigger Document.Opened", source);
     }
 
