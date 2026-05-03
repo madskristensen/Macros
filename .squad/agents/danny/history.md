@@ -23,6 +23,8 @@ Service seam pattern allows engine code to remain reusable while enabling runtim
 - PDB/debug info emission (`WithEmitDebugInformation`, `WithOptimizationLevel(Debug)`, `WithFilePath`) was removed from `MacroPlayer.BuildScriptOptions()`. `BuildScriptOptions` takes no parameters now. `BuildCacheKey` simplified to return just `source`.
 - `BreakIntoDebugger()` was a public API on `Helpers` — it has been removed. The public surface is exactly 8 verbs: TypeAsync, MoveCaretAsync, SelectAsync, ExecuteCommandAsync, RunCommandAsync, WaitAsync, OpenFileAsync, PromptAsync.
 - Debug Macro VSCT entries: `cmdidMacrosCtxDebug` (0x2119) and the Button were in `MacrosContextMenuGroup1`. Both removed.
+- `MacroEventBus` must cache toolkit event-category instances by `Type` and keep the resolved instance on each bus entry. That lets background-thread re-syncs reuse the UI-thread-created category object instead of re-running COM-backed property getters off the UI thread.
+- `MacrosPackage` should pre-warm the event-category cache when constructing `MacroEventBus` on the UI thread, so later trigger-registry rebuilds can subscribe categories like `Build.SolutionBuildDone` from the file-watcher path without needing a JTF dependency in `Macros.Engine`.
 
 ### Key file paths
 - `src/Macros.Engine/Codegen/CSharpCodeGenerator.cs` — pure transform, no I/O
@@ -30,11 +32,15 @@ Service seam pattern allows engine code to remain reusable while enabling runtim
 - `src/Macros.Engine/Scripting/IntelliSenseShim.cs` — shim generator (has `using static`)
 - `src/Macros.Engine/Player/MacroPlayer.cs` — script compilation + execution
 - `src/Macros/Commands/Context/` — VSCT context-menu command handlers
+- `src/Macros.Engine/Triggers/MacroEventBus.cs` — VS event subscription bridge; caches toolkit category instances for attach/detach
+- `src/Macros/MacrosPackage.cs` — constructs `MacroEventBus` on the UI thread and can pre-warm event categories
+- `tests/Macros.Tests/Triggers/MacroEventBusTests.cs` — pins category-instance caching and detach behavior
 - `tests/Macros.Tests/Codegen/golden/sample.csx` — codegen snapshot golden file
 
 ### User preferences
 - Mads wants debugging features removed cleanly — no PDB emission, no BreakIntoDebugger, no Debug Macro command
 - `using static` goes in the shim only, not in individual macro files
+- Mads wants VS event triggers fixed at the subscription layer so events like `Build.SolutionBuildDone` fire regardless of build success/failure semantics; the bug was in attaching the handler, not in event filtering.
 
 ### Tool window learnings
 - The Samples gallery is more reliable when its header stays rendered even if the nested `SamplesGroup.IsVisible` binding misbehaves at tool-window startup; filtering can still empty the list content without hiding the section.

@@ -112,3 +112,13 @@ docs/csx-reference.md, docs/architecture.md, docs/ship-readiness-v1.0.0.md, docs
 1. PromptAsync uses service seam pattern to keep engine free of WPF dependencies
 2. Macro Copilot skills stay in authoring scope (not extensibility)
 
+---
+
+### 2026-05-03T08:20:48-07:00 — Repo trigger trust is now just-in-time
+
+Replaced the proactive repo trust InfoBar + Trusted Solutions options page with `TrustPromptService` in `src\Macros\Trust\TrustPromptService.cs`.
+
+`MacrosPackage` now injects that service into `src\Macros\Triggers\CommandTriggerDispatcher.cs` and `src\Macros\Triggers\EventTriggerDispatcher.cs` via an async trust gate, so the first automatic repo-trigger in a solution shows one modal VS message box, concurrent firings share the same pending prompt, and answers persist through `MacrosOptions.TrustSolution()` / `BlockSolution()`.
+
+Removed the old UI surface (`TrustGateInfoBar`, `TrustGateLogic`, `TrustedSolutionsPage`, `TrustedSolutionsPageControl`) and validated with `dotnet build src\Macros\Macros.csproj -c Release` plus `dotnet test tests\Macros.Tests\Macros.Tests.csproj -c Release --no-build`.
+
