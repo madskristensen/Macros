@@ -464,7 +464,9 @@ public sealed class RepoMacroStoreTests : IDisposable
         var events = new System.Collections.Concurrent.ConcurrentBag<MacroLibraryChangedEventArgs>();
         store.LibraryChanged += (_, e) => events.Add(e);
 
-        // Warm up watcher A.
+        // Warm up watcher A: a file write+wait synchronizes the test against the FSW's
+        // OS-level setup latency. Without this, the post-switch assertion write below
+        // can race the new watcher's initialisation on slow CI.
         File.WriteAllText(Path.Combine(folderA, "InA_Warmup.csx"), "// warmup");
         Assert.True(
             WaitFor(() => events.Any(e => e.Name == "InA_Warmup")),
@@ -475,6 +477,16 @@ public sealed class RepoMacroStoreTests : IDisposable
         // Solution switches to B.
         currentRepo = folderB;
         store.NotifySolutionChanged();
+
+        // Warm up the freshly-bound watcher B. Same reason as the folderA warmup — the
+        // OS-level FSW handle isn't fully live the instant EnableRaisingEvents flips, and
+        // CI machines under load can drop the very first event.
+        File.WriteAllText(Path.Combine(folderB, "InB_Warmup.csx"), "// warmup");
+        Assert.True(
+            WaitFor(() => events.Any(e => e.Name == "InB_Warmup" && e.Scope == MacroScope.Repo)),
+            "Expected new watcher to fire for folder B (warmup) — watcher did not follow solution switch.");
+
+        while (events.TryTake(out _)) { }
 
         // Edit in folder B must now be observed.
         File.WriteAllText(Path.Combine(folderB, "InB_AfterSwitch.csx"), "// new solution");
