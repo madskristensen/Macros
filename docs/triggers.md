@@ -33,15 +33,15 @@ A **trigger** auto-runs a macro on an IDE event. Triggers are declared as `//` c
 
 The trigger engine supports all events exposed by `Community.VisualStudio.Toolkit`'s `VS.Events` surface. Here are the most commonly used:
 
-| Category | Events | Example use |
-|----------|--------|-------------|
-| **Build** | `SolutionBuildDone`, `ProjectBuildDone` | React to build success/failure |
-| **Document** | `Saved`, `Opened`, `Closed`, `Renamed` | Auto-format on save, log file opens |
-| **Solution** | `OnAfterOpenSolution`, `OnBeforeCloseSolution`, `OnAfterOpenProject` | Initialize workspace on solution load |
-| **Debugger** | `EnterBreakMode`, `EnterDesignMode`, `ExceptionThrown` | Show diagnostics on breakpoint hit |
-| **Selection** | `SelectionChanged` | React to active document/window changes |
-| **Window** | `ActiveFrameChanged`, `Created`, `Destroy` | Track window lifecycle |
-| **Shell** | `ShutdownStarted` | Clean up before VS exits |
+| Category      | Events                                                               | Example use                             |
+| ------------- | -------------------------------------------------------------------- | --------------------------------------- |
+| **Build**     | `SolutionBuildDone`, `ProjectBuildDone`                              | React to build success/failure          |
+| **Document**  | `Saved`, `Opened`, `Closed`, `Renamed`                               | Auto-format on save, log file opens     |
+| **Solution**  | `OnAfterOpenSolution`, `OnBeforeCloseSolution`, `OnAfterOpenProject` | Initialize workspace on solution load   |
+| **Debugger**  | `EnterBreakMode`, `EnterDesignMode`, `ExceptionThrown`               | Show diagnostics on breakpoint hit      |
+| **Selection** | `SelectionChanged`                                                   | React to active document/window changes |
+| **Window**    | `ActiveFrameChanged`, `Created`, `Destroy`                           | Track window lifecycle                  |
+| **Shell**     | `ShutdownStarted`                                                    | Clean up before VS exits                |
 
 For the complete list, use the **Manage Triggers** dialog (right-click macro → Manage Triggers…) — it autocompletes all available event names from the live VS.Events catalog.
 

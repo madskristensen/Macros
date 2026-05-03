@@ -5,6 +5,7 @@
 Macros are stored as `.csx` C# scripts, not opaque binary blobs. This transparency is a feature — you can read, audit, version-control, and review them before they run. But it also means: **macros are code, and code can do anything the IDE can do.**
 
 A malicious macro could:
+
 - Delete files on disk.
 - Modify your source code.
 - Run build scripts with arbitrary arguments.
@@ -59,6 +60,7 @@ The **Disable All Triggers** option (visible in the toolbar as *Toggle Triggers*
 - Handy when recording a macro (so triggers don't interfere) or debugging a trigger issue.
 
 Toggle via:
+
 - Toolbar button **Toggle Triggers**.
 - **Tools → Options → Macros → General → Disable all triggers** checkbox.
 

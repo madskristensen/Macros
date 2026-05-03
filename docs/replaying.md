@@ -28,15 +28,15 @@ Each row shows **Name**, **Triggers** (compact summary like *"Build"* or *"Befor
 
 **Right-click** any macro for a native VS context menu:
 
-| Action | Description |
-|--------|-------------|
-| **Play** | Run the macro now (manual invocation, ignores trust gate). |
-| **Edit** | Open the `.csx` in VS with full IntelliSense. |
-| **Rename** | Rename the file (validates name + checks for collisions). |
-| **Delete** | Remove the file (with confirmation). |
-| **Move to Repo** / **Move to Global** | Move between scopes. Conflicts prompt to confirm. |
-| **Manage Triggers…** | Open the trigger editor. |
-| **Open Folder** | Reveal the containing folder in File Explorer. |
+| Action                                | Description                                                |
+| ------------------------------------- | ---------------------------------------------------------- |
+| **Play**                              | Run the macro now (manual invocation, ignores trust gate). |
+| **Edit**                              | Open the `.csx` in VS with full IntelliSense.              |
+| **Rename**                            | Rename the file (validates name + checks for collisions).  |
+| **Delete**                            | Remove the file (with confirmation).                       |
+| **Move to Repo** / **Move to Global** | Move between scopes. Conflicts prompt to confirm.          |
+| **Manage Triggers…**                  | Open the trigger editor.                                   |
+| **Open Folder**                       | Reveal the containing folder in File Explorer.             |
 
 ## Executing named macros
 

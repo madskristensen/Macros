@@ -14,15 +14,15 @@ inside a Debug build.
 
 ## Methodology
 
-| Item | Detail |
-|------|--------|
-| **Framework** | xUnit [Fact] tests — no BenchmarkDotNet to keep the test project lightweight |
-| **Measurement tool** | `System.Diagnostics.Stopwatch` |
-| **Warm-up** | 10–100 iterations before the timed loop to prime JIT and CPU caches |
-| **Iterations** | 1 000 – 10 000 per scenario (see table below) |
-| **Reported metrics** | Mean µs/call *or* P50/P95 depending on variance |
-| **Hardware fingerprint** | AMD/Intel x64 dev box, Windows 11, .NET Framework 4.8.9325 |
-| **Build config** | Debug (JIT-optimised code paths are the same; no `[MethodImpl(NoInlining)]` guards needed) |
+| Item                     | Detail                                                                                     |
+| ------------------------ | ------------------------------------------------------------------------------------------ |
+| **Framework**            | xUnit [Fact] tests — no BenchmarkDotNet to keep the test project lightweight               |
+| **Measurement tool**     | `System.Diagnostics.Stopwatch`                                                             |
+| **Warm-up**              | 10–100 iterations before the timed loop to prime JIT and CPU caches                        |
+| **Iterations**           | 1 000 – 10 000 per scenario (see table below)                                              |
+| **Reported metrics**     | Mean µs/call *or* P50/P95 depending on variance                                            |
+| **Hardware fingerprint** | AMD/Intel x64 dev box, Windows 11, .NET Framework 4.8.9325                                 |
+| **Build config**         | Debug (JIT-optimised code paths are the same; no `[MethodImpl(NoInlining)]` guards needed) |
 
 ### How to run
 
@@ -33,7 +33,7 @@ dotnet test tests\Macros.Tests --filter "FullyQualifiedName~Performance" `
 
 Each test prints a one-line summary to the xUnit output helper:
 
-```
+```text
 [1] CommandObserver.Exec (skipped)  N=10,000  mean=0.09 µs  target=<50 µs  threshold=<10 µs
 ```
 
@@ -41,17 +41,17 @@ Each test prints a one-line summary to the xUnit output helper:
 
 ## Measured Baselines
 
-| # | Scenario | Iterations | Metric | **Measured** | Target SLA | CI Threshold |
-|---|----------|-----------|--------|-------------|-----------|-------------|
-| 1 | `CommandObserver.Exec` — noise/skip path | 10 000 | mean µs/call | **0.09 µs** | < 50 µs | < 10 µs |
-| 2 | `CommandObserver.Exec` — Phase A recording capture | 1 000 | mean µs/call | **0.50 µs** | < 200 µs | < 10 µs |
-| 3 | `RecordingSession.OnTextEdit` — idle (not capturing) | 10 000 | mean µs/call | **0.03 µs** | < 100 µs | < 5 µs |
-| 4 | `MacroEventBus.Subscribe` — first-time lazy attach | 20 | P95 ms | **0.49 ms** | < 5 ms | < 5 ms |
-| 5 | `MacroEventBus` — synchronous dispatch × 1 000 | 1 000 | total ms | **0.84 ms** | < 5 ms | < 10 ms |
-| 6 | `MacroPlayer` — cold Roslyn compile (~100-char script) | 1 | ms | **138–172 ms** | < 500 ms | < 10 000 ms |
-| 7 | `MacroPlayer` — cache-hit replay | 5 | P95 ms/play | **< 1 ms** | < 20 ms | < 1 000 ms |
-| 8 | `RecordingSession` — 100 commands + drain | 1 | ms | **3–10 ms** | < 200 ms | < 500 ms |
-| 9 | `MacrosToolWindowViewModel.LoadAsync` — 100 macros | 2 | ms | **1–3 ms** | < 500 ms | < 500 ms |
+| #   | Scenario                                               | Iterations | Metric       | **Measured**   | Target SLA | CI Threshold |
+| --- | ------------------------------------------------------ | ---------- | ------------ | -------------- | ---------- | ------------ |
+| 1   | `CommandObserver.Exec` — noise/skip path               | 10 000     | mean µs/call | **0.09 µs**    | < 50 µs    | < 10 µs      |
+| 2   | `CommandObserver.Exec` — Phase A recording capture     | 1 000      | mean µs/call | **0.50 µs**    | < 200 µs   | < 10 µs      |
+| 3   | `RecordingSession.OnTextEdit` — idle (not capturing)   | 10 000     | mean µs/call | **0.03 µs**    | < 100 µs   | < 5 µs       |
+| 4   | `MacroEventBus.Subscribe` — first-time lazy attach     | 20         | P95 ms       | **0.49 ms**    | < 5 ms     | < 5 ms       |
+| 5   | `MacroEventBus` — synchronous dispatch × 1 000         | 1 000      | total ms     | **0.84 ms**    | < 5 ms     | < 10 ms      |
+| 6   | `MacroPlayer` — cold Roslyn compile (~100-char script) | 1          | ms           | **138–172 ms** | < 500 ms   | < 10 000 ms  |
+| 7   | `MacroPlayer` — cache-hit replay                       | 5          | P95 ms/play  | **< 1 ms**     | < 20 ms    | < 1 000 ms   |
+| 8   | `RecordingSession` — 100 commands + drain              | 1          | ms           | **3–10 ms**    | < 200 ms   | < 500 ms     |
+| 9   | `MacrosToolWindowViewModel.LoadAsync` — 100 macros     | 2          | ms           | **1–3 ms**     | < 500 ms   | < 500 ms     |
 
 > **CI Threshold** — the value asserted in the xUnit test. Must pass on any reasonable CI agent.
 > It is intentionally more generous than the Target SLA to absorb cold-JIT overhead and

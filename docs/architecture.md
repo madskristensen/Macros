@@ -2,7 +2,7 @@
 
 For contributors and those curious about how the extension works. The codebase is two assemblies:
 
-```
+```text
 src/
 ├── Macros/              ← VSIX shell (commands, tool window, options, .vsct, dialogs)
 └── Macros.Engine/       ← Pure engine (recorder, codegen, storage, triggers, player)
@@ -45,6 +45,7 @@ When a user opens a macro file in VS (right-click → **Edit** in the tool windo
 - **Runtime trick:** At play time, if the player were to follow the `#load`, the shim's field stubs would shadow the real `MacroGlobals` properties, breaking execution. Instead, `MacroPlayer` uses a custom `SkipIntelliSenseShimSourceResolver` that returns an empty stream for any `#load` matching `Macros.Intellisense.csx` (case-insensitive). The editor uses the default resolver and loads the shim; the player ignores it and binds globals from `MacroGlobals`.
 
 **Files involved:**
+
 - `IntelliSenseShim.cs` — pure generator: produces the shim source string from a list of `Assembly.Location`s and the `MacroGlobals` shape.
 - `IntelliSenseShimWriter.cs` — atomic, idempotent file writer; skips write if content + DLL paths unchanged.
 - `CSharpCodeGenerator.cs` — emits the `#load` line in the header block.
@@ -53,7 +54,6 @@ When a user opens a macro file in VS (right-click → **Edit** in the tool windo
 - `RepoMacroStore.cs` — seeds the repo shim on store creation; refreshes on solution open.
 
 The shim is a machine-local artifact (gitignored under `.vs/` for repo scope). Repo macros remain portable — each contributor's VSIX regenerates their own shim with local DLL paths.
-
 
 ## Trigger system
 

@@ -7,6 +7,7 @@ A collection of ready-to-use macros showing what's possible. Copy any sample int
 ## Samples
 
 ### 1. Auto-collapse regions on file open
+
 _Demonstrates: Triggers, command execution_
 
 ```csharp
@@ -17,6 +18,7 @@ await ExecuteCommandAsync("Edit.CollapseAllOutlining");
 ```
 
 ### 2. Sort selected lines alphabetically
+
 _Demonstrates: Text manipulation, conditional logic, selection handling_
 
 ```csharp
@@ -35,6 +37,7 @@ sel.Insert(string.Join("\n", lines), (int)EnvDTE.vsInsertFlags.vsInsertFlagsInse
 ```
 
 ### 3. Insert current timestamp at caret
+
 _Demonstrates: DateTime, simple text insertion_
 
 ```csharp
@@ -44,6 +47,7 @@ await TypeAsync(DateTime.Now.ToString("yyyy-MM-dd HH:mm"));
 ```
 
 ### 4. Wrap selection in try/catch
+
 _Demonstrates: Text insertion, conditional logic_
 
 ```csharp
@@ -62,6 +66,7 @@ await TypeAsync($"try\n{{\n{selectedText}\n}}\ncatch (Exception ex)\n{{\n    // 
 ```
 
 ### 5. Toggle between // and /* */ comment styles
+
 _Demonstrates: Text analysis, string replacement_
 
 ```csharp
@@ -88,6 +93,7 @@ else if (text.StartsWith("/*") && text.EndsWith("*/"))
 ```
 
 ### 6. Format on save for C# files only
+
 _Demonstrates: Trigger with filter condition_
 
 ```csharp
@@ -98,6 +104,7 @@ await ExecuteCommandAsync("Edit.FormatDocument");
 ```
 
 ### 7. Open matching test file
+
 _Demonstrates: Convention-based file discovery, conditional logic_
 
 ```csharp
@@ -122,6 +129,7 @@ else
 ```
 
 ### 8. Insert file header with author name
+
 _Demonstrates: User input with PromptAsync, header generation_
 
 ```csharp
@@ -136,6 +144,7 @@ await TypeAsync(header);
 ```
 
 ### 9. Show build error count in status bar
+
 _Demonstrates: Trigger data access, event handling_
 
 ```csharp
@@ -148,6 +157,7 @@ await VS.StatusBar.ShowMessageAsync($"Build complete: {errors} error(s), {warnin
 ```
 
 ### 10. Collapse all regions in current document
+
 _Demonstrates: Simple command execution_
 
 ```csharp
@@ -157,6 +167,7 @@ await ExecuteCommandAsync("Edit.CollapseAllOutlining");
 ```
 
 ### 11. Insert TODO with today's date
+
 _Demonstrates: String interpolation, DateTime formatting_
 
 ```csharp
@@ -166,6 +177,7 @@ await TypeAsync($"// TODO ({DateTime.Now:yyyy-MM-dd}): ");
 ```
 
 ### 12. Convert selection to uppercase
+
 _Demonstrates: Text transformation, conditional check_
 
 ```csharp
@@ -182,6 +194,7 @@ sel.Insert(sel.Text.ToUpper(), (int)EnvDTE.vsInsertFlags.vsInsertFlagsInsertAtSt
 ```
 
 ### 13. Delete blank lines in selection
+
 _Demonstrates: Text filtering and processing_
 
 ```csharp
@@ -200,6 +213,7 @@ sel.Insert(string.Join("\n", nonBlank), (int)EnvDTE.vsInsertFlags.vsInsertFlagsI
 ```
 
 ### 14. Surround with #region
+
 _Demonstrates: User input, text wrapping with PromptAsync_
 
 ```csharp
@@ -218,6 +232,7 @@ sel.Insert(wrapped, (int)EnvDTE.vsInsertFlags.vsInsertFlagsInsertAtStart);
 ```
 
 ### 15. Log active document path to Output Window
+
 _Demonstrates: DTE Output Window access, debugging_
 
 ```csharp
@@ -241,7 +256,7 @@ These fifteen macros ship with the extension and appear in the Macros tool windo
 2. **Sort selected lines alphabetically** — Reorders the selected lines in place
 3. **Insert current timestamp at caret** — Types a formatted timestamp wherever the caret is
 4. **Wrap selection in try/catch** — Wraps the selected code in a basic exception handler
-5. **Toggle between // and /* */ comment styles** — Switches comment styles for the current selection
+5. **Toggle between // and /_ _/ comment styles**_Toggle between // and /__/ comment styles_ — Switches comment styles for the current selection
 6. **Format on save for C# files only** — Trigger: `Document.Saved when filename=*.cs`
 7. **Open matching test file** — Opens a sibling `*Tests.cs` file when it exists
 8. **Insert file header with author name** — Demonstrates `PromptAsync` for user input

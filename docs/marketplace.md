@@ -21,16 +21,19 @@ Bring back Visual Studio Macros — modern, scripted, and powerful. Record seque
 ## Features
 
 **Recording Engine**
+
 - Captures text edits, command invocations, and cursor operations in real time
 - Debounced typing steps for readable, minimal code generation
 - Thread-safe replay detection prevents infinite loops
 
 **Two Storage Scopes**
+
 - **Global macros** — per-user, stored in `%APPDATA%\Macros\` (yours alone)
 - **Repo macros** — per-solution, committed to `.vs\Macros\` (team-shared, version-controlled)
 - Repo macros shadow global ones with the same name
 
 **Trigger System**
+
 - **Event triggers** — `// @trigger Build.SolutionBuildDone`, `// @trigger Document.Saved`, etc.
   - Supports ~40 built-in VS events, auto-discovered via Community Toolkit
   - Full IntelliSense in the trigger comment
@@ -40,6 +43,7 @@ Bring back Visual Studio Macros — modern, scripted, and powerful. Record seque
 - **Trigger management UI** — Manage Triggers dialog for visual add/remove workflow
 
 **Security & Stability**
+
 - **Trust gate** — repo macros with triggers require per-solution approval before first run (InfoBar prompt)
 - **Manual invocation always allowed** — only auto-trigger registration is gated
 - **Auto-disable on failure** — 3 consecutive failures → macro quarantined (requires manual re-enable)
@@ -47,6 +51,7 @@ Bring back Visual Studio Macros — modern, scripted, and powerful. Record seque
 - **Kill switch** — instant disable all triggers from the toolbar button
 
 **Tool Window**
+
 - Grouped list view (Global / Repo sections) with step count and last-modified date
 - Triggers column shows at-a-glance which macros are event-triggered
 - Right-click context menu: Play, Edit, Delete, Move to Repo, etc.
@@ -54,12 +59,14 @@ Bring back Visual Studio Macros — modern, scripted, and powerful. Record seque
 - Empty-state prompts for quick-start onboarding
 
 **Macro Editor Integration**
+
 - Edit macros directly in the VS editor with C# syntax highlighting and IntelliSense
 - Macro globals: `DTE`, `VS` (Community Toolkit), `Context`, `Trigger?` (if triggered)
 - Helper functions: `Type()`, `MoveCaret()`, `Select()`, `ExecuteCommand()`, `RunCommand()`
 - Includes preamble comments showing trigger syntax and examples
 
 **Quick Record & Replay**
+
 - **Ctrl+Shift+R** — Start/stop recording
 - **Ctrl+Shift+P** — Play last recorded macro
 - **Esc** — Cancel active replay instantly
@@ -71,9 +78,10 @@ Bring back Visual Studio Macros — modern, scripted, and powerful. Record seque
 ## How To Use
 
 ### 1. **Record a Macro**
+
 Press **Ctrl+Shift+R** to start recording. Type text, run commands (via keyboard or click), move the cursor, and watch the status bar show "Recording…". Press **Ctrl+Shift+R** again to stop. The macro is now in the temporary slot, ready to replay.
 
-```
+```text
 // Example: recorded macro for sorting a #region block
 using System.Linq;
 VS.StatusBar.ShowMessage("Sorting region…");
@@ -84,12 +92,15 @@ ExecuteCommand("Edit.ToggleOutliningExpansion");
 ```
 
 ### 2. **Replay On Demand**
+
 Press **Ctrl+Shift+P** to replay the last macro. Or open the **Macros** tool window (View > Other Windows > Macros), select any macro from the list, and click **Play**. Status bar shows "Playing…" until complete. Press **Esc** to cancel mid-playback.
 
 ### 3. **Save It For Later**
+
 Right-click the temporary macro in the tool window or use File > Save Macro As. Choose **Global** (your macros, always available) or **Repo** (commit to `.vs\Macros\`, shared with teammates). Name it something memorable.
 
 ### 4. **Add Triggers (Optional)**
+
 Open the macro `.csx` file in the editor and add trigger comments at the top:
 
 ```csharp

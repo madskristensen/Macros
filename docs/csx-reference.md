@@ -39,15 +39,15 @@ A `.csx` file is a **C# script** — executable C# code that runs immediately wi
 
 Helper methods are available directly in your macro (no import needed — the IntelliSense shim provides `using static Macros.Engine.Scripting.Helpers`):
 
-| Method | Purpose |
-|--------|---------|
-| `TypeAsync(string text)` | Insert text at the caret as if you typed it. |
-| `MoveCaretAsync(int line, int column)` | Move the caret to a position (1-based). |
-| `SelectAsync(int startLine, int startCol, int endLine, int endCol)` | Select a span. |
-| `ExecuteCommandAsync(string name, string args = "")` | Invoke a named VS command (`File.Save`, `Edit.FormatDocument`, etc.). |
-| `RunCommandAsync(Guid group, uint id, object? args = null)` | Invoke a command by GUID + ID for cases without a public name. |
-| `WaitAsync(int ms)` | Pause the script. |
-| `OpenFileAsync(string path)` | Open a file in the VS editor (or bring it to front if already open). |
+| Method                                                              | Purpose                                                               |
+| ------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| `TypeAsync(string text)`                                            | Insert text at the caret as if you typed it.                          |
+| `MoveCaretAsync(int line, int column)`                              | Move the caret to a position (1-based).                               |
+| `SelectAsync(int startLine, int startCol, int endLine, int endCol)` | Select a span.                                                        |
+| `ExecuteCommandAsync(string name, string args = "")`                | Invoke a named VS command (`File.Save`, `Edit.FormatDocument`, etc.). |
+| `RunCommandAsync(Guid group, uint id, object? args = null)`         | Invoke a command by GUID + ID for cases without a public name.        |
+| `WaitAsync(int ms)`                                                 | Pause the script.                                                     |
+| `OpenFileAsync(string path)`                                        | Open a file in the VS editor (or bring it to front if already open).  |
 
 ## The `MacroGlobals` object
 
@@ -59,7 +59,7 @@ Inside your script, these globals are automatically accessible:
 - **`Trigger`** — `IMacroTrigger?` with the firing event's data (e.g. `Trigger.Data["ErrorCount"]`); `null` for manual runs.
 
 > **DTE** (Development Tools Environment) is Visual Studio's COM automation object model — the API your macro uses to inspect and control the IDE. Through `DTE` you can access the active document, solution, debugger, commands, windows, and more. For the full API surface, see the [EnvDTE2 reference on Microsoft Learn](https://learn.microsoft.com/en-us/dotnet/api/envdte80.dte2).
-
+>
 > **VS** is the [Community.VisualStudio.Toolkit](https://github.com/VsixCommunity/Community.VisualStudio.Toolkit) static facade — a modern, simplified wrapper over the Visual Studio SDK. It provides easy access to the status bar, message boxes, info bars, document services, and more. See the [Toolkit wiki](https://github.com/VsixCommunity/Community.VisualStudio.Toolkit/wiki) for the full API.
 
 ## Examples
@@ -99,19 +99,22 @@ if (Context.CurrentDocument?.Name.EndsWith(".cs") == true)
 ## Tips
 
 > 💡 **IntelliSense in the `.csx` editor.** Open any macro in VS itself (right-click → **Edit** in the tool window) and the C# language service provides full IntelliSense:
+
 > - Helper verbs (`TypeAsync`, `ExecuteCommandAsync`, etc.)
+
 > - The entire `DTE` automation surface
 > - The `VS` static facade (status bar, info bars, dialogs, document services…)
 > - The `Context` and `Trigger` globals
 > - Syntax colorization, refactorings, and squigglies
 >
 > This works via an auto-managed `.intellisense/Macros.Intellisense.csx` shim file that lives alongside your macros. The shim is safe to ignore in source control — each contributor's VSIX regenerates it with machine-local DLL paths. (See [**How it works**](#how-it-works) below for the full picture.)
-
+>
 > 💡 You can write macros from scratch without recording. Right-click the tool window → **New Macro**, or use **File → New → Macro** to start a template.
 
 ### How it works
 
 When a macro is opened in the editor, the C# language service automatically loads the IntelliSense shim via a `#load` directive. The shim contains:
+
 - `#r` references to the necessary interop and extension DLLs (resolved to their machine-local absolute paths by the VSIX when the shim is written).
 - `using` directives for the same namespaces as the generated macro code.
 - Top-level field stubs for `DTE`, `Context`, and `Trigger` so the editor knows their types.
