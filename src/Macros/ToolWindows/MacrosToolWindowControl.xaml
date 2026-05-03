@@ -235,7 +235,8 @@
                                                TextTrimming="CharacterEllipsis" />
                                     <DataTemplate.Triggers>
                                         <DataTrigger Binding="{Binding IsSample}" Value="True">
-                                            <Setter TargetName="TriggerText" Property="Foreground" Value="{DynamicResource {x:Static vsui:EnvironmentColors.SystemGrayTextBrushKey}}" />
+                                            <Setter TargetName="TriggerText" Property="Text" Value="" />
+                                            <Setter TargetName="TriggerText" Property="ToolTip" Value="{x:Null}" />
                                         </DataTrigger>
                                     </DataTemplate.Triggers>
                                 </DataTemplate>

@@ -98,7 +98,7 @@ public sealed class MacroItemViewModel : INotifyPropertyChanged
     /// "Triggers" column. Sample rows show their description instead.
     /// </summary>
     public string TriggersSummary => IsSample
-        ? (SampleDescription ?? string.Empty)
+        ? string.Empty
         : TriggerSummaryFormatter.Summary(Descriptor.Triggers);
 
     /// <summary>
