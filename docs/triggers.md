@@ -74,7 +74,7 @@ Unrecognized filter keys are ignored (logged at debug verbosity). Unknown event 
 
 Don't memorize the syntax — right-click a macro in the tool window and choose **Manage Triggers…** to get a guided editor:
 
-![Manage Triggers dialog](../art/manage-triggers.png)
+![Manage Triggers dialog](img/manage-triggers.png)
 
 The dialog:
 
