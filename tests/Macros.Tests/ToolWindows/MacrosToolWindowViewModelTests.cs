@@ -127,8 +127,8 @@ public sealed class MacrosToolWindowViewModelTests
         await vm.LoadAsync();
 
         Assert.False(vm.SamplesGroup.IsExpanded);
-        Assert.Equal(3, vm.SamplesGroup.VisibleItems.Count);
-        Assert.Equal(3, vm.AllItems.Count(item => item.IsSample));
+        Assert.Equal(15, vm.SamplesGroup.VisibleItems.Count);
+        Assert.Equal(15, vm.AllItems.Count(item => item.IsSample));
 
         vm.FilterText = "header";
         Assert.Collection(
@@ -156,14 +156,15 @@ public sealed class MacrosToolWindowViewModelTests
         await vm.LoadAsync();
 
         var samples = vm.AllItems.Where(item => item.IsSample).ToList();
-        Assert.Equal(3, samples.Count);
+        Assert.Equal(15, samples.Count);
         Assert.All(samples, item =>
         {
             Assert.Equal("Samples", item.GroupName);
             Assert.NotNull(item.SampleTemplate);
+            Assert.NotNull(item.SampleDescription);
             Assert.True(item.CanPrimaryAction);
         });
-        Assert.Equal(samples.Select(item => item.Name), vm.AllItems.Skip(vm.AllItems.Count - 3).Select(item => item.Name));
+        Assert.Equal(samples.Select(item => item.Name), vm.AllItems.Skip(vm.AllItems.Count - 15).Select(item => item.Name));
     }
 
     [Fact]

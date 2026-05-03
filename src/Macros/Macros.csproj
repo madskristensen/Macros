@@ -27,16 +27,64 @@
 
   <ItemGroup>
     <None Remove="Samples\collapse-regions-on-open.csx" />
+    <None Remove="Samples\collapse-all-regions.csx" />
+    <None Remove="Samples\convert-to-uppercase.csx" />
+    <None Remove="Samples\delete-blank-lines.csx" />
     <None Remove="Samples\format-on-save-csharp.csx" />
     <None Remove="Samples\insert-file-header.csx" />
+    <None Remove="Samples\insert-timestamp.csx" />
+    <None Remove="Samples\insert-todo-with-date.csx" />
+    <None Remove="Samples\log-document-path.csx" />
+    <None Remove="Samples\open-matching-test-file.csx" />
+    <None Remove="Samples\show-build-error-count.csx" />
+    <None Remove="Samples\sort-selected-lines.csx" />
+    <None Remove="Samples\surround-with-region.csx" />
+    <None Remove="Samples\toggle-comment-style.csx" />
+    <None Remove="Samples\wrap-in-try-catch.csx" />
     <EmbeddedResource Include="Samples\collapse-regions-on-open.csx">
       <LogicalName>collapse-regions-on-open.csx</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Samples\collapse-all-regions.csx">
+      <LogicalName>collapse-all-regions.csx</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Samples\convert-to-uppercase.csx">
+      <LogicalName>convert-to-uppercase.csx</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Samples\delete-blank-lines.csx">
+      <LogicalName>delete-blank-lines.csx</LogicalName>
     </EmbeddedResource>
     <EmbeddedResource Include="Samples\format-on-save-csharp.csx">
       <LogicalName>format-on-save-csharp.csx</LogicalName>
     </EmbeddedResource>
     <EmbeddedResource Include="Samples\insert-file-header.csx">
       <LogicalName>insert-file-header.csx</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Samples\insert-timestamp.csx">
+      <LogicalName>insert-timestamp.csx</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Samples\insert-todo-with-date.csx">
+      <LogicalName>insert-todo-with-date.csx</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Samples\log-document-path.csx">
+      <LogicalName>log-document-path.csx</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Samples\open-matching-test-file.csx">
+      <LogicalName>open-matching-test-file.csx</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Samples\show-build-error-count.csx">
+      <LogicalName>show-build-error-count.csx</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Samples\sort-selected-lines.csx">
+      <LogicalName>sort-selected-lines.csx</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Samples\surround-with-region.csx">
+      <LogicalName>surround-with-region.csx</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Samples\toggle-comment-style.csx">
+      <LogicalName>toggle-comment-style.csx</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Samples\wrap-in-try-catch.csx">
+      <LogicalName>wrap-in-try-catch.csx</LogicalName>
     </EmbeddedResource>
   </ItemGroup>
 

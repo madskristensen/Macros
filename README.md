@@ -44,6 +44,7 @@ Requires **Visual Studio 2022** (17.10+) on Windows.
 - **[Replaying](docs/replaying.md)** — Play Last, tool window, error handling.
 - **[C# Scripting Reference](docs/csx-reference.md)** — Helpers API, MacroGlobals, code examples.
 - **[Triggers](docs/triggers.md)** — @trigger directive, all event/command types, filters, examples.
+- **[Macro Samples](docs/macro-samples.md)** — 15 ready-to-use macros you can copy and customize.
 - **[Scopes](docs/scopes.md)** — Global vs Repo macros, storage, team sharing.
 - **[Security](docs/security.md)** — Trust gate, auto-disable, why macros are code.
 - **[Troubleshooting](docs/troubleshooting.md)** — Common issues and fixes.

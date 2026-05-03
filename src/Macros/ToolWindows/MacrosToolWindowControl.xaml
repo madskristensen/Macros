@@ -229,9 +229,15 @@
                                         Width="110">
                             <GridViewColumn.CellTemplate>
                                 <DataTemplate DataType="{x:Type local:MacroItemViewModel}">
-                                    <TextBlock Text="{Binding TriggersSummary}"
+                                    <TextBlock x:Name="TriggerText"
+                                               Text="{Binding TriggersSummary}"
                                                ToolTip="{Binding TriggersDetail}"
                                                TextTrimming="CharacterEllipsis" />
+                                    <DataTemplate.Triggers>
+                                        <DataTrigger Binding="{Binding IsSample}" Value="True">
+                                            <Setter TargetName="TriggerText" Property="Foreground" Value="{DynamicResource {x:Static vsui:EnvironmentColors.SystemGrayTextBrushKey}}" />
+                                        </DataTrigger>
+                                    </DataTemplate.Triggers>
                                 </DataTemplate>
                             </GridViewColumn.CellTemplate>
                         </GridViewColumn>
@@ -239,7 +245,7 @@
                                         Width="60">
                             <GridViewColumn.CellTemplate>
                                 <DataTemplate DataType="{x:Type local:MacroItemViewModel}">
-                                    <TextBlock Text="{Binding StepCount, StringFormat={}{0} steps}" />
+                                    <TextBlock Text="{Binding StepCountDisplay}" />
                                 </DataTemplate>
                             </GridViewColumn.CellTemplate>
                         </GridViewColumn>
@@ -280,7 +286,7 @@
                                         <ControlTemplate TargetType="GroupItem">
                                             <Expander IsExpanded="True"
                                                       Style="{StaticResource GroupExpanderStyle}"
-                                                      Margin="0,2,0,0"
+                                                      Margin="0,10,0,0"
                                                       Foreground="{DynamicResource {x:Static vsui:EnvironmentColors.ToolWindowTextBrushKey}}">
                                                 <Expander.Header>
                                                     <Border Background="Transparent"

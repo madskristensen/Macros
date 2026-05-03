@@ -235,11 +235,23 @@ if (doc?.FullName != null)
 
 ## In-Product Samples
 
-These three macros ship with the extension and appear in the Macros tool window:
+These fifteen macros ship with the extension and appear in the Macros tool window:
 
 1. **Auto-collapse regions on file open** — Trigger: `Document.Opened`
-2. **Format on save for C# files only** — Trigger: `Document.Saved when filename=*.cs`
-3. **Insert file header with author name** — Demonstrates `PromptAsync` for user input
+2. **Sort selected lines alphabetically** — Reorders the selected lines in place
+3. **Insert current timestamp at caret** — Types a formatted timestamp wherever the caret is
+4. **Wrap selection in try/catch** — Wraps the selected code in a basic exception handler
+5. **Toggle between // and /* */ comment styles** — Switches comment styles for the current selection
+6. **Format on save for C# files only** — Trigger: `Document.Saved when filename=*.cs`
+7. **Open matching test file** — Opens a sibling `*Tests.cs` file when it exists
+8. **Insert file header with author name** — Demonstrates `PromptAsync` for user input
+9. **Show build error count in status bar** — Trigger: `Build.SolutionBuildDone`
+10. **Collapse all regions in current document** — Runs the collapse-outlining command on demand
+11. **Insert TODO with today's date** — Creates a dated TODO comment stub
+12. **Convert selection to uppercase** — Uppercases the current selection
+13. **Delete blank lines in selection** — Removes empty lines from the selected block
+14. **Surround with #region** — Prompts for a region name and wraps the selection
+15. **Log active document path to Output Window** — Writes the active document path to the Debug pane
 
 ## What's Next?
 

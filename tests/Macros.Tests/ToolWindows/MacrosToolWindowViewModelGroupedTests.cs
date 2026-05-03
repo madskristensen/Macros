@@ -28,10 +28,10 @@ public sealed class MacrosToolWindowViewModelGroupedTests
         using var vm = new MacrosToolWindowViewModel(storage, debounceInterval: TimeSpan.Zero);
         await vm.LoadAsync();
 
-        Assert.Equal(3, vm.AllItems.Count);
+        Assert.Equal(15, vm.AllItems.Count);
         Assert.All(vm.AllItems, item => Assert.True(item.IsSample));
         Assert.Equal(new[] { "Samples" }, ItemGroupNames(vm));
-        Assert.Equal(3, vm.GroupedItemsView.Cast<object>().Count());
+        Assert.Equal(15, vm.GroupedItemsView.Cast<object>().Count());
         Assert.True(vm.IsEmpty);
         var shadowedGroup = vm.Groups.Single(g => g.IsShadowed);
         Assert.False(shadowedGroup.IsAvailable);
@@ -71,8 +71,8 @@ public sealed class MacrosToolWindowViewModelGroupedTests
         var names = vm.AllItems.Select(i => (i.Name, i.GroupName)).ToList();
         Assert.Contains(("A", "Repo"), names);
         Assert.Contains(("A", "Shadowed Global Macros"), names);
-        Assert.Equal(5, names.Count);
-        Assert.Equal(3, names.Count(pair => pair.GroupName == "Samples"));
+        Assert.Equal(17, names.Count);
+        Assert.Equal(15, names.Count(pair => pair.GroupName == "Samples"));
 
         // GroupedItemsView surfaces Repo, Shadowed Global, and Samples.
         var groupNames = ItemGroupNames(vm).ToList();

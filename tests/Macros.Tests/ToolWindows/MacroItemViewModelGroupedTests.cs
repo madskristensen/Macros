@@ -67,6 +67,10 @@ public sealed class MacroItemViewModelGroupedTests
         };
 
         Assert.Equal("Samples", item.GroupName);
+        Assert.Equal("Adds a header.", item.SampleDescription);
+        Assert.Equal("Adds a header.", item.TriggersSummary);
+        Assert.Equal("Adds a header.", item.TriggersDetail);
+        Assert.Equal(string.Empty, item.StepCountDisplay);
         Assert.Equal("Adds a header.", item.ItemToolTip);
         Assert.Equal("Open sample", item.PrimaryActionToolTip);
         Assert.Equal("Open sample", item.PrimaryActionAutomationName);
@@ -88,6 +92,7 @@ public sealed class MacroItemViewModelGroupedTests
         var item = new MacroItemViewModel(entry, service: null);
 
         Assert.Equal(42, item.StepCount);
+        Assert.Equal("42 steps", item.StepCountDisplay);
     }
 
     [Fact]

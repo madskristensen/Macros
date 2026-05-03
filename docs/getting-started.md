@@ -10,6 +10,8 @@
 
 That's it. Your recording is saved as `current.csx`; press `Ctrl+Shift+P` again any time to replay it. To keep it permanently, see [Saving macros](#saving-macros) below.
 
+Want examples to tweak instead of recording from scratch? Browse the built-in samples in the Macros tool window or copy one from [Macro Samples](macro-samples.md).
+
 > 💡 **Tip:** Press `Esc` during playback to cancel a misbehaving macro.
 
 ## Saving macros

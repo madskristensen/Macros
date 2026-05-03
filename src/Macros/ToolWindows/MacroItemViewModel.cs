@@ -90,17 +90,24 @@ public sealed class MacroItemViewModel : INotifyPropertyChanged
     /// <summary>Gets the macro's recorded step count (from <see cref="MacroEntry.StepCount"/>).</summary>
     public int StepCount => Descriptor.StepCount;
 
+    /// <summary>Gets the text shown in the grid's "Steps" column.</summary>
+    public string StepCountDisplay => IsSample ? string.Empty : $"{StepCount} steps";
+
     /// <summary>
     /// Gets a compact, single-line summary of this macro's triggers, suitable for the
-    /// "Triggers" column. See <see cref="TriggerSummaryFormatter.Summary"/>.
+    /// "Triggers" column. Sample rows show their description instead.
     /// </summary>
-    public string TriggersSummary => TriggerSummaryFormatter.Summary(Descriptor.Triggers);
+    public string TriggersSummary => IsSample
+        ? (SampleDescription ?? string.Empty)
+        : TriggerSummaryFormatter.Summary(Descriptor.Triggers);
 
     /// <summary>
     /// Gets the multi-line trigger detail string, suitable for the "Triggers" column tooltip.
-    /// See <see cref="TriggerSummaryFormatter.Detail"/>.
+    /// Sample rows show their description instead.
     /// </summary>
-    public string TriggersDetail => TriggerSummaryFormatter.Detail(Descriptor.Triggers);
+    public string TriggersDetail => IsSample
+        ? (SampleDescription ?? string.Empty)
+        : TriggerSummaryFormatter.Detail(Descriptor.Triggers);
 
     /// <summary>
     /// Gets a slightly terser variant of <see cref="LastModifiedDisplay"/> tailored for the
@@ -123,6 +130,9 @@ public sealed class MacroItemViewModel : INotifyPropertyChanged
 
     /// <summary>Gets the associated sample template, if this is a sample item.</summary>
     public SampleTemplate? SampleTemplate { get; init; }
+
+    /// <summary>Gets the sample description shown in the tool window for sample rows.</summary>
+    public string? SampleDescription => SampleTemplate?.Description;
 
     /// <summary>
     /// Gets the group label this row belongs to in the tool window's grouped ListView. The

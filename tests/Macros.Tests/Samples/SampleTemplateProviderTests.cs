@@ -15,16 +15,19 @@ public sealed class SampleTemplateProviderTests : IDisposable
         Guid.NewGuid().ToString("N"));
 
     [Fact]
-    public void GetTemplates_ReturnsThreeKnownTemplates()
+    public void GetTemplates_ReturnsAllEmbeddedTemplates()
     {
         var provider = new SampleTemplateProvider();
 
         var resources = provider.GetTemplates().Select(t => t.ResourceName).ToArray();
 
-        Assert.Equal(3, resources.Length);
+        Assert.Equal(15, resources.Length);
         Assert.Contains("collapse-regions-on-open.csx", resources);
         Assert.Contains("format-on-save-csharp.csx", resources);
         Assert.Contains("insert-file-header.csx", resources);
+        Assert.Contains("sort-selected-lines.csx", resources);
+        Assert.Contains("show-build-error-count.csx", resources);
+        Assert.Contains("log-document-path.csx", resources);
     }
 
     [Fact]
