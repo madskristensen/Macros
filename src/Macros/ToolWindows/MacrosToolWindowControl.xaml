@@ -253,6 +253,7 @@
                       AllowDrop="True"
                       DragOver="MacroGroups_DragOver"
                       Drop="MacroGroups_Drop"
+                      SelectionChanged="MacrosListView_SelectionChanged"
                       ScrollViewer.HorizontalScrollBarVisibility="Auto"
                       ScrollViewer.VerticalScrollBarVisibility="Auto">
                 <ListView.View>

@@ -1,11 +1,6 @@
-<!-- macros-extension-version: 1.0.0 -->
-
 ---
-name: "macro-dte-api"
-description: "Use EnvDTE80.DTE2 inside Macros .csx files to inspect and automate Visual Studio"
-domain: "visual-studio-macros"
-confidence: "high"
-source: "derived from MacroGlobals, Helpers, docs, and DTE-based macro samples"
+name: macro-dte-api
+description: Use the EnvDTE / EnvDTE80 automation surface from inside a Macros for Visual Studio .csx macro. Use when a macro needs the active document, text selection, solution state, project items, debugger state, windows, or direct DTE.ExecuteCommand calls — anything beyond the helper verbs in Macros.Engine.Scripting.Helpers. Do NOT use for VSIX authoring; this skill is exclusively about consuming the already-injected DTE global from a .csx macro.
 ---
 
 # DTE2 inside macros

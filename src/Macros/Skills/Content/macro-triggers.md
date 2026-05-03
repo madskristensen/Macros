@@ -1,11 +1,6 @@
-<!-- macros-extension-version: 1.0.0 -->
-
 ---
-name: "macro-triggers"
-description: "Trigger syntax for Macros .csx files: events, commands, filters, and header edits"
-domain: "visual-studio-macros"
-confidence: "high"
-source: "derived from docs/triggers.md and CSharpCodeGenerator.EmitHeader"
+name: macro-triggers
+description: Make a Macros for Visual Studio .csx macro run automatically on IDE events. Use when the user asks how to add a // @trigger directive, run a macro on build / save / solution open / debugger events, intercept a VS command with BeforeCommand, observe a command with AfterCommand, add filters like `when filename=*.cs` or `when success=false`, or edit a macro's trigger header. Do NOT use for VSIX event handlers, MEF listeners, IVsUpdateSolutionEvents, or other extensibility plumbing.
 ---
 
 # Macro triggers

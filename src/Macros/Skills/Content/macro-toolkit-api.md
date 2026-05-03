@@ -1,11 +1,6 @@
-<!-- macros-extension-version: 1.0.0 -->
-
 ---
-name: "macro-toolkit-api"
-description: "Use the Community.VisualStudio.Toolkit facade from inside Macros .csx files"
-domain: "visual-studio-macros"
-confidence: "high"
-source: "derived from repo usage of VS.StatusBar, VS.MessageBox, VS.InfoBar, and VS.Documents"
+name: macro-toolkit-api
+description: Use the Community.VisualStudio.Toolkit `VS` facade from inside a Macros for Visual Studio .csx macro. Use when a macro should show a status bar message, message box, info bar, or use VS.Documents / VS.Solutions / VS.Windows. Covers VS.StatusBar.ShowMessageAsync, VS.MessageBox.ShowAsync, VS.InfoBar, VS.Documents.GetActiveDocumentViewAsync, VS.Windows.CreateOutputWindowPaneAsync. Do NOT use for writing a Toolkit-based VSIX (commands, tool windows, package services); this skill is exclusively for consuming the toolkit from a .csx macro.
 ---
 
 # Community Toolkit API in macros

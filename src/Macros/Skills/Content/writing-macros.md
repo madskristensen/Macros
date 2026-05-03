@@ -1,11 +1,6 @@
-<!-- macros-extension-version: 1.0.0 -->
-
 ---
-name: "writing-macros"
-description: "How to write .csx macros for Visual Studio automation in the Macros repo"
-domain: "visual-studio-macros"
-confidence: "high"
-source: "derived from Macros.Engine codegen, helpers, globals, and docs"
+name: writing-macros
+description: Write or edit .csx macro files for the Macros for Visual Studio extension. Use when the user asks how to write a Visual Studio macro, edit a recorded macro, structure a .csx file for the Macros extension, use the IntelliSense shim's #load directive, call helper verbs like TypeAsync / ExecuteCommandAsync / RunMacroAsync / InsertSnippetAsync, or work with the MacroGlobals (DTE, VS, Context, Trigger). Do NOT use for VSIX authoring, MEF parts, tool windows, or other VS extensibility patterns.
 ---
 
 # Writing .csx macros

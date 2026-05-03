@@ -469,6 +469,37 @@ public partial class MacrosToolWindowControl : UserControl
         return MacroGroupSelectionContext.CurrentScope is not null;
     }
 
+    /// <summary>
+    /// Keeps <see cref="MacroSelectionContext.Current"/> in sync with the live ListView
+    /// selection. This matters because the F7 / Enter / F2 key bindings are declared at the
+    /// VSCT layer (<c>editor="guidMacrosToolWindow"</c>) as well as in WPF — when keyboard
+    /// focus is off-row (e.g. on the search box, the toolbar, or the empty area below the
+    /// list), the WPF row-level <c>PreviewKeyDown</c> handler doesn't fire and the VSCT
+    /// binding alone dispatches the command. Without this sync, the dispatched command
+    /// reads a stale <c>Current</c> (typically the last right-clicked row), which
+    /// manifested as "F7 opens the first macro on the list" regardless of the current
+    /// selection.
+    /// </summary>
+    /// <remarks>
+    /// Sample rows are excluded — their <see cref="MacroEntry"/> uses a synthetic path
+    /// (<c>"sample:..."</c>) that wouldn't resolve in <see cref="EditMacroResolver"/> anyway.
+    /// Setting <c>Current</c> to <see langword="null"/> for samples lets the context
+    /// commands short-circuit cleanly instead of surfacing a "file no longer exists" error.
+    /// </remarks>
+    private void MacrosListView_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        if (sender is not ListView list)
+        {
+            return;
+        }
+
+        MacroSelectionContext.Current = list.SelectedItem switch
+        {
+            MacroItemViewModel item when !item.IsSample => item.Descriptor,
+            _ => null,
+        };
+    }
+
     private static T? FindAncestor<T>(DependencyObject? start)
         where T : DependencyObject
     {

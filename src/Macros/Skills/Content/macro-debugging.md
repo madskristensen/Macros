@@ -1,11 +1,6 @@
-<!-- macros-extension-version: 1.0.0 -->
-
 ---
-name: "macro-debugging"
-description: "Troubleshoot Macros .csx scripts: command names, null state, timing, and runtime vs IntelliSense"
-domain: "visual-studio-macros"
-confidence: "high"
-source: "derived from player/shim behavior, helper contracts, and repo docs"
+name: macro-debugging
+description: Troubleshoot a failing or flaky Macros for Visual Studio .csx macro. Use when a macro compiles but fails at playback, when IntelliSense shows symbols that aren't present at runtime, when DTE.ActiveDocument is unexpectedly null, when ExecuteCommandAsync says a command is not found, when timing or async issues need a WaitAsync guard, or when the IntelliSense shim's editor-only behaviour is causing confusion. Do NOT use for attaching a debugger to a VSIX package or diagnosing extension load problems.
 ---
 
 # Debugging macros

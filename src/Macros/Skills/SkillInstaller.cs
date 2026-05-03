@@ -170,10 +170,55 @@ internal static class SkillInstaller
 
     private static async Task<Version?> ReadInstalledVersionAsync(string filePath)
     {
+        // The version marker is the last non-empty line of the file. We previously stored it
+        // as line 1 (before the YAML frontmatter), but that broke Copilot CLI's skills loader
+        // because the loader requires `---` to be the very first line. Moving the marker to
+        // the end keeps version tracking working without polluting the SKILL.md header.
+        //
+        // Legacy files written by older versions of this installer carry the marker at the
+        // top instead. The end-of-file scan returns null for those, which triggers a one-shot
+        // rewrite into the new format on extension load — self-healing, no migration step.
         using FileStream fileStream = new(filePath, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, useAsync: true);
         using StreamReader reader = new(fileStream, Utf8NoBom, detectEncodingFromByteOrderMarks: true);
-        string? firstLine = await reader.ReadLineAsync().ConfigureAwait(false);
-        return ParseVersionMarker(firstLine);
+        string content = await reader.ReadToEndAsync().ConfigureAwait(false);
+        return ExtractTrailingMarkerVersion(content);
+    }
+
+    /// <summary>
+    /// Returns the parsed version from a trailing <c>&lt;!-- macros-extension-version: X --&gt;</c>
+    /// comment, or <see langword="null"/> when the marker isn't on the last non-empty line.
+    /// Exposed internal so unit tests can validate the round-trip without touching the disk.
+    /// </summary>
+    /// <param name="content">Full SKILL.md file contents (any line endings).</param>
+    /// <returns>The parsed version, or <see langword="null"/> if no trailing marker.</returns>
+    internal static Version? ExtractTrailingMarkerVersion(string content)
+    {
+        if (string.IsNullOrEmpty(content))
+        {
+            return null;
+        }
+
+        // Walk backwards over the lines so we don't allocate an array of every line just to
+        // look at the tail. Trim whitespace-only lines (including stray CRs) before checking.
+        int end = content.Length;
+        while (end > 0)
+        {
+            int lineStart = content.LastIndexOf('\n', end - 1);
+            string line = content.Substring(lineStart + 1, end - lineStart - 1).TrimEnd('\r');
+            if (line.Length > 0 && !string.IsNullOrWhiteSpace(line))
+            {
+                return ParseVersionMarker(line);
+            }
+
+            if (lineStart < 0)
+            {
+                return null;
+            }
+
+            end = lineStart;
+        }
+
+        return null;
     }
 
     private static async Task WriteAllTextAsync(string filePath, string content)
@@ -184,23 +229,79 @@ internal static class SkillInstaller
         await writer.FlushAsync().ConfigureAwait(false);
     }
 
-    private static string BuildInstalledContent(string rawContent, string versionText)
+    /// <summary>
+    /// Stitches the bundled content together with the version marker. The marker is the
+    /// <em>last</em> non-empty line of the resulting file so it does not interfere with the
+    /// YAML frontmatter the Copilot CLI skills loader expects on line 1. Any pre-existing
+    /// marker (top or bottom) in the bundled resource is stripped first to keep the output
+    /// idempotent across nested installs.
+    /// </summary>
+    /// <param name="rawContent">The raw bundled SKILL.md content.</param>
+    /// <param name="versionText">The current bundled extension version, formatted for the marker.</param>
+    /// <returns>The full file contents to write to disk.</returns>
+    internal static string BuildInstalledContent(string rawContent, string versionText)
     {
-        string trimmedContent = StripVersionMarker(rawContent).TrimStart('\uFEFF', '\r', '\n');
-        return string.Concat(VersionMarkerPrefix, versionText, VersionMarkerSuffix, Environment.NewLine, Environment.NewLine, trimmedContent);
+        string body = StripVersionMarker(rawContent ?? string.Empty).TrimStart('\uFEFF', '\r', '\n').TrimEnd();
+        return string.Concat(
+            body,
+            Environment.NewLine,
+            Environment.NewLine,
+            VersionMarkerPrefix,
+            versionText,
+            VersionMarkerSuffix,
+            Environment.NewLine);
     }
 
     private static string StripVersionMarker(string content)
     {
-        using StringReader reader = new(content);
-        string? firstLine = reader.ReadLine();
-        if (!VersionMarkerRegex.IsMatch(firstLine ?? string.Empty))
+        if (string.IsNullOrEmpty(content))
         {
             return content;
         }
 
-        string remainder = reader.ReadToEnd();
-        return remainder.TrimStart('\r', '\n');
+        // Strip a marker on line 1 (legacy format).
+        using StringReader reader = new(content);
+        string? firstLine = reader.ReadLine();
+        string remainder;
+        if (VersionMarkerRegex.IsMatch(firstLine ?? string.Empty))
+        {
+            remainder = reader.ReadToEnd().TrimStart('\r', '\n');
+        }
+        else
+        {
+            remainder = content;
+        }
+
+        // Strip a marker as the trailing non-empty line (current format).
+        return RemoveTrailingMarker(remainder);
+    }
+
+    private static string RemoveTrailingMarker(string content)
+    {
+        int end = content.Length;
+        while (end > 0)
+        {
+            int lineStart = content.LastIndexOf('\n', end - 1);
+            string line = content.Substring(lineStart + 1, end - lineStart - 1).TrimEnd('\r');
+            if (line.Length > 0 && !string.IsNullOrWhiteSpace(line))
+            {
+                if (VersionMarkerRegex.IsMatch(line))
+                {
+                    return content.Substring(0, lineStart < 0 ? 0 : lineStart).TrimEnd('\r', '\n');
+                }
+
+                return content;
+            }
+
+            if (lineStart < 0)
+            {
+                return string.Empty;
+            }
+
+            end = lineStart;
+        }
+
+        return content;
     }
 
     private static Version? ParseVersionMarker(string? line)

@@ -10,6 +10,7 @@ using EnvDTE;
 using EnvDTE80;
 using Macros.Engine.Recording;
 using Macros.Engine.Scripting;
+using Macros.Engine.Scripting.NuGet;
 using Macros.Engine.Storage;
 using Macros.Engine.Triggers;
 using Microsoft.CodeAnalysis;
@@ -48,6 +49,8 @@ internal sealed class MacroPlayer : IMacroPlayer
     private readonly DTE2 _dte;
     private readonly IMacroPromptService? _promptService;
     private readonly IMacroStore? _store;
+    private readonly INuGetPackageResolver _nuget;
+    private readonly IProgress<string>? _nugetProgress;
 
     /// <summary>
     /// Initializes a new <see cref="MacroPlayer"/>.
@@ -62,14 +65,25 @@ internal sealed class MacroPlayer : IMacroPlayer
     /// exercise nested play; the helper surfaces a clear <see cref="InvalidOperationException"/>
     /// in that case.
     /// </param>
+    /// <param name="nuget">
+    /// Optional NuGet package resolver. <see langword="null"/> uses the default
+    /// <see cref="DotNetCliPackageResolver"/> which shells out to the <c>dotnet</c> CLI.
+    /// Tests inject a fake to avoid actual network access.
+    /// </param>
+    /// <param name="nugetProgress">
+    /// Optional progress reporter for first-time NuGet restores. Production wiring routes
+    /// these to the VS status bar via the package; tests typically pass <see langword="null"/>.
+    /// </param>
     /// <exception cref="ArgumentNullException">Any required argument is <see langword="null"/>.</exception>
-    public MacroPlayer(JoinableTaskFactory jtf, ScriptCompilationCache cache, DTE2 dte, IMacroPromptService? promptService = null, IMacroStore? store = null)
+    public MacroPlayer(JoinableTaskFactory jtf, ScriptCompilationCache cache, DTE2 dte, IMacroPromptService? promptService = null, IMacroStore? store = null, INuGetPackageResolver? nuget = null, IProgress<string>? nugetProgress = null)
     {
         _jtf = jtf ?? throw new ArgumentNullException(nameof(jtf));
         _cache = cache ?? throw new ArgumentNullException(nameof(cache));
         _dte = dte ?? throw new ArgumentNullException(nameof(dte));
         _promptService = promptService;
         _store = store;
+        _nuget = nuget ?? new DotNetCliPackageResolver();
+        _nugetProgress = nugetProgress;
     }
 
     /// <inheritdoc />
@@ -179,7 +193,7 @@ internal sealed class MacroPlayer : IMacroPlayer
         }
     }
 
-    private static Script<object> CompileScript(string src, string? csxFilePath) =>
+    private Script<object> CompileScript(string src, string? csxFilePath) =>
         CSharpScript.Create<object>(src, BuildScriptOptions(), typeof(MacroGlobals));
 
     /// <summary>
@@ -187,9 +201,9 @@ internal sealed class MacroPlayer : IMacroPlayer
     /// </summary>
     private static string BuildCacheKey(string source, string? csxFilePath) => source;
 
-    private static ScriptOptions BuildScriptOptions() =>
+    private ScriptOptions BuildScriptOptions() =>
         ScriptOptions.Default
-            .WithMetadataResolver(InteropAwareMetadataResolver.Instance)
+            .WithMetadataResolver(new NuGetMetadataReferenceResolver(InteropAwareMetadataResolver.Instance, _nuget, _nugetProgress))
             .WithSourceResolver(SkipIntelliSenseShimSourceResolver.Instance)
             .WithReferences(
                 // Macros.Engine — Helpers, MacroContext, ReplayGuard.
