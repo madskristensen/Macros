@@ -148,6 +148,98 @@ public sealed class RecordingFlowReproTests : IDisposable
     }
 
     [Fact]
+    public async Task ToolWindowVM_AfterRecordingSave_WithRealisticContext_ShowsNewMacro()
+    {
+        // Production-realistic harness: use the production default debounce (100ms), a real
+        // SynchronizationContext that posts to a worker queue, and assert that LibraryChanged
+        // → debounce timer → marshal → LoadAsync end-to-end actually surfaces the new macro
+        // without anyone calling Refresh.
+        var global = new GlobalMacroStore(_globalRoot);
+        var repo = new RepoMacroStore(() => null);
+        using var composite = new CompositeMacroStore(global, repo, ownsChildren: true);
+
+        var jtf = CreateJtf();
+        var svc = new MacroService(jtf, maxStepsProvider: () => int.MaxValue, storage: composite);
+
+        // A simple pumping SynchronizationContext that drains queued callbacks on a single
+        // dedicated thread. Mirrors the WPF dispatcher's "single-thread-affinity + Post-from-
+        // anywhere" behaviour without requiring an actual WPF Dispatcher.
+        using var pump = new PumpingSyncContext();
+
+        using var vm = new MacrosToolWindowViewModel(
+            composite,
+            svc,
+            uiSync: pump.Context,
+            debounceInterval: TimeSpan.FromMilliseconds(100));
+
+        await vm.LoadAsync();
+        Assert.Empty(vm.Groups.First(g => g.Scope == MacroScope.Global && !g.IsShadowed).Items);
+
+        var nextLoadTask = vm.NextLoadAsync();
+
+        var savedTcs = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+        svc.RecordingSaved += (_, e) => savedTcs.TrySetResult(e.Path);
+        await svc.StartRecordingAsync();
+        await svc.StopRecordingAsync();
+
+        var savedWinner = await Task.WhenAny(savedTcs.Task, Task.Delay(TimeSpan.FromSeconds(5)));
+        Assert.Same(savedTcs.Task, savedWinner);
+        string savedPath = await savedTcs.Task;
+        string savedName = Path.GetFileNameWithoutExtension(savedPath);
+
+        var loadWinner = await Task.WhenAny(nextLoadTask, Task.Delay(TimeSpan.FromSeconds(5)));
+        Assert.Same(nextLoadTask, loadWinner);
+
+        var globalGroup = vm.Groups.First(g => g.Scope == MacroScope.Global && !g.IsShadowed);
+        Assert.Contains(globalGroup.Items, item => string.Equals(item.Name, savedName, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
+    /// Single-threaded synchronization context that pumps Post() callbacks on a dedicated
+    /// worker thread. Used by tests that need to exercise the production path of
+    /// MacrosToolWindowViewModel.Marshal(...) without dragging in the WPF Dispatcher.
+    /// </summary>
+    private sealed class PumpingSyncContext : IDisposable
+    {
+        private readonly System.Collections.Concurrent.BlockingCollection<(SendOrPostCallback Callback, object? State)> _queue = new();
+        private readonly Thread _worker;
+        public SynchronizationContext Context { get; }
+
+        public PumpingSyncContext()
+        {
+            Context = new ForwardingContext(this);
+            _worker = new Thread(WorkerLoop) { IsBackground = true };
+            _worker.Start();
+        }
+
+        public void Post(SendOrPostCallback d, object? state) => _queue.Add((d, state));
+
+        private void WorkerLoop()
+        {
+            SynchronizationContext.SetSynchronizationContext(Context);
+            foreach (var (cb, state) in _queue.GetConsumingEnumerable())
+            {
+                try { cb(state); } catch { /* swallowed — test infra */ }
+            }
+        }
+
+        public void Dispose()
+        {
+            _queue.CompleteAdding();
+            _worker.Join(TimeSpan.FromSeconds(2));
+            _queue.Dispose();
+        }
+
+        private sealed class ForwardingContext : SynchronizationContext
+        {
+            private readonly PumpingSyncContext _owner;
+            public ForwardingContext(PumpingSyncContext owner) { _owner = owner; }
+            public override void Post(SendOrPostCallback d, object? state) => _owner.Post(d, state);
+            public override void Send(SendOrPostCallback d, object? state) => d(state);
+        }
+    }
+
+    [Fact]
     public async Task ToolWindowVM_LoadAsync_AfterDirectSaveAsAsync_ShowsNewMacro()
     {
         // This is the "pure refresh" path: bypass the engine entirely, save directly via

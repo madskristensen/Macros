@@ -165,17 +165,36 @@ public sealed class CommandHandlerSmokeTests
             string.Join(", ", missing));
     }
 
-    private static string LocateRepoPath(string relative)
+    private static string LocateRepoPath(string relative, [System.Runtime.CompilerServices.CallerFilePath] string callerFilePath = "")
     {
+        // Use CallerFilePath (resolved at compile time) to pin to a known location inside the
+        // repo, then walk up to the repo root deterministically. This is robust to CI bin
+        // depths (D:\a\…\bin\Release\net48\) where AppContext.BaseDirectory is many levels
+        // deep and the previous fixed-iteration walk-up didn't reach the repo root.
+        if (!string.IsNullOrEmpty(callerFilePath))
+        {
+            // tests/Macros.Tests/CommandHandlerSmokeTests.cs → repo root is two parents up.
+            string? testDir = Path.GetDirectoryName(callerFilePath);
+            string? testsDir = Path.GetDirectoryName(testDir);
+            string? repoRoot = Path.GetDirectoryName(testsDir);
+            if (!string.IsNullOrEmpty(repoRoot))
+            {
+                string candidate = Path.Combine(repoRoot!, relative);
+                if (File.Exists(candidate) || Directory.Exists(candidate)) return candidate;
+            }
+        }
+
+        // Fallback: walk up from AppContext.BaseDirectory. CI bin paths can be ~6 levels
+        // below the repo root; allow plenty of headroom.
         string dir = AppContext.BaseDirectory;
-        for (int i = 0; i < 8 && dir is not null; i++)
+        for (int i = 0; i < 16 && dir is not null; i++)
         {
             string candidate = Path.Combine(dir, relative);
             if (File.Exists(candidate) || Directory.Exists(candidate)) return candidate;
             dir = Path.GetDirectoryName(dir)!;
         }
 
-        throw new FileNotFoundException($"Could not locate {relative} from test bin directory.");
+        throw new FileNotFoundException($"Could not locate {relative} from test bin directory '{AppContext.BaseDirectory}' or caller file '{callerFilePath}'.");
     }
 
     private static MetadataLoadContext CreateMetadataContext(out Assembly macrosAssembly)

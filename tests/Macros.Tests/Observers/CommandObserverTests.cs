@@ -481,6 +481,8 @@ public sealed class CommandObserverTests
         }
 
         public void OnFileOpen(string path) => OpenedFiles.Add(path);
+        public void OnFileClose(string path) => ClosedFiles.Add(path);
+        public System.Collections.Generic.List<string> ClosedFiles { get; } = new();
     }
 
     private sealed class FakeMacroService : IMacroService

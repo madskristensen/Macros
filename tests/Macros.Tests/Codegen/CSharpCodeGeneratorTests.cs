@@ -148,6 +148,18 @@ public sealed class CSharpCodeGeneratorTests
     }
 
     [Fact]
+    public void Generate_FileCloseStep_EmitsCloseFileAsync()
+    {
+        var step = new RecordedStep.FileCloseStep(@"C:\projects\MyRepo\src\Foo.cs");
+
+        string src = CSharpCodeGenerator.Generate(new RecordedStep[] { step }, "M", FixedUtc);
+
+        Assert.Contains(@"await CloseFileAsync(@""C:\projects\MyRepo\src\Foo.cs"");", src);
+        Assert.Contains(@"// step 1: close C:\projects\MyRepo\src\Foo.cs", src);
+        AssertNoSyntaxErrors(src);
+    }
+
+    [Fact]
     public void Generate_PureDeletion_EmitsDeletionTodoComment()
     {
         var step = new TextEditStep(OldPosition: 5, OldLength: 3, OldText: "abc", NewText: "");

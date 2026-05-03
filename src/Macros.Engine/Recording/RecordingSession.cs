@@ -165,6 +165,16 @@ internal sealed class RecordingSession : IRecordingSink, ITextEditSink
             return;
         }
 
+        // Reject pseudo-document monikers and other non-file inputs that VS surfaces
+        // through DocumentEvents.Opened (e.g. "RDT_Mk.Solution" — the Running Document
+        // Table moniker for the solution itself). A real document opened in the editor
+        // always has an absolute file system path; anything else cannot be replayed via
+        // ItemOperations.OpenFile and would crash the macro at runtime with E_INVALIDARG.
+        if (!IsLikelyFilePath(path))
+        {
+            return;
+        }
+
         int committedCount = 0;
         bool fireCap = false;
 
@@ -177,6 +187,59 @@ internal sealed class RecordingSession : IRecordingSink, ITextEditSink
 
             var finalized = _aggregator.Push(
                 new RecordedStep.FileOpenStep(path),
+                DateTime.UtcNow);
+            if (finalized is not null)
+            {
+                _steps.Add(finalized);
+                committedCount = _steps.Count;
+
+                if (_steps.Count >= _maxSteps)
+                {
+                    _capFired = true;
+                    _aggregator.Reset();
+                    fireCap = true;
+                }
+            }
+        }
+
+        if (committedCount > 0)
+        {
+            StepCountChanged?.Invoke(this, committedCount);
+        }
+
+        if (fireCap)
+        {
+            CapReached?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    /// <inheritdoc />
+    public void OnFileClose(string path)
+    {
+        if (string.IsNullOrEmpty(path))
+        {
+            return;
+        }
+
+        // Same path-shape filter as OnFileOpen — refuse pseudo-document monikers and
+        // anything else that wouldn't replay through CloseFileAsync.
+        if (!IsLikelyFilePath(path))
+        {
+            return;
+        }
+
+        int committedCount = 0;
+        bool fireCap = false;
+
+        lock (_gate)
+        {
+            if (!IsCapturing || _capFired)
+            {
+                return;
+            }
+
+            var finalized = _aggregator.Push(
+                new RecordedStep.FileCloseStep(path),
                 DateTime.UtcNow);
             if (finalized is not null)
             {
@@ -273,5 +336,48 @@ internal sealed class RecordingSession : IRecordingSink, ITextEditSink
 
             return _steps.ToArray();
         }
+    }
+
+    /// <summary>
+    /// Heuristic filter for the recorder: returns <see langword="true"/> only when
+    /// <paramref name="path"/> looks like a real file-system path. Rejects pseudo-document
+    /// monikers VS surfaces through <c>DocumentEvents.Opened</c> (e.g.
+    /// <c>"RDT_Mk.Solution"</c>, URI-style monikers, etc.) which can't be replayed via
+    /// <c>ItemOperations.OpenFile</c>.
+    /// </summary>
+    /// <remarks>
+    /// <para>The filter requires the path to be (a) rooted, (b) contain no characters that
+    /// <see cref="System.IO.Path.GetInvalidPathChars"/> rejects, and (c) parse cleanly under
+    /// <see cref="System.IO.Path.GetFullPath(string)"/>. Files that don't exist on disk yet
+    /// (newly-created documents) are intentionally allowed; only path shape is enforced.</para>
+    /// <para>Exposed at <c>internal</c> visibility so unit tests can pin the contract directly.</para>
+    /// </remarks>
+    internal static bool IsLikelyFilePath(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path)) return false;
+
+        // Reject paths containing invalid characters (covers most moniker shapes that
+        // happen to look path-ish but contain colons-as-prefix, etc.).
+        foreach (char invalid in System.IO.Path.GetInvalidPathChars())
+        {
+            if (path.IndexOf(invalid) >= 0) return false;
+        }
+
+        // Real document paths are absolute. Relative or bare identifiers like
+        // "RDT_Mk.Solution" fail this check.
+        if (!System.IO.Path.IsPathRooted(path)) return false;
+
+        // Final sanity: GetFullPath roundtrip catches edge-cases (trailing dots,
+        // reserved-name segments, etc.). Any throw means "not a usable path".
+        try
+        {
+            _ = System.IO.Path.GetFullPath(path);
+        }
+        catch
+        {
+            return false;
+        }
+
+        return true;
     }
 }

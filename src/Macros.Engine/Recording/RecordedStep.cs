@@ -34,5 +34,12 @@ public abstract record class RecordedStep
     /// <param name="Path">The full absolute path of the file that was opened.</param>
     public sealed record class FileOpenStep(string Path) : RecordedStep;
 
+    /// <summary>
+    /// A file close captured from <c>DocumentEvents.Closed</c>. Generated code emits
+    /// <c>await CloseFileAsync(@"…")</c>.
+    /// </summary>
+    /// <param name="Path">The full absolute path of the file that was closed.</param>
+    public sealed record class FileCloseStep(string Path) : RecordedStep;
+
     // TextEditStep — to be added by m2-text-observer.
 }

@@ -321,6 +321,21 @@ internal static class MacroErrorRenderer
     {
         try
         {
+            // OutputWindowPane.ActivateAsync only switches to our pane WITHIN the Output
+            // window — it does nothing if the Output tool window itself is hidden. Execute
+            // View.Output first so the window is visible, then activate our pane on top.
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+            try
+            {
+                await VS.Commands.ExecuteAsync("View.Output");
+            }
+            catch
+            {
+                // The view command isn't strictly required — fall through to the pane
+                // activation. If the user already has the Output window open this is a
+                // no-op anyway.
+            }
+
             await pane.ActivateAsync();
         }
         catch (Exception ex)

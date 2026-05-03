@@ -156,6 +156,9 @@ public static class CSharpCodeGenerator
             case RecordedStep.FileOpenStep fileOpen:
                 EmitFileOpenStep(sb, fileOpen, stepNumber);
                 break;
+            case RecordedStep.FileCloseStep fileClose:
+                EmitFileCloseStep(sb, fileClose, stepNumber);
+                break;
             case TextEditStep edit:
                 EmitTextEditStep(sb, edit, stepNumber);
                 break;
@@ -176,6 +179,13 @@ public static class CSharpCodeGenerator
         sb.Append("// step ").Append(stepNumber)
           .Append(": open ").Append(step.Path).Append('\n');
         sb.Append("await OpenFileAsync(").Append(QuoteVerbatim(step.Path)).Append(");\n");
+    }
+
+    private static void EmitFileCloseStep(StringBuilder sb, RecordedStep.FileCloseStep step, int stepNumber)
+    {
+        sb.Append("// step ").Append(stepNumber)
+          .Append(": close ").Append(step.Path).Append('\n');
+        sb.Append("await CloseFileAsync(").Append(QuoteVerbatim(step.Path)).Append(");\n");
     }
 
     private static void EmitCommandStep(StringBuilder sb, RecordedStep.CommandStep cmd, int stepNumber)

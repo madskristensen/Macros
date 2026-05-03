@@ -63,5 +63,17 @@ public interface IRecordingSink
     /// </remarks>
     void OnFileOpen(string path);
 
+    /// <summary>
+    /// Records that a document was closed during the recording session. Captures the full
+    /// file path so the generated <c>.csx</c> can replay the close via
+    /// <c>CloseFileAsync(@"path")</c>.
+    /// </summary>
+    /// <param name="path">The full absolute path of the document that was closed.</param>
+    /// <remarks>
+    /// Same threading and capture-state contract as <see cref="OnFileOpen"/>. Implementations
+    /// MUST filter pseudo-document monikers (paths that aren't likely real file-system paths).
+    /// </remarks>
+    void OnFileClose(string path);
+
     // void OnTextEdit(...) — to be added by m2-text-observer (don't add now, leave for them).
 }

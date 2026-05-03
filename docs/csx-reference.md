@@ -48,6 +48,7 @@ Helper methods are available directly in your macro (no import needed — the In
 | `RunCommandAsync(Guid group, uint id, object? args = null)`         | Invoke a command by GUID + ID for cases without a public name.        |
 | `WaitAsync(int ms)`                                                 | Pause the script.                                                     |
 | `OpenFileAsync(string path)`                                        | Open a file in the VS editor (or bring it to front if already open).  |
+| `CloseFileAsync(string path)`                                       | Close the open document at `path`. No-op if the file is not open.     |
 | `RunMacroAsync(string name)`                                        | Run another saved macro by name (repo-wins). Cycles + depth >3 throw. |
 | `InsertSnippetAsync(string prefix)`                                 | Type a snippet shortcut and ask VS to expand it.                      |
 

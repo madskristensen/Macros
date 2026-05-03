@@ -223,7 +223,70 @@ public static class Helpers
 
         await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(cancellation);
 
+        // Validate before delegating to DTE — ItemOperations.OpenFile rejects non-paths
+        // (e.g. RDT_Mk.* monikers a stale recording might still contain) with an opaque
+        // E_INVALIDARG. Surface a useful error instead so users editing macros by hand
+        // see what went wrong without digging through stack traces.
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            throw new ArgumentException("Path must be a non-empty absolute file path.", nameof(path));
+        }
+        if (!System.IO.Path.IsPathRooted(path))
+        {
+            throw new ArgumentException(
+                $"OpenFileAsync requires an absolute file path; got '{path}'. " +
+                "If this came from a recording, re-record the macro — the recorder now filters " +
+                "pseudo-document monikers.",
+                nameof(path));
+        }
+
         dte.ItemOperations.OpenFile(path);
+    }
+
+    /// <summary>
+    /// Closes the open document at <paramref name="path"/>, if any. No-op when the file is
+    /// not currently open. Replays the user's "click X on the document tab" action.
+    /// </summary>
+    /// <param name="path">Full absolute path of the file to close.</param>
+    /// <param name="cancellation">Token honoured before switching to the UI thread.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="path"/> is <see langword="null"/>.</exception>
+    /// <exception cref="ArgumentException"><paramref name="path"/> isn't an absolute path.</exception>
+    /// <exception cref="InvalidOperationException">No ambient <see cref="MacroGlobals"/> is set.</exception>
+    public static async Task CloseFileAsync(string path, CancellationToken cancellation = default)
+    {
+        if (path is null) throw new ArgumentNullException(nameof(path));
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            throw new ArgumentException("Path must be a non-empty absolute file path.", nameof(path));
+        }
+        if (!System.IO.Path.IsPathRooted(path))
+        {
+            throw new ArgumentException(
+                $"CloseFileAsync requires an absolute file path; got '{path}'.",
+                nameof(path));
+        }
+
+        cancellation.ThrowIfCancellationRequested();
+        DTE2 dte = RequireGlobals().DTE;
+
+        await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(cancellation);
+
+        // Walk the open documents and close the first match. DTE.Documents is keyed by
+        // FullName which is the absolute path; comparison is case-insensitive on NTFS.
+        // If the file isn't open we silently no-op — replays must not fail just because
+        // the user already closed the tab manually before invoking the macro.
+        foreach (Document doc in dte.Documents)
+        {
+            string? fullName;
+            try { fullName = doc.FullName; }
+            catch { continue; }   // some documents throw on FullName (read-only memory docs, etc.)
+
+            if (string.Equals(fullName, path, StringComparison.OrdinalIgnoreCase))
+            {
+                doc.Close(vsSaveChanges.vsSaveChangesPrompt);
+                return;
+            }
+        }
     }
 
     /// <summary>

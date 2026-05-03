@@ -252,8 +252,10 @@ public sealed class MacrosPackage : ToolkitPackage
             globalFolderProvider: () => MacrosPaths.ResolveGlobalFolderOrFallback(
                 MacrosOptions.Instance.GlobalMacrosFolder, out _),
             repoFolderProvider: () => _solutionTracker?.GetCurrentRepoMacrosFolder(),
-            onError: (which, ex) => System.Diagnostics.Trace.WriteLine(
-                $"Macros: failed to refresh {which} IntelliSense shim: {ex}"));
+            onError: (which, ex) => JoinableTaskFactory.RunAsync(async () =>
+            {
+                await new InvalidOperationException($"Macros: failed to refresh {which} IntelliSense shim.", ex).LogAsync();
+            }).FileAndForget("Macros/ShimRefresh"));
         _shimRefresher.AttachToTracker(_solutionTracker);
         _shimRefresher.RefreshGlobal();
         _shimRefresher.RefreshRepo(); // no-op if no solution is open
@@ -278,25 +280,39 @@ public sealed class MacrosPackage : ToolkitPackage
         }
         catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException and not ThreadAbortException)
         {
-            System.Diagnostics.Trace.WriteLine($"Macros: global migrator failed: {ex}");
+            await ex.LogAsync();
         }
 
         // 2b. Wire the trigger-hint InfoBar. Listens for .csx macro files being opened in
         //     the editor and shows a one-time tip about Manage Triggers.
         _triggerHintInfoBar = await TriggerHintInfoBar.InitializeAsync(this);
 
-        // 3. Register IMacroPlayer so the play infrastructure has a resolvable producer.
-        //    ScriptCompilationCache is package-lifetime (single instance on _scriptCache) so
-        //    repeated plays of the same source hit the SHA-256 LRU without re-compiling.
-        //    DTE2 is acquired here, before the lazy factory is invoked, to keep the factory
-        //    trivially synchronous.
+        // 3. Construct the single MacroPlayer instance shared by both the proffered
+        //    IMacroPlayer service AND the trigger dispatchers. Constructing it up front
+        //    (instead of inside the AddService factory) lets us hand the same reference
+        //    to the dispatchers below — they previously created their own MacroPlayer to
+        //    avoid resolving the proffered service from within InitializeAsync (which
+        //    can deadlock against the service container that hasn't finished registering
+        //    us yet). Sharing the instance keeps script-cache and metadata-resolver state
+        //    unified across manual and triggered playback.
+        //    ScriptCompilationCache is package-lifetime (single instance on _scriptCache)
+        //    so repeated plays of the same source hit the SHA-256 LRU without recompiling.
+        //    DTE2 is acquired here, before the lazy factory is invoked, to keep the
+        //    factory trivially synchronous.
         var dte = await VS.GetRequiredServiceAsync<EnvDTE.DTE, DTE2>();
         var nugetProgress = new Progress<string>(msg =>
             _ = VS.StatusBar.ShowMessageAsync(msg));
+        var sharedPlayer = new MacroPlayer(
+            this.JoinableTaskFactory,
+            _scriptCache,
+            dte,
+            new MacroPromptService(),
+            sharedStorage.Value,
+            nuget: null,
+            nugetProgress: nugetProgress);
         this.AddService(
             typeof(IMacroPlayer),
-            (_, _, _) => Task.FromResult<object>(
-                new MacroPlayer(this.JoinableTaskFactory, _scriptCache, dte, new MacroPromptService(), sharedStorage.Value, nuget: null, nugetProgress: nugetProgress)),
+            (_, _, _) => Task.FromResult<object>(sharedPlayer),
             promote: true);
 
         // 4. Register the priority command target so CommandObserver sees every shell command
@@ -353,7 +369,8 @@ public sealed class MacrosPackage : ToolkitPackage
             }
             catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException and not ThreadAbortException)
             {
-                System.Diagnostics.Trace.WriteLine($"Macros: failed to wake repo store on solution change: {ex}");
+                JoinableTaskFactory.RunAsync(async () => await ex.LogAsync())
+                    .FileAndForget("Macros/SolutionChange/RepoStoreWake");
             }
 
             JoinableTaskFactory.RunAsync(async () =>
@@ -367,17 +384,15 @@ public sealed class MacrosPackage : ToolkitPackage
                 }
                 catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException and not ThreadAbortException)
                 {
-                    System.Diagnostics.Trace.WriteLine($"Macros: failed to refresh trigger registry on solution change: {ex}");
+                    await ex.LogAsync();
                 }
             }).FileAndForget("Macros/Triggers/RefreshOnSolutionChange");
         };
 
-        // Construct the dispatcher. The MacroPlayer here is a fresh instance — we cannot
-        // resolve via VS.GetRequiredServiceAsync from inside the package's own
-        // InitializeAsync without risking a deadlock against the service container that
-        // hasn't finished registering us yet. The script cache and DTE are shared with the
-        // proffered IMacroPlayer service so cache hits are still cross-instance.
-        var dispatcherPlayer = new MacroPlayer(JoinableTaskFactory, _scriptCache, dte, new MacroPromptService(), sharedStorage.Value, nuget: null, nugetProgress: nugetProgress);
+        // Construct the dispatchers using the SAME MacroPlayer instance as the proffered
+        // service. Previously the dispatchers built their own player to sidestep the
+        // service-container deadlock; sharing the instance avoids the duplicated metadata
+        // resolver and prompt service while keeping the no-resolve-during-init contract.
         var trustPromptService = new TrustPromptService(JoinableTaskFactory, this);
 
         // Resolve IMacroService eagerly so the dispatchers can raise
@@ -389,7 +404,7 @@ public sealed class MacrosPackage : ToolkitPackage
 
         _commandTriggerDispatcher = new CommandTriggerDispatcher(
             _triggerRegistry,
-            dispatcherPlayer,
+            sharedPlayer,
             CommandNameCache.Instance,
             beforeTimeoutMsProvider: () => MacrosOptions.Instance.BeforeCommandTimeoutMs,
             JoinableTaskFactory,
@@ -405,7 +420,7 @@ public sealed class MacrosPackage : ToolkitPackage
         _eventTriggerDispatcher = new EventTriggerDispatcher(
             _triggerRegistry,
             _eventBus,
-            dispatcherPlayer,
+            sharedPlayer,
             JoinableTaskFactory,
             tracker: _failureTracker,
             macroService: triggerMacroService,
@@ -451,6 +466,7 @@ public sealed class MacrosPackage : ToolkitPackage
         // that happens, so no file opens are silently dropped in practice).
         _recordingDocumentEvents = VS.Events.DocumentEvents;
         _recordingDocumentEvents.Opened += OnDocumentOpenedForRecording;
+        _recordingDocumentEvents.Closed += OnDocumentClosedForRecording;
 
         // 4. Register tool windows (scans this assembly for BaseToolWindow<T> subclasses).
         this.RegisterToolWindows();
@@ -634,6 +650,33 @@ public sealed class MacrosPackage : ToolkitPackage
     }
 
     /// <summary>
+    /// Handler forwarded from <c>VS.Events.DocumentEvents.Closed</c>. Pushes a
+    /// <see cref="RecordedStep.FileCloseStep"/> into the active recording session when
+    /// recording is in progress. No-op at all other times.
+    /// </summary>
+    /// <remarks>
+    /// Fires on the UI thread when a document tab closes (user clicks X, file deleted,
+    /// project unloaded, etc.). The session-side <c>IsLikelyFilePath</c> filter discards
+    /// pseudo-monikers, so casual close-cascades from project unloads only contribute
+    /// real file-path entries to the recording.
+    /// </remarks>
+    private void OnDocumentClosedForRecording(string filePath)
+    {
+        try
+        {
+            var session = _recordingServiceRef?.CurrentSession;
+            if (session is { IsCapturing: true })
+            {
+                session.OnFileClose(filePath);
+            }
+        }
+        catch
+        {
+            // Defensive: recording infrastructure must never crash the VS event system.
+        }
+    }
+
+    /// <summary>
     /// Detaches the <c>DocumentEvents.Opened</c> subscription used to forward file opens
     /// into the recording session. Defensive against a partially-initialised package.
     /// </summary>
@@ -646,6 +689,7 @@ public sealed class MacrosPackage : ToolkitPackage
             try
             {
                 _recordingDocumentEvents.Opened -= OnDocumentOpenedForRecording;
+                _recordingDocumentEvents.Closed -= OnDocumentClosedForRecording;
             }
             catch
             {

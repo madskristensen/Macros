@@ -260,6 +260,70 @@ public sealed class RecordingSessionTests
     }
 
     [Fact]
+    public async Task OnFileOpen_NonRootedOrMonikerPath_IsRejected()
+    {
+        // Regression: VS DocumentEvents.Opened can surface pseudo-document monikers like
+        // "RDT_Mk.Solution". Recording these and emitting OpenFileAsync(@"RDT_Mk.Solution")
+        // crashes the macro at replay with E_INVALIDARG. The session must filter such
+        // inputs before they ever land in the step list.
+        var svc = CreateService();
+        await svc.StartRecordingAsync();
+        var session = svc.CurrentSession!;
+
+        session.OnFileOpen("RDT_Mk.Solution");      // RDT moniker — no separator, not rooted
+        session.OnFileOpen("just-a-name.cs");       // bare name, not absolute
+        session.OnFileOpen("relative/path.cs");     // relative path
+        session.OnFileOpen("https://example.com/file.cs"); // URL
+        session.OnFileOpen("   ");                  // whitespace
+
+        Assert.Equal(0, session.Count);
+    }
+
+    [Fact]
+    public async Task OnFileOpen_RootedPath_IsAccepted()
+    {
+        var svc = CreateService();
+        await svc.StartRecordingAsync();
+        var session = svc.CurrentSession!;
+
+        session.OnFileOpen(@"C:\projects\MyFile.cs");
+
+        var steps = session.DrainAndStop();
+        Assert.Single(steps);
+        Assert.IsType<RecordedStep.FileOpenStep>(steps[0]);
+    }
+
+    [Fact]
+    public async Task OnFileClose_RootedPath_IsAccepted_AndEmitsFileCloseStep()
+    {
+        var svc = CreateService();
+        await svc.StartRecordingAsync();
+        var session = svc.CurrentSession!;
+
+        session.OnFileClose(@"C:\projects\MyFile.cs");
+
+        var steps = session.DrainAndStop();
+        var step = Assert.Single(steps);
+        var close = Assert.IsType<RecordedStep.FileCloseStep>(step);
+        Assert.Equal(@"C:\projects\MyFile.cs", close.Path);
+    }
+
+    [Fact]
+    public async Task OnFileClose_NonRootedOrEmptyPath_IsRejected()
+    {
+        var svc = CreateService();
+        await svc.StartRecordingAsync();
+        var session = svc.CurrentSession!;
+
+        session.OnFileClose("");
+        session.OnFileClose(null!);
+        session.OnFileClose("RDT_Mk.Solution");
+        session.OnFileClose("relative/path.cs");
+
+        Assert.Equal(0, session.Count);
+    }
+
+    [Fact]
     public async Task OnFileOpen_FlushesAggregatorPending_BeforeRecordingFileOpen()
     {
         // A pending CommandStep in the aggregator should be committed when a
