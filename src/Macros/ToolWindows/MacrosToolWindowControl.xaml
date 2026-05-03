@@ -194,15 +194,69 @@
         </Style>
     </UserControl.Resources>
 
-    <Grid>
-        <Grid.RowDefinitions>
-            <RowDefinition Height="*" />    <!-- 0: Group list / empty state -->
-            <RowDefinition Height="Auto" /> <!-- 1: Samples -->
-            <RowDefinition Height="Auto" /> <!-- 2: Status banner -->
-        </Grid.RowDefinitions>
+    <DockPanel LastChildFill="True">
+        <!-- ─── Status banner (errors only) ─────────────────────────────────────────────── -->
+        <Border DockPanel.Dock="Bottom"
+                Visibility="{Binding HasError, Converter={StaticResource BoolToVis}}"
+                Background="{DynamicResource {x:Static vsui:EnvironmentColors.SystemInfoBackgroundBrushKey}}"
+                BorderBrush="{DynamicResource {x:Static vsui:EnvironmentColors.CommandBarBorderBrushKey}}"
+                BorderThickness="0,1,0,0"
+                Padding="8,4">
+            <TextBlock Text="{Binding StatusMessage}"
+                       TextWrapping="Wrap"
+                       AutomationProperties.LiveSetting="Polite"
+                       AutomationProperties.Name="Macros status"
+                       Foreground="{DynamicResource {x:Static vsui:EnvironmentColors.SystemInfoTextBrushKey}}" />
+        </Border>
+
+        <Expander DockPanel.Dock="Bottom"
+                  IsExpanded="{Binding SamplesGroup.IsExpanded}"
+                  Style="{StaticResource GroupExpanderStyle}"
+                  Margin="0,8,0,0"
+                  ToolTip="Double-click a sample to open its .csx file in the editor."
+                  Foreground="{DynamicResource {x:Static vsui:EnvironmentColors.ToolWindowTextBrushKey}}">
+            <Expander.Header>
+                <TextBlock Text="{Binding SamplesGroup.Header}"
+                           FontWeight="SemiBold"
+                           Foreground="{DynamicResource {x:Static vsui:EnvironmentColors.ToolWindowTextBrushKey}}" />
+            </Expander.Header>
+            <ListView ItemsSource="{Binding SamplesGroup.VisibleItems}"
+                      AutomationProperties.Name="Sample macro templates"
+                      Background="{DynamicResource {x:Static vsui:EnvironmentColors.ToolWindowBackgroundBrushKey}}"
+                      Foreground="{DynamicResource {x:Static vsui:EnvironmentColors.ToolWindowTextBrushKey}}"
+                      BorderThickness="0"
+                      ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                      ScrollViewer.VerticalScrollBarVisibility="Disabled">
+                <ListView.View>
+                    <GridView ColumnHeaderContainerStyle="{StaticResource MacroGridViewHeaderStyle}">
+                        <GridViewColumn Header="Name" Width="140">
+                            <GridViewColumn.CellTemplate>
+                                <DataTemplate DataType="{x:Type local:SampleTemplateItemViewModel}">
+                                    <TextBlock Text="{Binding Name}"
+                                               TextTrimming="CharacterEllipsis"
+                                               ToolTip="{Binding Description}" />
+                                </DataTemplate>
+                            </GridViewColumn.CellTemplate>
+                        </GridViewColumn>
+                        <GridViewColumn Header="Description" Width="268">
+                            <GridViewColumn.CellTemplate>
+                                <DataTemplate DataType="{x:Type local:SampleTemplateItemViewModel}">
+                                    <TextBlock Text="{Binding Description}"
+                                               TextTrimming="CharacterEllipsis"
+                                               Foreground="{DynamicResource {x:Static vsui:EnvironmentColors.SystemGrayTextBrushKey}}" />
+                                </DataTemplate>
+                            </GridViewColumn.CellTemplate>
+                        </GridViewColumn>
+                    </GridView>
+                </ListView.View>
+                <ListView.ItemContainerStyle>
+                    <StaticResource ResourceKey="SampleListViewItemStyle" />
+                </ListView.ItemContainerStyle>
+            </ListView>
+        </Expander>
 
         <!-- ─── Macro list / empty state ────────────────────────────────────────────────── -->
-        <Grid Grid.Row="0">
+        <Grid>
             <ListView ItemsSource="{Binding GroupedItemsView}"
                       AutomationProperties.Name="Saved macros"
                       Background="{DynamicResource {x:Static vsui:EnvironmentColors.ToolWindowBackgroundBrushKey}}"
@@ -305,65 +359,5 @@
                        Margin="16"
                        Foreground="{DynamicResource {x:Static vsui:EnvironmentColors.SystemGrayTextBrushKey}}" />
         </Grid>
-
-        <Expander Grid.Row="1"
-                  IsExpanded="{Binding SamplesGroup.IsExpanded}"
-                  Style="{StaticResource GroupExpanderStyle}"
-                  Margin="0,8,0,0"
-                  ToolTip="Double-click a sample to open its .csx file in the editor."
-                  Foreground="{DynamicResource {x:Static vsui:EnvironmentColors.ToolWindowTextBrushKey}}">
-            <Expander.Header>
-                <TextBlock Text="{Binding SamplesGroup.Header}"
-                           FontWeight="SemiBold"
-                           Foreground="{DynamicResource {x:Static vsui:EnvironmentColors.ToolWindowTextBrushKey}}" />
-            </Expander.Header>
-            <ListView ItemsSource="{Binding SamplesGroup.VisibleItems}"
-                      AutomationProperties.Name="Sample macro templates"
-                      Background="{DynamicResource {x:Static vsui:EnvironmentColors.ToolWindowBackgroundBrushKey}}"
-                      Foreground="{DynamicResource {x:Static vsui:EnvironmentColors.ToolWindowTextBrushKey}}"
-                      BorderThickness="0"
-                      ScrollViewer.HorizontalScrollBarVisibility="Auto"
-                      ScrollViewer.VerticalScrollBarVisibility="Disabled">
-                <ListView.View>
-                    <GridView ColumnHeaderContainerStyle="{StaticResource MacroGridViewHeaderStyle}">
-                        <GridViewColumn Header="Name" Width="140">
-                            <GridViewColumn.CellTemplate>
-                                <DataTemplate DataType="{x:Type local:SampleTemplateItemViewModel}">
-                                    <TextBlock Text="{Binding Name}"
-                                               TextTrimming="CharacterEllipsis"
-                                               ToolTip="{Binding Description}" />
-                                </DataTemplate>
-                            </GridViewColumn.CellTemplate>
-                        </GridViewColumn>
-                        <GridViewColumn Header="Description" Width="268">
-                            <GridViewColumn.CellTemplate>
-                                <DataTemplate DataType="{x:Type local:SampleTemplateItemViewModel}">
-                                    <TextBlock Text="{Binding Description}"
-                                               TextTrimming="CharacterEllipsis"
-                                               Foreground="{DynamicResource {x:Static vsui:EnvironmentColors.SystemGrayTextBrushKey}}" />
-                                </DataTemplate>
-                            </GridViewColumn.CellTemplate>
-                        </GridViewColumn>
-                    </GridView>
-                </ListView.View>
-                <ListView.ItemContainerStyle>
-                    <StaticResource ResourceKey="SampleListViewItemStyle" />
-                </ListView.ItemContainerStyle>
-            </ListView>
-        </Expander>
-
-        <!-- ─── Status banner (errors only) ─────────────────────────────────────────────── -->
-        <Border Grid.Row="2"
-                Visibility="{Binding HasError, Converter={StaticResource BoolToVis}}"
-                Background="{DynamicResource {x:Static vsui:EnvironmentColors.SystemInfoBackgroundBrushKey}}"
-                BorderBrush="{DynamicResource {x:Static vsui:EnvironmentColors.CommandBarBorderBrushKey}}"
-                BorderThickness="0,1,0,0"
-                Padding="8,4">
-            <TextBlock Text="{Binding StatusMessage}"
-                       TextWrapping="Wrap"
-                       AutomationProperties.LiveSetting="Polite"
-                       AutomationProperties.Name="Macros status"
-                       Foreground="{DynamicResource {x:Static vsui:EnvironmentColors.SystemInfoTextBrushKey}}" />
-        </Border>
-    </Grid>
+    </DockPanel>
 </UserControl>
