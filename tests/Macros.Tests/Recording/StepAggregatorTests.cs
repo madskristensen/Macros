@@ -345,8 +345,7 @@ public sealed class StepAggregatorTests
         // — IsCapturing is false by the time we drain, so no concurrent push can race.
         var src = await svc.StopRecordingAsync();
 
-        // The generator's header reflects the coalesced count (one merged "ab" step).
-        Assert.Contains("// Steps: 1", src);
+        // The generator's header reflects the coalesced output (one merged "ab" step).
         Assert.Contains("await TypeAsync(\"ab\");", src);
         Assert.False(session.IsCapturing);
         Assert.Null(svc.CurrentSession);

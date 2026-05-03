@@ -31,7 +31,7 @@ public sealed class CSharpCodeGeneratorTests
         string src = CSharpCodeGenerator.Generate(Array.Empty<RecordedStep>(), "Empty", FixedUtc);
 
         Assert.Contains("// Macro: Empty", src);
-        Assert.Contains("// Steps: 0", src);
+        Assert.DoesNotContain("// Steps:", src);
 
         // No body emitted: no `await ` calls.
         Assert.DoesNotContain("await ", src);
@@ -95,7 +95,7 @@ public sealed class CSharpCodeGeneratorTests
 
         string src = CSharpCodeGenerator.Generate(new RecordedStep[] { cmd }, "M", FixedUtc);
 
-        Assert.Contains("// Steps: 0", src);
+        Assert.DoesNotContain("// Steps:", src);
         Assert.DoesNotContain("RunCommandAsync", src);
         Assert.DoesNotContain("ExecuteCommandAsync", src);
         Assert.DoesNotContain("11111111-2222-3333-4444-555555555555", src);
@@ -112,7 +112,7 @@ public sealed class CSharpCodeGeneratorTests
 
         string src = CSharpCodeGenerator.Generate(new RecordedStep[] { cmd }, "M", FixedUtc);
 
-        Assert.Contains("// Steps: 0", src);
+        Assert.DoesNotContain("// Steps:", src);
         Assert.DoesNotContain("RunCommandAsync", src);
         Assert.DoesNotContain("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", src);
         Assert.DoesNotContain("Some Localised Label", src);
@@ -203,7 +203,7 @@ public sealed class CSharpCodeGeneratorTests
 
         string src = CSharpCodeGenerator.Generate(steps, "M", FixedUtc);
 
-        Assert.Contains("// Steps: 3", src);
+        Assert.DoesNotContain("// Steps:", src);
     }
 
     [Fact]
@@ -295,7 +295,7 @@ public sealed class CSharpCodeGeneratorTests
 
         string src = CSharpCodeGenerator.Generate(new RecordedStep[] { fileOpen1, unresolved, fileOpen2 }, "M", FixedUtc);
 
-        Assert.Contains("// Steps: 2", src);
+        Assert.DoesNotContain("// Steps:", src);
         Assert.Contains("// step 1:", src);
         Assert.Contains("// step 2:", src);
         Assert.DoesNotContain("// step 3:", src);
@@ -313,7 +313,7 @@ public sealed class CSharpCodeGeneratorTests
 
         string src = CSharpCodeGenerator.Generate(new RecordedStep[] { unresolved, fileOpen }, "M", FixedUtc);
 
-        Assert.Contains("// Steps: 1", src);
+        Assert.DoesNotContain("// Steps:", src);
         Assert.Contains("// step 1:", src);
         Assert.DoesNotContain("// step 2:", src);
         Assert.DoesNotContain("Guid", src);
@@ -329,7 +329,7 @@ public sealed class CSharpCodeGeneratorTests
 
         string src = CSharpCodeGenerator.Generate(new RecordedStep[] { cmd }, "M", FixedUtc);
 
-        Assert.Contains("// Steps: 1", src);
+        Assert.DoesNotContain("// Steps:", src);
         Assert.Contains("// step 1: command Edit.Copy", src);
         Assert.Contains("await ExecuteCommandAsync(\"Edit.Copy\");", src);
         Assert.DoesNotContain("RunCommandAsync", src);
@@ -350,7 +350,7 @@ public sealed class CSharpCodeGeneratorTests
 
         string src = CSharpCodeGenerator.Generate(steps, "M", FixedUtc);
 
-        Assert.Contains("// Steps: 3", src);
+        Assert.DoesNotContain("// Steps:", src);
         Assert.Contains("// step 1:", src);
         Assert.Contains("// step 2:", src);
         Assert.Contains("// step 3:", src);
@@ -371,7 +371,7 @@ public sealed class CSharpCodeGeneratorTests
 
         string src = CSharpCodeGenerator.Generate(steps, "M", FixedUtc);
 
-        Assert.Contains("// Steps: 0", src);
+        Assert.DoesNotContain("// Steps:", src);
         Assert.Contains("#load ", src);
         Assert.DoesNotContain("await ", src);
         Assert.DoesNotContain("Guid", src);

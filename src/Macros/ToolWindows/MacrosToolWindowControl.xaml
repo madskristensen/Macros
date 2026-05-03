@@ -284,14 +284,6 @@
                                 </DataTemplate>
                             </GridViewColumn.CellTemplate>
                         </GridViewColumn>
-                        <GridViewColumn Header="Steps"
-                                        Width="60">
-                            <GridViewColumn.CellTemplate>
-                                <DataTemplate DataType="{x:Type local:MacroItemViewModel}">
-                                    <TextBlock Text="{Binding StepCountDisplay}" />
-                                </DataTemplate>
-                            </GridViewColumn.CellTemplate>
-                        </GridViewColumn>
                         <GridViewColumn Header="" Width="32">
                             <GridViewColumn.CellTemplate>
                                 <DataTemplate DataType="{x:Type local:MacroItemViewModel}">
