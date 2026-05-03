@@ -66,8 +66,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - BeforeCommand triggers: synchronously intercept named commands before execution (e.g., `// @trigger BeforeCommand File.Open`)
 - BeforeCommand cancellation: `Trigger.CancelCommand()` blocks the command and prevents its handler from running
 - AfterCommand triggers: queue macros after named commands complete (e.g., `// @trigger AfterCommand Build.BuildSolution`)
-- AfterCommand success tracking: `Trigger.Data["Success"]` boolean in scripts
-- IMacroTrigger interface: `EventName`, `FiredAt`, `IReadOnlyDictionary<string, object> Data`, `CancelCommand()`, `IsCancelled`
+- AfterCommand success tracking: `Trigger.Payload["Success"]` boolean in scripts
+- IMacroTrigger interface: `EventName`, `FiredAt`, `IReadOnlyDictionary<string, object?> Payload`, `CancelCommand()`, `IsCancelled`
 - Manage Triggers dialog (context menu on macros): visual trigger editor with type selector and autocomplete
 - Automatic trigger event summary in tool window Triggers column
 - Manual trigger invocation always allowed regardless of trigger definitions

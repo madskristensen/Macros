@@ -56,7 +56,7 @@ Inside your script, these globals are automatically accessible:
 - **`DTE`** — the EnvDTE2 object, gateway to the entire DTE automation surface.
 - **`VS`** — the Community Toolkit's `VS` static facade (status bar, info bars, message boxes, document services…).
 - **`Context`** — `IMacroContext` with cancellation token and current document info.
-- **`Trigger`** — `IMacroTrigger?` with the firing event's data (e.g. `Trigger.Data["ErrorCount"]`); `null` for manual runs.
+- **`Trigger`** — `IMacroTrigger?` with the firing event's data (e.g. `Trigger.Payload["ErrorCount"]`); `null` for manual runs.
 
 > **DTE** (Development Tools Environment) is Visual Studio's COM automation object model — the API your macro uses to inspect and control the IDE. Through `DTE` you can access the active document, solution, debugger, commands, windows, and more. For the full API surface, see the [EnvDTE2 reference on Microsoft Learn](https://learn.microsoft.com/en-us/dotnet/api/envdte80.dte2).
 >
@@ -80,7 +80,9 @@ if (DTE.Solution.SolutionBuild.BuildState == EnvDTE.vsBuildState.vsBuildStateInP
 
 ```csharp
 // @trigger Build.SolutionBuildDone when success=false
-int errors = (int)Trigger.Data["ErrorCount"];
+object errorObj = null;
+Trigger?.Payload?.TryGetValue("ErrorCount", out errorObj);
+int errors = errorObj is int e ? e : 0;
 await VS.StatusBar.ShowMessageAsync($"💥 Build failed: {errors} error(s).");
 ```
 

@@ -9,6 +9,7 @@ using Macros.Engine.Player;
 using Macros.Engine.Storage;
 using Macros.Engine.Triggers;
 using Macros.Commands;
+using Macros.Errors;
 using Macros.Lifecycle;
 using Macros.Options;
 using Macros.Trust;
@@ -220,6 +221,7 @@ internal sealed class CommandTriggerDispatcher
                         else
                         {
                             _tracker?.RecordFailure(entry.Path);
+                            _jtf.RunAsync(() => MacroErrorRenderer.RenderAsync(result, entry.Name)).FileAndForget("Macros/CommandTriggerError");
                         }
 
                         if (trigger.CommandCancelled)
@@ -330,6 +332,7 @@ internal sealed class CommandTriggerDispatcher
                             else
                             {
                                 _tracker?.RecordFailure(entry.Path);
+                                await MacroErrorRenderer.RenderAsync(result, entry.Name).ConfigureAwait(true);
                             }
                         }
                         finally

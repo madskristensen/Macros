@@ -225,17 +225,10 @@ public sealed class MacrosPackage : ToolkitPackage
             },
             promote: true);
 
-        // Register IMacroEventBus with the kill-switch provider so VS event triggers
-        // honour DisableAllTriggers without requiring a registry rebuild.
+        // IMacroEventBus is registered AFTER SwitchToMainThreadAsync (below) because the
+        // category-instance warm-up must run on the UI thread — toolkit category constructors
+        // (BuildEvents, SolutionEvents, …) call COM services that require the STA thread.
         var reentranceGuard = new TriggerReentranceGuard();
-        _eventBus = new MacroEventBus(
-            isDisabledProvider: () => MacrosOptions.Instance.DisableAllTriggers,
-            guard: reentranceGuard,
-            prewarmCategoryInstances: true);
-        this.AddService(
-            typeof(IMacroEventBus),
-            (_, _, _) => Task.FromResult<object>(_eventBus),
-            promote: true);
 
         // 2. Register command handlers — explicit per-command calls so a failure in any
         //    single command produces a precise stack trace instead of silently aborting
@@ -313,6 +306,21 @@ public sealed class MacrosPackage : ToolkitPackage
         //    Registration must happen on the UI thread; AllowsBackgroundLoading means we may
         //    still be on the threadpool here.
         await JoinableTaskFactory.SwitchToMainThreadAsync(cancellationToken);
+
+        // Register IMacroEventBus HERE (on the UI thread) so the category-instance warm-up
+        // successfully instantiates toolkit category objects (BuildEvents, SolutionEvents, …)
+        // whose constructors subscribe to COM services requiring the STA thread. The warm-up
+        // populates a ConcurrentDictionary cache so subsequent AttachHandler calls from
+        // background threads (e.g. registry Changed callback) hit the cache without needing
+        // another UI-thread hop.
+        _eventBus = new MacroEventBus(
+            isDisabledProvider: () => MacrosOptions.Instance.DisableAllTriggers,
+            guard: reentranceGuard,
+            prewarmCategoryInstances: true);
+        this.AddService(
+            typeof(IMacroEventBus),
+            (_, _, _) => Task.FromResult<object>(_eventBus),
+            promote: true);
 
         // Construct the consecutive-failure tracker BEFORE the registry so the registry can
         // filter auto-disabled paths out of every Lookup. The tracker is shared between the

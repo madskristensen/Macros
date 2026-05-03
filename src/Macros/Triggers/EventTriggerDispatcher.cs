@@ -8,6 +8,7 @@ using Macros.Engine;
 using Macros.Engine.Player;
 using Macros.Engine.Storage;
 using Macros.Engine.Triggers;
+using Macros.Errors;
 using Macros.Lifecycle;
 using Macros.Options;
 using Macros.Trust;
@@ -113,7 +114,19 @@ internal sealed class EventTriggerDispatcher : IDisposable
         SyncSubscriptions();
     }
 
-    private void OnRegistryChanged(object? sender, EventArgs e) => SyncSubscriptions();
+    private void OnRegistryChanged(object? sender, EventArgs e)
+    {
+        // The registry fires Changed from whichever thread completed its RefreshAsync — often
+        // the threadpool. SyncSubscriptions → Subscribe → AttachHandler resolves category
+        // instances from the bus's cache (warm), but if a new category wasn't pre-warmed,
+        // resolution needs the UI thread for toolkit property-getter access. Marshal to the
+        // UI thread so AttachHandler always succeeds.
+        _jtf.RunAsync(async () =>
+        {
+            await _jtf.SwitchToMainThreadAsync();
+            SyncSubscriptions();
+        }).FileAndForget("Macros/EventTrigger/RegistryChanged");
+    }
 
     /// <summary>
     /// Reconciles the bus subscription set with the registry's current event-keyed index.
@@ -249,6 +262,7 @@ internal sealed class EventTriggerDispatcher : IDisposable
                         else
                         {
                             _tracker?.RecordFailure(entry.Path);
+                            await MacroErrorRenderer.RenderAsync(result, entry.Name).ConfigureAwait(true);
                         }
                     }
                     finally

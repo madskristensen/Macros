@@ -2,6 +2,9 @@
 // @trigger Build.SolutionBuildDone
 #load ".intellisense/Macros.Intellisense.csx"
 
-int errors = (int?)Trigger?.Data?["ErrorCount"] ?? 0;
-int warnings = (int?)Trigger?.Data?["WarningCount"] ?? 0;
+object errorObj = null, warningObj = null;
+Trigger?.Payload?.TryGetValue("ErrorCount", out errorObj);
+Trigger?.Payload?.TryGetValue("WarningCount", out warningObj);
+int errors = errorObj is int e ? e : 0;
+int warnings = warningObj is int w ? w : 0;
 await VS.StatusBar.ShowMessageAsync($"Build complete: {errors} error(s), {warnings} warning(s)");
