@@ -129,12 +129,23 @@ public static class IntelliSenseShimWriter
     /// </summary>
     private static IReadOnlyList<string> ResolveAssemblyPaths()
     {
-        var raw = new List<string>(5);
+        var raw = new List<string>(7);
         TryAdd(raw, "EnvDTE", typeof(DTE).Assembly.Location);
         TryAdd(raw, "EnvDTE80", typeof(DTE2).Assembly.Location);
         TryAdd(raw, "Microsoft.VisualStudio.Shell.15.0", typeof(Package).Assembly.Location);
         TryAdd(raw, "Community.VisualStudio.Toolkit", typeof(VS).Assembly.Location);
         TryAdd(raw, "Macros.Engine", typeof(MacroGlobals).Assembly.Location);
+
+        // Transitive dependencies needed for member resolution on Toolkit types.
+        // Shell.Framework is in the same PublicAssemblies directory as Shell.15.0.
+        string? shellDir = Path.GetDirectoryName(typeof(Package).Assembly.Location);
+        if (!string.IsNullOrEmpty(shellDir))
+        {
+            string frameworkPath = Path.Combine(shellDir!, "Microsoft.VisualStudio.Shell.Framework.dll");
+            TryAdd(raw, "Microsoft.VisualStudio.Shell.Framework",
+                File.Exists(frameworkPath) ? frameworkPath : null);
+        }
+
         return Deduplicate(raw);
     }
 

@@ -126,7 +126,24 @@ public static class MacroFileLoadDirectiveMigrator
     /// <exception cref="ArgumentException">
     /// <paramref name="storeRoot"/> is <see langword="null"/>, empty, or whitespace.
     /// </exception>
-    public static MigrationResult Migrate(string storeRoot)
+    public static MigrationResult Migrate(string storeRoot) =>
+        Migrate(storeRoot, assemblyPaths: null);
+
+    /// <summary>
+    /// Recursively scans <paramref name="storeRoot"/> for <c>*.csx</c> macro files and
+    /// injects the IntelliSense shim <c>#load</c> directive (and optionally <c>#r</c>
+    /// directives) into any file that lacks them.
+    /// </summary>
+    /// <param name="storeRoot">
+    /// Absolute path to the macro store root.
+    /// </param>
+    /// <param name="assemblyPaths">
+    /// Optional absolute paths to assemblies that should be referenced via <c>#r</c> in
+    /// each macro file. When non-null, the migrator ensures each file contains these
+    /// <c>#r</c> directives for IntelliSense member completion. VS scripting IntelliSense
+    /// does NOT propagate <c>#r</c> from <c>#load</c>'ed files for member resolution.
+    /// </param>
+    public static MigrationResult Migrate(string storeRoot, IReadOnlyList<string>? assemblyPaths)
     {
         if (string.IsNullOrWhiteSpace(storeRoot))
         {
@@ -171,9 +188,10 @@ public static class MacroFileLoadDirectiveMigrator
                 bool hasSourceFormat   = HasSourceFormatLine(content);
                 bool hasVerboseShim    = HasVerboseShimComment(content);
                 bool hasAllUsings      = HasAllRequiredUsings(content);
+                bool hasAllRefs        = assemblyPaths == null || HasAllAssemblyRefs(content, assemblyPaths);
 
-                // Nothing to do: shim already present with usings, no obsolete constructs.
-                if (hasShim && hasAllUsings && !hasObsoleteR && !hasSourceFormat && !hasVerboseShim)
+                // Nothing to do: shim already present with usings and refs, no obsolete constructs.
+                if (hasShim && hasAllUsings && hasAllRefs && !hasObsoleteR && !hasSourceFormat && !hasVerboseShim)
                 {
                     skipped++;
                     continue;
@@ -209,6 +227,14 @@ public static class MacroFileLoadDirectiveMigrator
                     // Shim exists but usings are missing (stripped by prior migration).
                     // Inject them after the #load line.
                     migrated = InjectUsingsAfterLoad(migrated);
+                }
+
+                // Inject #r directives if assembly paths are supplied and not all present.
+                // VS scripting IntelliSense does NOT propagate #r from #load'ed files for
+                // member resolution — these must be in the parent script.
+                if (!hasAllRefs && assemblyPaths != null)
+                {
+                    migrated = InjectAssemblyRefs(migrated, assemblyPaths);
                 }
 
                 WriteAtomic(filePath, migrated);
@@ -526,6 +552,98 @@ public static class MacroFileLoadDirectiveMigrator
         }
 
         for (int i = loadIndex + 1; i < lines.Length; i++)
+        {
+            result.Append(lines[i]);
+            if (i < lines.Length - 1)
+            {
+                result.Append(nl);
+            }
+        }
+
+        return result.ToString();
+    }
+
+    /// <summary>
+    /// Returns <see langword="true"/> when ALL required <c>#r</c> directives are present.
+    /// Matches by file name (case-insensitive) so that path differences due to VS updates
+    /// or reinstallation don't cause false negatives.
+    /// </summary>
+    private static bool HasAllAssemblyRefs(string content, IReadOnlyList<string> assemblyPaths)
+    {
+        foreach (string path in assemblyPaths)
+        {
+            string fileName = Path.GetFileName(path);
+            // Check if content has a #r directive referencing this assembly (by file name)
+            if (content.IndexOf(fileName, StringComparison.OrdinalIgnoreCase) < 0)
+                return false;
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Injects <c>#r</c> directives for assemblies not already referenced.
+    /// Placed immediately before the <c>#load</c> line (or before the first non-comment,
+    /// non-blank line if no <c>#load</c> is present).
+    /// </summary>
+    internal static string InjectAssemblyRefs(string content, IReadOnlyList<string> assemblyPaths)
+    {
+        string nl = DetectLineEnding(content);
+        string[] lines = content.Split(new[] { nl }, StringSplitOptions.None);
+
+        // Determine which refs are missing (by file name match, case-insensitive)
+        var missing = new List<string>();
+        foreach (string path in assemblyPaths)
+        {
+            string fileName = Path.GetFileName(path);
+            if (content.IndexOf(fileName, StringComparison.OrdinalIgnoreCase) < 0)
+                missing.Add(path);
+        }
+
+        if (missing.Count == 0) return content;
+
+        // Find insertion point: right before the #load line or shim comment line
+        int insertBefore = -1;
+        for (int i = 0; i < lines.Length; i++)
+        {
+            string trimmed = lines[i].TrimStart();
+            if (trimmed.StartsWith("#load") &&
+                lines[i].IndexOf(ShimFileNameSubstring, StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                insertBefore = i;
+                break;
+            }
+
+            if (lines[i].TrimEnd() == NewShimCommentLine)
+            {
+                insertBefore = i;
+                break;
+            }
+        }
+
+        // Fallback: insert before first non-comment, non-blank line
+        if (insertBefore < 0)
+            insertBefore = FindBodyStart(lines);
+
+        var result = new System.Text.StringBuilder(content.Length + (missing.Count * 120));
+        for (int i = 0; i < insertBefore; i++)
+        {
+            result.Append(lines[i]);
+            result.Append(nl);
+        }
+
+        foreach (string path in missing)
+        {
+            result.Append("#r \"");
+            foreach (char c in path)
+            {
+                if (c != '"') result.Append(c);
+            }
+            result.Append("\"");
+            result.Append(nl);
+        }
+
+        for (int i = insertBefore; i < lines.Length; i++)
         {
             result.Append(lines[i]);
             if (i < lines.Length - 1)

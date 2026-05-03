@@ -43,7 +43,7 @@ internal sealed class IntelliSenseShimRefresher : IDisposable
 
             // Write shim to <root>\.intellisense\ so current.csx (which lives in the root) resolves
             // its #load directive against a sibling .intellisense folder.
-            IntelliSenseShimWriter.Write(root);
+            var result = IntelliSenseShimWriter.Write(root);
 
             // Write shim AGAIN to <root>\Macros\.intellisense\ so named macros (which the storage
             // layer keeps in the GlobalNamedSubfolder) also resolve their #load directive against a
@@ -55,7 +55,10 @@ internal sealed class IntelliSenseShimRefresher : IDisposable
             IntelliSenseShimWriter.Write(namedFolder);
 
             // Migrate any pre-existing .csx files (recursive — handles both root and named folder).
-            MacroFileLoadDirectiveMigrator.Migrate(root);
+            // Pass resolved assembly paths so #r directives are injected into each macro file.
+            // VS scripting IntelliSense does NOT propagate #r from #load'ed files for member
+            // resolution — these must be in the parent script for DTE., VS., etc. to show members.
+            MacroFileLoadDirectiveMigrator.Migrate(root, result.ResolvedAssemblyPaths);
         }
         catch (Exception ex) when (!IsCritical(ex))
         {
@@ -70,8 +73,8 @@ internal sealed class IntelliSenseShimRefresher : IDisposable
         {
             var root = _repoFolderProvider();
             if (string.IsNullOrWhiteSpace(root)) return;
-            IntelliSenseShimWriter.Write(root!);
-            MacroFileLoadDirectiveMigrator.Migrate(root!);
+            var result = IntelliSenseShimWriter.Write(root!);
+            MacroFileLoadDirectiveMigrator.Migrate(root!, result.ResolvedAssemblyPaths);
         }
         catch (Exception ex) when (!IsCritical(ex))
         {
