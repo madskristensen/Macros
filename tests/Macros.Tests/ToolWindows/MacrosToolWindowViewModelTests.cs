@@ -46,19 +46,8 @@ public sealed class MacrosToolWindowViewModelTests
             g =>
             {
                 Assert.Equal(MacroScope.Global, g.Scope);
-                Assert.False(g.IsShadowed);
                 Assert.True(g.IsAvailable);
                 Assert.Equal(new[] { "Global-A", "Global-B" }, g.Items.Select(i => i.Name));
-            },
-            g =>
-            {
-                // Third group is the "Shadowed Global Macros" overflow — empty (and so
-                // collapsed) when no global names collide with a repo macro.
-                Assert.Equal(MacroScope.Global, g.Scope);
-                Assert.True(g.IsShadowed);
-                Assert.Empty(g.Items);
-                Assert.False(g.IsAvailable);
-                Assert.False(g.IsVisible);
             });
 
         Assert.False(vm.IsEmpty);
@@ -92,7 +81,7 @@ public sealed class MacrosToolWindowViewModelTests
 
         vm.FilterText = "form";
 
-        var global = vm.Groups.Single(g => g.Scope == MacroScope.Global && !g.IsShadowed);
+        var global = vm.Groups.Single(g => g.Scope == MacroScope.Global);
         // VM sorts case-insensitively by Name; "format-helper" < "Format-On-Save" because
         // after the shared "format-" prefix 'h' (0x68) < 'O' (0x4F) under OrdinalIgnoreCase.
         Assert.Equal(
@@ -112,7 +101,7 @@ public sealed class MacrosToolWindowViewModelTests
 
         vm.FilterText = "zzz";
 
-        var global = vm.Groups.Single(g => g.Scope == MacroScope.Global && !g.IsShadowed);
+        var global = vm.Groups.Single(g => g.Scope == MacroScope.Global);
         Assert.Empty(global.VisibleItems);
         Assert.False(global.IsVisible);
         Assert.True(vm.IsEmpty);
@@ -185,7 +174,7 @@ public sealed class MacrosToolWindowViewModelTests
         await Task.WhenAny(nextLoad, Task.Delay(TimeSpan.FromSeconds(2)));
 
         Assert.True(vm.LoadCount > initial);
-        var global = vm.Groups.Single(g => g.Scope == MacroScope.Global && !g.IsShadowed);
+        var global = vm.Groups.Single(g => g.Scope == MacroScope.Global);
         Assert.Equal(new[] { "First", "Second" }, global.Items.Select(i => i.Name));
     }
 
@@ -265,7 +254,7 @@ public sealed class MacrosToolWindowViewModelTests
         using var vm = new MacrosToolWindowViewModel(storage, service, debounceInterval: TimeSpan.Zero);
         await vm.LoadAsync();
 
-        var global = vm.Groups.Single(g => g.Scope == MacroScope.Global && !g.IsShadowed);
+        var global = vm.Groups.Single(g => g.Scope == MacroScope.Global);
         Assert.All(global.Items, item => Assert.True(item.CanInvoke));
 
         service.RaiseStateChanged(MacroState.Idle, MacroState.Playing);
@@ -285,7 +274,7 @@ public sealed class MacrosToolWindowViewModelTests
         using var vm = new MacrosToolWindowViewModel(storage, service, debounceInterval: TimeSpan.Zero);
         await vm.LoadAsync();
 
-        var item = vm.Groups.Single(g => g.Scope == MacroScope.Global && !g.IsShadowed).Items.Single();
+        var item = vm.Groups.Single(g => g.Scope == MacroScope.Global).Items.Single();
         Assert.True(item.PlayCommand.CanExecute(null));
 
         item.PlayCommand.Execute(null);
@@ -331,7 +320,7 @@ public sealed class MacrosToolWindowViewModelTests
                 });
             await vm.LoadAsync();
 
-            var item = vm.Groups.Single(g => g.Scope == MacroScope.Global && !g.IsShadowed).Items.Single();
+            var item = vm.Groups.Single(g => g.Scope == MacroScope.Global).Items.Single();
             bool moved = await vm.MoveMacroAsync(item, MacroScope.Repo);
 
             Assert.True(moved);
@@ -339,48 +328,6 @@ public sealed class MacrosToolWindowViewModelTests
             Assert.Equal("// global", await storage.LoadByNameAsync("Greeting", MacroScope.Repo));
             Assert.Contains(statuses, message => message.Contains("Moved \"Greeting\" to repo", StringComparison.Ordinal));
             Assert.Empty(errors);
-        }
-        finally
-        {
-            SolutionContextTracker.Current = previousTracker;
-        }
-    }
-
-    [Fact]
-    public async Task MoveMacroAsync_ExistingTarget_DeclinedOverwrite_LeavesBothScopesUntouched()
-    {
-        var previousTracker = SolutionContextTracker.Current;
-        var tracker = SolutionContextTracker.CreateForTests();
-        SolutionContextTracker.Current = tracker;
-        tracker.ApplySolutionFullPath(@"X:\repo\Sample.sln");
-
-        try
-        {
-            var storage = new FakeStorage(repoAvailable: true);
-            storage.Add(MacroScope.Global, "Greeting", source: "// global");
-            storage.Add(MacroScope.Repo, "Greeting", source: "// repo");
-            bool confirmCalled = false;
-
-            using var vm = new MacrosToolWindowViewModel(
-                storage,
-                debounceInterval: TimeSpan.Zero,
-                statusReporter: _ => Task.CompletedTask,
-                errorReporter: _ => Task.CompletedTask,
-                confirmAsync: (_, _) =>
-                {
-                    confirmCalled = true;
-                    return Task.FromResult(false);
-                },
-                showErrorAsync: (_, _) => Task.CompletedTask);
-            await vm.LoadAsync();
-
-            var item = vm.Groups.Single(g => g.IsShadowed).Items.Single();
-            bool moved = await vm.MoveMacroAsync(item, MacroScope.Repo);
-
-            Assert.False(moved);
-            Assert.True(confirmCalled);
-            Assert.Equal("// global", await storage.LoadByNameAsync("Greeting", MacroScope.Global));
-            Assert.Equal("// repo", await storage.LoadByNameAsync("Greeting", MacroScope.Repo));
         }
         finally
         {
@@ -464,7 +411,7 @@ public sealed class MacrosToolWindowViewModelTests
         await Task.WhenAny(next, Task.Delay(TimeSpan.FromSeconds(2)));
 
         Assert.True(vm.LoadCount > before);
-        Assert.Equal(2, vm.Groups.Single(g => g.Scope == MacroScope.Global && !g.IsShadowed).Items.Count);
+        Assert.Equal(2, vm.Groups.Single(g => g.Scope == MacroScope.Global).Items.Count);
     }
 
     // ─── Test doubles ─────────────────────────────────────────────────────────────────

@@ -380,7 +380,7 @@ public partial class MacrosToolWindowControl : UserControl
             case string header when header == "Repo":
                 scope = MacroScope.Repo;
                 return true;
-            case string header when header == "Global" || header == "Shadowed Global Macros":
+            case string header when header == "Global":
                 scope = MacroScope.Global;
                 return true;
             default:

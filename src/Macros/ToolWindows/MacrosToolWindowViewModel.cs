@@ -126,13 +126,11 @@ public sealed class MacrosToolWindowViewModel : INotifyPropertyChanged, IDisposa
 
         Groups = new ObservableCollection<MacroGroupViewModel>
         {
-            // Order: Repo first (when available), then Global, then the shadowed-global
-            // overflow section. All three are created up-front so the XAML doesn't need to
-            // react to group add/remove — only IsAvailable / IsVisible flips. The shadowed
-            // section starts unavailable; LoadAsync flips it on once shadowing is detected.
+            // Order: Repo first (when available), then Global.
+            // All groups are created up-front so the XAML doesn't need to react to group
+            // add/remove — only IsAvailable / IsVisible flips.
             new("Repo", MacroScope.Repo) { IsAvailable = false },
             new("Global", MacroScope.Global) { IsAvailable = true },
-            new("Shadowed Global Macros", MacroScope.Global, isShadowed: true) { IsAvailable = false },
         };
 
         SamplesGroup = new SampleGroupViewModel("Samples");
@@ -212,12 +210,12 @@ public sealed class MacrosToolWindowViewModel : INotifyPropertyChanged, IDisposa
     /// <summary>Gets the backing sample-template gallery mirrored into the grouped main list.</summary>
     public SampleGroupViewModel SamplesGroup { get; }
 
-    /// <summary>Gets the Repo + Global + ShadowedGlobal section view-models, in display order.</summary>
+    /// <summary>Gets the Repo and Global section view-models, in display order.</summary>
     public ObservableCollection<MacroGroupViewModel> Groups { get; }
 
     /// <summary>
     /// Gets the flat list of every <see cref="MacroItemViewModel"/> currently shown, in the
-    /// order Repo / Global / Shadowed-Global / Samples, name-sorted within each section.
+    /// order Repo / Global / Samples, name-sorted within each section.
     /// Drives the
     /// XAML's grouped <see cref="System.Windows.Controls.ListView"/> via
     /// <see cref="GroupedItemsView"/>.
@@ -635,15 +633,6 @@ public sealed class MacrosToolWindowViewModel : INotifyPropertyChanged, IDisposa
     {
         bool serviceIdle = _service?.State == MacroState.Idle || _service is null;
 
-        // Build a case-insensitive set of repo names so we can flag the global entries that
-        // are overridden. Repo always wins on collision; the global "loser" appears in the
-        // dedicated shadowed section so the user understands why their global isn't running.
-        var repoNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var entry in repoEntries)
-        {
-            repoNames.Add(entry.Name);
-        }
-
         var sortedRepo = repoEntries
             .OrderBy(d => d.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
@@ -652,27 +641,11 @@ public sealed class MacrosToolWindowViewModel : INotifyPropertyChanged, IDisposa
             .OrderBy(d => d.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        var nonShadowedGlobal = new List<MacroEntry>(sortedGlobal.Count);
-        var shadowedGlobal = new List<MacroEntry>();
-        foreach (var entry in sortedGlobal)
-        {
-            if (repoNames.Contains(entry.Name))
-            {
-                shadowedGlobal.Add(entry);
-            }
-            else
-            {
-                nonShadowedGlobal.Add(entry);
-            }
-        }
-
         var repoGroup = Groups.First(g => g.Scope == MacroScope.Repo);
-        var globalGroup = Groups.First(g => g.Scope == MacroScope.Global && !g.IsShadowed);
-        var shadowedGroup = Groups.First(g => g.IsShadowed);
+        var globalGroup = Groups.First(g => g.Scope == MacroScope.Global);
 
         repoGroup.Items.Clear();
         globalGroup.Items.Clear();
-        shadowedGroup.Items.Clear();
 
         // AllItems backs GroupedItemsView (a WPF DispatcherObject / ListCollectionView).
         // Mutating AllItems from a non-owning thread causes ListCollectionView to call
@@ -680,11 +653,16 @@ public sealed class MacrosToolWindowViewModel : INotifyPropertyChanged, IDisposa
         // a thread-pool thread with no message pump (as in the debounce-timer callback when
         // _uiSync is null).  In production ALL reloads are marshalled to the UI thread via
         // _uiSync, so this check is always true there.  In tests the timer callback runs on
-        // a raw thread-pool thread; we skip AllItems in that case — the Groups collections
+        // a raw thread-pool thread; we skip AllItems mutations in that case — the Groups collections
         // (which the tests inspect) are always updated regardless of thread.
         bool onFlatViewThread = GroupedItemsView is not System.Windows.Threading.DispatcherObject d
             || d.CheckAccess();
 
+        // Clear AllItems only when safe to do so (on the UI thread). This avoids threading
+        // exceptions when ListCollectionView tries to marshal back from a non-UI thread.
+        // Groups are always cleared regardless of thread, keeping them as the source of truth.
+        // When AllItems mutations are skipped (thread-pool thread), subsequent UI thread reloads
+        // will clear AllItems properly.
         if (onFlatViewThread)
         {
             AllItems.Clear();
@@ -695,7 +673,6 @@ public sealed class MacrosToolWindowViewModel : INotifyPropertyChanged, IDisposa
             var item = new MacroItemViewModel(entry, _service)
             {
                 CanInvoke = serviceIdle,
-                IsShadowed = false,
             };
             repoGroup.Items.Add(item);
             if (onFlatViewThread)
@@ -704,28 +681,13 @@ public sealed class MacrosToolWindowViewModel : INotifyPropertyChanged, IDisposa
             }
         }
 
-        foreach (var entry in nonShadowedGlobal)
+        foreach (var entry in sortedGlobal)
         {
             var item = new MacroItemViewModel(entry, _service)
             {
                 CanInvoke = serviceIdle,
-                IsShadowed = false,
             };
             globalGroup.Items.Add(item);
-            if (onFlatViewThread)
-            {
-                AllItems.Add(item);
-            }
-        }
-
-        foreach (var entry in shadowedGlobal)
-        {
-            var item = new MacroItemViewModel(entry, _service)
-            {
-                CanInvoke = serviceIdle,
-                IsShadowed = true,
-            };
-            shadowedGroup.Items.Add(item);
             if (onFlatViewThread)
             {
                 AllItems.Add(item);
@@ -756,9 +718,6 @@ public sealed class MacrosToolWindowViewModel : INotifyPropertyChanged, IDisposa
 
         repoGroup.IsAvailable = repoAvailable;
         globalGroup.IsAvailable = true;
-        // The shadowed section is "available" only when there's something to display; when
-        // empty it stays collapsed so the UI doesn't sprout an empty header.
-        shadowedGroup.IsAvailable = shadowedGlobal.Count > 0;
 
         if (onFlatViewThread)
         {

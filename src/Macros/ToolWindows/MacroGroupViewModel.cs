@@ -26,25 +26,12 @@ public sealed class MacroGroupViewModel : ExpandableGroupViewModel<MacroItemView
     /// </summary>
     /// <param name="header">Display label rendered as the section title (e.g. <c>"Global"</c>).</param>
     /// <param name="scope">The on-disk scope this group represents.</param>
-    /// <param name="isShadowed">
-    /// When <see langword="true"/>, this group represents the "Shadowed Global Macros"
-    /// section — globals that are overridden by a same-named repo macro. Drives the muted
-    /// row styling in the XAML.
-    /// </param>
-    public MacroGroupViewModel(string header, MacroScope scope, bool isShadowed = false)
+    public MacroGroupViewModel(string header, MacroScope scope)
         : base(header)
     {
         Scope = scope;
-        IsShadowed = isShadowed;
     }
 
     /// <summary>Gets the on-disk scope this group represents.</summary>
     public MacroScope Scope { get; }
-
-    /// <summary>
-    /// Gets a value indicating whether this group represents the shadowed-global section
-    /// (a global macro overridden by a repo macro of the same name). Used by the XAML to
-    /// distinguish the two <see cref="MacroScope.Global"/> sections.
-    /// </summary>
-    public bool IsShadowed { get; }
 }

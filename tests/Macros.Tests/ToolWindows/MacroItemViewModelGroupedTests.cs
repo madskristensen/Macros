@@ -8,50 +8,26 @@ using Xunit;
 namespace Macros.Tests.ToolWindows;
 
 /// <summary>
-/// Verifies the M4 additions to <see cref="MacroItemViewModel"/>: the new
-/// <see cref="MacroItemViewModel.GroupName"/>, <see cref="MacroItemViewModel.IsShadowed"/>,
-/// <see cref="MacroItemViewModel.StepCount"/>, <see cref="MacroItemViewModel.TriggersSummary"/>,
-/// and <see cref="MacroItemViewModel.ModifiedRelative"/> projections.
+/// Verifies <see cref="MacroItemViewModel"/> projections: the
+/// <see cref="MacroItemViewModel.GroupName"/>, <see cref="MacroItemViewModel.StepCount"/>,
+/// <see cref="MacroItemViewModel.TriggersSummary"/>, and <see cref="MacroItemViewModel.ModifiedRelative"/>
+/// properties.
 /// </summary>
 public sealed class MacroItemViewModelGroupedTests
 {
     [Fact]
-    public void IsShadowed_DefaultsToFalse()
+    public void GroupName_GlobalScope_ReturnsGlobal()
     {
         var item = MakeItem("X", MacroScope.Global);
-
-        Assert.False(item.IsShadowed);
-        Assert.Null(item.ShadowedTooltip);
-    }
-
-    [Fact]
-    public void IsShadowed_FlipsGroupName_AndRaisesPropertyChanged()
-    {
-        var item = MakeItem("X", MacroScope.Global);
-        var changed = new System.Collections.Generic.List<string?>();
-        item.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
 
         Assert.Equal("Global", item.GroupName);
-
-        item.IsShadowed = true;
-
-        Assert.Equal("Shadowed Global Macros", item.GroupName);
-        Assert.NotNull(item.ShadowedTooltip);
-        Assert.Contains(nameof(MacroItemViewModel.GroupName), changed);
-        Assert.Contains(nameof(MacroItemViewModel.IsShadowed), changed);
-        Assert.Contains(nameof(MacroItemViewModel.ShadowedTooltip), changed);
     }
 
     [Fact]
-    public void GroupName_RepoScope_AlwaysReturnsRepo()
+    public void GroupName_RepoScope_ReturnsRepo()
     {
         var item = MakeItem("X", MacroScope.Repo);
 
-        Assert.Equal("Repo", item.GroupName);
-
-        // Even if a caller incorrectly flips IsShadowed on a repo row, the GroupName must
-        // remain "Repo" — repo entries never live in the shadowed bucket by construction.
-        item.IsShadowed = true;
         Assert.Equal("Repo", item.GroupName);
     }
 

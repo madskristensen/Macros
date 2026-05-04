@@ -120,7 +120,7 @@ public sealed class RecordingFlowReproTests : IDisposable
 
         // Initial load — empty.
         await vm.LoadAsync();
-        var globalGroupBefore = vm.Groups.First(g => g.Scope == MacroScope.Global && !g.IsShadowed);
+        var globalGroupBefore = vm.Groups.First(g => g.Scope == MacroScope.Global);
         Assert.Empty(globalGroupBefore.Items);
 
         // Set up the next-load handshake BEFORE we trigger the save so we don't miss it.
@@ -143,7 +143,7 @@ public sealed class RecordingFlowReproTests : IDisposable
         Assert.Same(nextLoadTask, loadWinner);
 
         // The VM's Global group must now contain the just-recorded macro.
-        var globalGroup = vm.Groups.First(g => g.Scope == MacroScope.Global && !g.IsShadowed);
+        var globalGroup = vm.Groups.First(g => g.Scope == MacroScope.Global);
         Assert.Contains(globalGroup.Items, item => string.Equals(item.Name, savedName, StringComparison.OrdinalIgnoreCase));
     }
 
@@ -173,7 +173,7 @@ public sealed class RecordingFlowReproTests : IDisposable
             debounceInterval: TimeSpan.FromMilliseconds(100));
 
         await vm.LoadAsync();
-        Assert.Empty(vm.Groups.First(g => g.Scope == MacroScope.Global && !g.IsShadowed).Items);
+        Assert.Empty(vm.Groups.First(g => g.Scope == MacroScope.Global).Items);
 
         var nextLoadTask = vm.NextLoadAsync();
 
@@ -190,7 +190,7 @@ public sealed class RecordingFlowReproTests : IDisposable
         var loadWinner = await Task.WhenAny(nextLoadTask, Task.Delay(TimeSpan.FromSeconds(5)));
         Assert.Same(nextLoadTask, loadWinner);
 
-        var globalGroup = vm.Groups.First(g => g.Scope == MacroScope.Global && !g.IsShadowed);
+        var globalGroup = vm.Groups.First(g => g.Scope == MacroScope.Global);
         Assert.Contains(globalGroup.Items, item => string.Equals(item.Name, savedName, StringComparison.OrdinalIgnoreCase));
     }
 
@@ -255,7 +255,7 @@ public sealed class RecordingFlowReproTests : IDisposable
             debounceInterval: TimeSpan.FromMilliseconds(0));
 
         await vm.LoadAsync();
-        var groupBefore = vm.Groups.First(g => g.Scope == MacroScope.Global && !g.IsShadowed);
+        var groupBefore = vm.Groups.First(g => g.Scope == MacroScope.Global);
         Assert.Empty(groupBefore.Items);
 
         // Save directly via the composite. This is exactly the call MacroService makes.
@@ -264,7 +264,7 @@ public sealed class RecordingFlowReproTests : IDisposable
         // Refresh = LoadAsync.
         await vm.LoadAsync();
 
-        var group = vm.Groups.First(g => g.Scope == MacroScope.Global && !g.IsShadowed);
+        var group = vm.Groups.First(g => g.Scope == MacroScope.Global);
         Assert.Contains(group.Items, item => item.Name == "Refreshed");
     }
 }

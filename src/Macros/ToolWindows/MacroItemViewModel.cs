@@ -30,7 +30,6 @@ public sealed class MacroItemViewModel : INotifyPropertyChanged
     private readonly IMacroService? _service;
     private readonly Func<MacroPlayResult, string, Task> _errorRenderer;
     private bool _canInvoke = true;
-    private bool _isShadowed;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MacroItemViewModel"/> class.
@@ -140,47 +139,33 @@ public sealed class MacroItemViewModel : INotifyPropertyChanged
     /// identical to the corresponding <see cref="MacroGroupViewModel.Header"/>.
     /// </summary>
     /// <remarks>
-    /// Repo entries are <c>"Repo"</c>; sample entries are <c>"Samples"</c>; non-shadowed
-    /// global entries are <c>"Global"</c>; shadowed global entries (a global macro of the
-    /// same name is overridden by a repo macro) are <c>"Shadowed Global Macros"</c>.
+    /// Repo entries are <c>"Repo"</c>; sample entries are <c>"Samples"</c>;
+    /// global entries are <c>"Global"</c>.
     /// </remarks>
     public string GroupName => IsSample
         ? "Samples"
-        : (Scope == MacroScope.Repo ? "Repo" : (IsShadowed ? "Shadowed Global Macros" : "Global"));
+        : (Scope == MacroScope.Repo ? "Repo" : "Global");
 
     /// <summary>
-    /// Gets or sets a value indicating whether this row represents a global macro that is
-    /// shadowed by a repo macro of the same name. Drives the muted/italic/strikethrough
-    /// styling in the "Shadowed Global Macros" group and changes <see cref="GroupName"/>.
+    /// Obsolete stub property kept for backward compatibility. No longer used in the UI.
+    /// Always returns false.
     /// </summary>
+    [Obsolete("Shadowing concept has been removed. Property always returns false.")]
     public bool IsShadowed
     {
-        get => _isShadowed;
-        set
-        {
-            if (_isShadowed == value)
-            {
-                return;
-            }
-
-            _isShadowed = value;
-            OnPropertyChanged();
-            OnPropertyChanged(nameof(GroupName));
-            OnPropertyChanged(nameof(ShadowedTooltip));
-            OnPropertyChanged(nameof(ItemToolTip));
-        }
+        get => false;
+        set { }
     }
 
     /// <summary>
-    /// Gets the tooltip text that explains why a row is rendered with shadowed styling.
-    /// <see langword="null"/> when <see cref="IsShadowed"/> is <see langword="false"/>.
+    /// Obsolete stub property kept for backward compatibility. No longer used in the UI.
+    /// Always returns null.
     /// </summary>
-    public string? ShadowedTooltip => IsShadowed
-        ? "Shadowed by repo macro of the same name."
-        : null;
+    [Obsolete("Shadowing concept has been removed. Property always returns null.")]
+    public string? ShadowedTooltip => null;
 
     /// <summary>Gets the per-row tooltip shown in the Name column.</summary>
-    public string? ItemToolTip => IsSample ? SampleTemplate?.Description : ShadowedTooltip;
+    public string? ItemToolTip => IsSample ? SampleTemplate?.Description : null;
 
     /// <summary>Gets the button tooltip for the row's primary action.</summary>
     public string PrimaryActionToolTip => IsSample ? "Open sample" : "Play macro";
