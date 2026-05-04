@@ -1,7 +1,7 @@
 # Macros for Visual Studio
 
 [![Build](https://github.com/MadsKristensen/Macros/actions/workflows/build.yml/badge.svg)](https://github.com/MadsKristensen/Macros/actions/workflows/build.yml)
-[![Version](https://img.shields.io/badge/version-1.0--preview-blue)](https://github.com/MadsKristensen/Macros/releases)
+![GitHub Release](https://img.shields.io/github/v/release/madskristensen/macros)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 **Record once. Repeat forever — manually or on cue.**
