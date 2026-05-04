@@ -108,7 +108,47 @@ internal sealed class MacrosOptions : BaseOptionModel<MacrosOptions>
     [Browsable(false)]
     public bool HasShownTriggerHint { get; set; } = false;
 
-    // ── Trust helpers ──────────────────────────────────────────────────────
+    [Category("Triggers")]
+    [DisplayName("Disabled macros")]
+    [Description("Semicolon-separated absolute paths to .csx macro files whose triggers are temporarily disabled. Manual invocation is unaffected.")]
+    [Browsable(false)]
+    public string DisabledMacros { get; set; } = "";
+
+    // ── Disabled-macro helpers ───────────────────────────────────────────────────
+
+    /// <summary>
+    /// Returns <see langword="true"/> if the macro at <paramref name="path"/> has been
+    /// disabled by the user (issue #8). Disabled macros do not fire triggers, but can
+    /// still be played manually.
+    /// </summary>
+    public bool IsMacroDisabled(string? path)
+    {
+        if (string.IsNullOrEmpty(path)) return false;
+        return GetDisabledSet().Contains(Canonicalize(path!));
+    }
+
+    /// <summary>
+    /// Adds or removes <paramref name="path"/> from the disabled set. Caller is
+    /// responsible for persisting via <see cref="SaveAsync"/>.
+    /// </summary>
+    public void SetMacroDisabled(string path, bool disabled)
+    {
+        if (string.IsNullOrEmpty(path)) return;
+        var set = GetDisabledSet();
+        var key = Canonicalize(path);
+        var changed = disabled ? set.Add(key) : set.Remove(key);
+        if (changed)
+        {
+            DisabledMacros = string.Join(";", set);
+        }
+    }
+
+    private HashSet<string> GetDisabledSet() =>
+        new HashSet<string>(
+            (DisabledMacros ?? "").Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries),
+            StringComparer.OrdinalIgnoreCase);
+
+    // ── Trust helpers
 
     public bool IsSolutionTrusted(string? solutionPath)
     {

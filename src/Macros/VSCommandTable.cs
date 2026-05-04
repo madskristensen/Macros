@@ -60,7 +60,7 @@ namespace Macros
         public const int MacrosContextMenuGroup2 = 0x2200;
         public const int MacrosContextMenuGroup3 = 0x2300;
         public const int cmdidMacrosCtxPlay = 0x2110;
-        public const int cmdidMacrosCtxDebug = 0x2119;
+        public const int cmdidMacrosCtxToggleEnabled = 0x2119;
         public const int cmdidMacrosCtxEdit = 0x2111;
         public const int cmdidMacrosCtxRename = 0x2112;
         public const int cmdidMacrosCtxDelete = 0x2113;

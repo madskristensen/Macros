@@ -4,6 +4,7 @@ using Macros.Engine;
 using Macros.Engine.Storage;
 using Macros.Lifecycle;
 using Macros.Mvvm;
+using Macros.Options;
 using Macros.Samples;
 
 using Microsoft.VisualStudio.Shell;
@@ -169,6 +170,11 @@ public sealed class MacrosToolWindowViewModel : INotifyPropertyChanged, IDisposa
         {
             _service.StateChanged += OnServiceStateChanged;
         }
+
+        // Issue #8: refresh the per-row IsDisabled flag when the user toggles a macro's
+        // enabled state (or any other option saves) so the strikethrough/dimmed visual
+        // mark updates without a full list reload.
+        MacrosOptions.Changed += OnMacrosOptionsChanged;
     }
 
     /// <summary>
@@ -574,6 +580,8 @@ public sealed class MacrosToolWindowViewModel : INotifyPropertyChanged, IDisposa
             _service.StateChanged -= OnServiceStateChanged;
         }
 
+        MacrosOptions.Changed -= OnMacrosOptionsChanged;
+
         _debounceTimer?.Dispose();
         _debounceTimer = null;
 
@@ -600,6 +608,20 @@ public sealed class MacrosToolWindowViewModel : INotifyPropertyChanged, IDisposa
             foreach (var item in AllItems)
             {
                 item.CanInvoke = canInvoke;
+            }
+        });
+    }
+
+    // Issue #8: when the user toggles a macro's Enabled state (or any other option
+    // saves), poke every row so its IsDisabled binding re-evaluates and the row's
+    // visual mark (italic + dimmed + tooltip) updates immediately.
+    private void OnMacrosOptionsChanged(object? sender, EventArgs e)
+    {
+        Marshal(() =>
+        {
+            foreach (var item in AllItems)
+            {
+                item.RaiseDisabledChanged();
             }
         });
     }

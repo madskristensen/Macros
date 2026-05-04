@@ -361,7 +361,8 @@ public sealed class MacrosPackage : ToolkitPackage
             sharedStorage.Value,
             JoinableTaskFactory,
             disableAllTriggersProvider: () => MacrosOptions.Instance.DisableAllTriggers,
-            failureTracker: _failureTracker);
+            failureTracker: _failureTracker,
+            isUserDisabledProvider: path => MacrosOptions.Instance.IsMacroDisabled(path));
 
         // 2a-quater. When a solution opens, wake the repo store's file watcher (the watcher
         //            start is one-shot at trigger-registry construction; if VS started with no
@@ -811,5 +812,6 @@ public sealed class MacrosPackage : ToolkitPackage
         await CopyToRepoCommand.InitializeAsync(this);
         await CopyToGlobalCommand.InitializeAsync(this);
         await ManageTriggersContextCommand.InitializeAsync(this);
+        await ToggleEnabledContextCommand.InitializeAsync(this);
     }
 }

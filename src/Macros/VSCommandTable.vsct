@@ -253,6 +253,20 @@
         </Strings>
       </Button>
 
+      <!-- Issue #8: per-macro enable/disable toggle. Checked = macro is enabled
+           (its triggers fire normally); unchecked = disabled (triggers suppressed,
+           manual playback unaffected). No icon: the checkmark carries the state.
+           DynamicVisibility lets the handler hide the item for manual-only macros
+           where toggling "Enabled" would have no observable effect. -->
+      <Button guid="guidMacrosPackageCmdSet" id="cmdidMacrosCtxToggleEnabled" priority="0x0150" type="Button">
+        <Parent guid="guidMacrosPackageCmdSet" id="MacrosContextMenuGroup1" />
+        <CommandFlag>DynamicVisibility</CommandFlag>
+        <Strings>
+          <ButtonText>&amp;Enabled</ButtonText>
+          <CommandName>Macros.Context.ToggleEnabled</CommandName>
+        </Strings>
+      </Button>
+
       <Button guid="guidMacrosPackageCmdSet" id="cmdidMacrosCtxOpenFolder" priority="0x0100" type="Button">
         <Parent guid="guidMacrosPackageCmdSet" id="MacrosContextMenuGroup3" />
         <Icon guid="ImageCatalogGuid" id="FolderOpened" />
@@ -381,6 +395,7 @@
       <IDSymbol name="cmdidMacrosCtxCopyToRepo"      value="0x2117" />
       <IDSymbol name="cmdidMacrosCtxCopyToGlobal"    value="0x2118" />
       <IDSymbol name="cmdidMacrosCtxOpenFolder"      value="0x2210" />
+      <IDSymbol name="cmdidMacrosCtxToggleEnabled"   value="0x2119" />
       <IDSymbol name="MacrosToolWindowGroupContextMenu" value="0x2400" />
       <IDSymbol name="MacrosGroupContextMenuGroup1"  value="0x2410" />
 

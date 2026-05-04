@@ -44,6 +44,7 @@ internal sealed class MacroTriggerRegistry : IMacroTriggerRegistry
     private readonly IMacroStore _store;
     private readonly JoinableTaskFactory _jtf;
     private readonly Func<bool>? _disableAllTriggersProvider;
+    private readonly Func<string, bool>? _isUserDisabledProvider;
     private readonly IMacroFailureTracker? _failureTracker;
 
     private readonly object _sync = new();
@@ -99,12 +100,14 @@ internal sealed class MacroTriggerRegistry : IMacroTriggerRegistry
         IMacroStore store,
         JoinableTaskFactory jtf,
         Func<bool>? disableAllTriggersProvider = null,
-        IMacroFailureTracker? failureTracker = null)
+        IMacroFailureTracker? failureTracker = null,
+        Func<string, bool>? isUserDisabledProvider = null)
     {
         _store = store ?? throw new ArgumentNullException(nameof(store));
         _jtf = jtf ?? throw new ArgumentNullException(nameof(jtf));
         _disableAllTriggersProvider = disableAllTriggersProvider;
         _failureTracker = failureTracker;
+        _isUserDisabledProvider = isUserDisabledProvider;
 
         _store.LibraryChanged += OnLibraryChanged;
 
@@ -178,17 +181,21 @@ internal sealed class MacroTriggerRegistry : IMacroTriggerRegistry
                 return EmptyMatches;
             }
 
-            // Filter out auto-disabled macros (if tracker is wired), then hand back a
-            // defensive snapshot so callers can iterate without worrying about a concurrent
-            // rebuild swapping the underlying list out from under them.
-            if (_failureTracker is null)
+            // Filter out auto-disabled macros (failure tracker) and user-disabled macros
+            // (issue #8 — per-macro toggle from the tool window context menu), then hand
+            // back a defensive snapshot so callers can iterate without worrying about a
+            // concurrent rebuild swapping the underlying list out from under them.
+            if (_failureTracker is null && _isUserDisabledProvider is null)
                 return list.ToArray();
 
             var filtered = new List<TriggerMatch>(list.Count);
             foreach (var m in list)
             {
-                if (!_failureTracker.IsAutoDisabled(m.Entry.Path))
-                    filtered.Add(m);
+                if (_failureTracker is not null && _failureTracker.IsAutoDisabled(m.Entry.Path))
+                    continue;
+                if (IsUserDisabled(m.Entry.Path))
+                    continue;
+                filtered.Add(m);
             }
             return filtered.Count == list.Count ? list.ToArray() : filtered.ToArray();
         }
@@ -303,6 +310,20 @@ internal sealed class MacroTriggerRegistry : IMacroTriggerRegistry
         {
             // A throwing options accessor must never break dispatch — fail closed (treat as
             // off) so manual operation continues unimpeded.
+            return false;
+        }
+    }
+
+    private bool IsUserDisabled(string path)
+    {
+        if (_isUserDisabledProvider is null) return false;
+        try
+        {
+            return _isUserDisabledProvider(path);
+        }
+        catch
+        {
+            // Same fail-closed contract as the kill switch above.
             return false;
         }
     }

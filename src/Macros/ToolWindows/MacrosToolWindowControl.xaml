@@ -190,6 +190,12 @@
                     <Setter Property="Opacity" Value="0.6" />
                     <Setter Property="ToolTip" Value="Shadowed by repo macro of the same name." />
                 </DataTrigger>
+                <!-- Issue #8: visually mark user-disabled macros so they're recognizable
+                     at a glance. Italic + dimmed mirrors the shadowed-row treatment. -->
+                <DataTrigger Binding="{Binding IsDisabled}" Value="True">
+                    <Setter Property="FontStyle" Value="Italic" />
+                    <Setter Property="Opacity" Value="0.55" />
+                </DataTrigger>
                 <DataTrigger Binding="{Binding IsSample}" Value="True">
                     <Setter Property="Template">
                         <Setter.Value>
@@ -272,10 +278,19 @@
                                         Width="160">
                             <GridViewColumn.CellTemplate>
                                 <DataTemplate DataType="{x:Type local:MacroItemViewModel}">
-                                    <TextBlock Text="{Binding Name}"
-                                               TextTrimming="CharacterEllipsis"
-                                               ToolTip="{Binding ItemToolTip}" />
-                                </DataTemplate>
+                                        <TextBlock x:Name="NameText"
+                                                   Text="{Binding Name}"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   ToolTip="{Binding ItemToolTip}" />
+                                        <DataTemplate.Triggers>
+                                            <!-- Issue #8: strike through the macro name when the row is
+                                                 user-disabled so the state is recognizable independently
+                                                 of the italic/dim row treatment. -->
+                                            <DataTrigger Binding="{Binding IsDisabled}" Value="True">
+                                                <Setter TargetName="NameText" Property="TextDecorations" Value="Strikethrough" />
+                                            </DataTrigger>
+                                        </DataTemplate.Triggers>
+                                    </DataTemplate>
                             </GridViewColumn.CellTemplate>
                         </GridViewColumn>
                         <GridViewColumn Header="Triggers"

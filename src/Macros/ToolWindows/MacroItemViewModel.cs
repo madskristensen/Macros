@@ -10,6 +10,7 @@ using Macros.Engine.Player;
 using Macros.Engine.Storage;
 using Macros.Errors;
 using Macros.Mvvm;
+using Macros.Options;
 using Macros.Samples;
 
 namespace Macros.ToolWindows;
@@ -165,7 +166,27 @@ public sealed class MacroItemViewModel : INotifyPropertyChanged
     public string? ShadowedTooltip => null;
 
     /// <summary>Gets the per-row tooltip shown in the Name column.</summary>
-    public string? ItemToolTip => IsSample ? SampleTemplate?.Description : null;
+    public string? ItemToolTip => IsSample ? SampleTemplate?.Description : (IsDisabled ? "Disabled — triggers will not fire. Right-click to re-enable." : null);
+
+    /// <summary>
+    /// Gets a value indicating whether the macro is currently disabled by the user
+    /// (issue #8). Disabled macros do not fire triggers but can still be played
+    /// manually. The value is read live from <see cref="MacrosOptions"/>; callers
+    /// must call <see cref="RaiseDisabledChanged"/> when the option changes so the
+    /// XAML re-evaluates its data triggers.
+    /// </summary>
+    public bool IsDisabled => !IsSample && MacrosOptions.Instance.IsMacroDisabled(Descriptor.Path);
+
+    /// <summary>
+    /// Notifies bindings that <see cref="IsDisabled"/> (and the dependent
+    /// <see cref="ItemToolTip"/>) may have changed. Invoked by the parent tool window
+    /// view-model when <c>MacrosOptions.Changed</c> fires.
+    /// </summary>
+    public void RaiseDisabledChanged()
+    {
+        OnPropertyChanged(nameof(IsDisabled));
+        OnPropertyChanged(nameof(ItemToolTip));
+    }
 
     /// <summary>Gets the button tooltip for the row's primary action.</summary>
     public string PrimaryActionToolTip => IsSample ? "Open sample" : "Play macro";
