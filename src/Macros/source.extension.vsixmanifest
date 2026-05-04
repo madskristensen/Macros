@@ -7,7 +7,7 @@
     <MoreInfo>https://github.com/MadsKristensen/Macros</MoreInfo>
     <License>Resources\LICENSE</License>
     <Icon>Resources\Icon.png</Icon>
-    <Tags>macros, automation, recording, replay, productivity, csharp, scripting, triggers</Tags>
+    <Tags>macros, automation, recording</Tags>
   </Metadata>
   <Installation>
     <InstallationTarget Id="Microsoft.VisualStudio.Community" Version="[17.0,)">
