@@ -1,6 +1,6 @@
 ---
 name: writing-macros
-description: Write or edit .csx macro files for the Macros for Visual Studio extension. Use when the user wants a new macro, asks how to structure a .csx macro file, wants to call helper verbs (TypeAsync, ExecuteCommandAsync, RunMacroAsync, InsertSnippetAsync, OpenFileAsync, WaitAsync, PromptAsync), use the script globals (DTE, VS, Context, Trigger), use the Log static class for diagnostics, or pull in a NuGet package via `#r "nuget: PackageId, Version"`. Do NOT use for VSIX authoring, MEF parts, tool windows, commands, or other Visual Studio extensibility plumbing — this skill is for the macro user surface, not extension internals.
+description: Write or edit .csx macro files for the Macros for Visual Studio extension. Use when the user wants a new macro, asks how to structure a .csx macro file, wants to call helper verbs (TypeAsync, ExecuteCommandAsync, RunMacroAsync, InsertSnippetAsync, OpenFileAsync, WaitAsync, PromptAsync), use the script globals (DTE, VS, Context, Trigger), use the Log static class for diagnostics, or pull in a NuGet package via `#r` syntax. Do NOT use for VSIX authoring, MEF parts, tool windows, commands, or other Visual Studio extensibility plumbing — this skill is for the macro user surface, not extension internals.
 ---
 
 # Writing .csx macros for the Macros extension
