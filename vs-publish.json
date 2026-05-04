@@ -6,7 +6,12 @@
     "internalName": "Macros",
     "tags": [ "macros", "automation", "recording", "replay"]
   },
-  "assetFiles": [],
+  "assetFiles": [
+    {
+      "pathOnDisk": "art/toolwindow.png",
+      "targetPath": "art/toolwindow.png"
+    }
+  ],
   "overview": "README.md",
   "publisher": "MadsKristensen",
   "repo": "https://github.com/madskristensen/Macros"
