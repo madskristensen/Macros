@@ -14,7 +14,7 @@ namespace Macros
         public const string Language = "en-US";
         public const string Version = "1.0.0";
         public const string Author = "Mads Kristensen";
-        public const string Tags = "macros, automation, recording, replay";
+        public const string Tags = "macros, automation, recording";
         public const bool IsPreview = false;
     }
 }

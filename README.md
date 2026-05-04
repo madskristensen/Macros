@@ -80,6 +80,3 @@ Issues, ideas, and PRs welcome on [GitHub](https://github.com/MadsKristensen/Mac
 - **New to the codebase?** See [Building from source](docs/architecture.md#building-from-source).
 - **Extending VS?** Check the [Community.VisualStudio.Toolkit](https://github.com/VsixCommunity/Community.VisualStudio.Toolkit) docs.
 
-## License
-
-MIT — see [LICENSE](LICENSE). Built by [Mads Kristensen](https://github.com/MadsKristensen) with the excellent [Community.VisualStudio.Toolkit](https://github.com/VsixCommunity/Community.VisualStudio.Toolkit).
