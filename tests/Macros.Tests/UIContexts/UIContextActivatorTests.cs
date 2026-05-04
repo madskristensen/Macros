@@ -42,21 +42,7 @@ public sealed class UIContextActivatorTests
     }
 
     private static MetadataLoadContext CreateMetadataContext(out Assembly macrosAssembly)
-    {
-        string macrosDll = LocateMacrosAssembly();
-        string macrosBinDir = Path.GetDirectoryName(macrosDll)!;
-        string runtimeDir = System.Runtime.InteropServices.RuntimeEnvironment.GetRuntimeDirectory();
-
-        var paths = new[] { macrosDll }
-            .Concat(Directory.EnumerateFiles(macrosBinDir, "*.dll"))
-            .Concat(Directory.EnumerateFiles(runtimeDir, "*.dll"))
-            .Distinct(StringComparer.OrdinalIgnoreCase);
-
-        var resolver = new PathAssemblyResolver(paths);
-        var ctx = new MetadataLoadContext(resolver);
-        macrosAssembly = ctx.LoadFromAssemblyPath(macrosDll);
-        return ctx;
-    }
+        => MetadataContextFactory.CreateForMacrosVsix(out macrosAssembly);
 
     private static string LocateMacrosAssembly() => MacrosAssemblyLocator.Locate();
 

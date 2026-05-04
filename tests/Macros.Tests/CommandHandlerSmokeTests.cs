@@ -198,22 +198,5 @@ public sealed class CommandHandlerSmokeTests
     }
 
     private static MetadataLoadContext CreateMetadataContext(out Assembly macrosAssembly)
-    {
-        // The VSIX project is built before this test project (ProjectReference, even though we
-        // pass ReferenceOutputAssembly=false). Walk up from the test bin directory to find it.
-        string macrosDll = MacrosAssemblyLocator.Locate();
-
-        string macrosBinDir = Path.GetDirectoryName(macrosDll)!;
-        string runtimeDir = System.Runtime.InteropServices.RuntimeEnvironment.GetRuntimeDirectory();
-
-        var paths = new[] { macrosDll }
-            .Concat(Directory.EnumerateFiles(macrosBinDir, "*.dll"))
-            .Concat(Directory.EnumerateFiles(runtimeDir, "*.dll"))
-            .Distinct(StringComparer.OrdinalIgnoreCase);
-
-        var resolver = new PathAssemblyResolver(paths);
-        var ctx = new MetadataLoadContext(resolver);
-        macrosAssembly = ctx.LoadFromAssemblyPath(macrosDll);
-        return ctx;
-    }
+        => MetadataContextFactory.CreateForMacrosVsix(out macrosAssembly);
 }

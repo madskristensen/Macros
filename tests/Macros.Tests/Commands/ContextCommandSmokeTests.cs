@@ -23,7 +23,11 @@ public sealed class ContextCommandSmokeTests
     private const int CmdCtxEdit = 0x2111;
     private const int CmdCtxRename = 0x2112;
     private const int CmdCtxDelete = 0x2113;
+    private const int CmdCtxMoveToRepo = 0x2114;
+    private const int CmdCtxMoveToGlobal = 0x2115;
     private const int CmdCtxManageTriggers = 0x2116;
+    private const int CmdCtxCopyToRepo = 0x2117;
+    private const int CmdCtxCopyToGlobal = 0x2118;
     private const int CmdCtxOpenFolder = 0x2210;
 
     [Theory]
@@ -31,7 +35,11 @@ public sealed class ContextCommandSmokeTests
     [InlineData("Macros.Commands.Context.EditContextCommand", CmdCtxEdit)]
     [InlineData("Macros.Commands.Context.RenameContextCommand", CmdCtxRename)]
     [InlineData("Macros.Commands.Context.DeleteContextCommand", CmdCtxDelete)]
+    [InlineData("Macros.Commands.Context.MoveToRepoCommand", CmdCtxMoveToRepo)]
+    [InlineData("Macros.Commands.Context.MoveToGlobalCommand", CmdCtxMoveToGlobal)]
     [InlineData("Macros.Commands.Context.ManageTriggersContextCommand", CmdCtxManageTriggers)]
+    [InlineData("Macros.Commands.Context.CopyToRepoCommand", CmdCtxCopyToRepo)]
+    [InlineData("Macros.Commands.Context.CopyToGlobalCommand", CmdCtxCopyToGlobal)]
     [InlineData("Macros.Commands.Context.OpenFolderContextCommand", CmdCtxOpenFolder)]
     public void ContextCommandHandler_HasMatchingCommandAttribute(string typeFullName, int expectedCmdId)
     {
@@ -63,7 +71,11 @@ public sealed class ContextCommandSmokeTests
             "Macros.Commands.Context.EditContextCommand",
             "Macros.Commands.Context.RenameContextCommand",
             "Macros.Commands.Context.DeleteContextCommand",
+            "Macros.Commands.Context.MoveToRepoCommand",
+            "Macros.Commands.Context.MoveToGlobalCommand",
             "Macros.Commands.Context.ManageTriggersContextCommand",
+            "Macros.Commands.Context.CopyToRepoCommand",
+            "Macros.Commands.Context.CopyToGlobalCommand",
             "Macros.Commands.Context.OpenFolderContextCommand",
         };
 
@@ -82,20 +94,5 @@ public sealed class ContextCommandSmokeTests
     }
 
     private static MetadataLoadContext CreateMetadataContext(out Assembly macrosAssembly)
-    {
-        string macrosDll = MacrosAssemblyLocator.Locate();
-
-        string macrosBinDir = Path.GetDirectoryName(macrosDll)!;
-        string runtimeDir = System.Runtime.InteropServices.RuntimeEnvironment.GetRuntimeDirectory();
-
-        var paths = new[] { macrosDll }
-            .Concat(Directory.EnumerateFiles(macrosBinDir, "*.dll"))
-            .Concat(Directory.EnumerateFiles(runtimeDir, "*.dll"))
-            .Distinct(StringComparer.OrdinalIgnoreCase);
-
-        var resolver = new PathAssemblyResolver(paths);
-        var ctx = new MetadataLoadContext(resolver);
-        macrosAssembly = ctx.LoadFromAssemblyPath(macrosDll);
-        return ctx;
-    }
+        => MetadataContextFactory.CreateForMacrosVsix(out macrosAssembly);
 }

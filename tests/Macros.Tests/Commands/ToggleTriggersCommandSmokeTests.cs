@@ -55,19 +55,5 @@ public sealed class ToggleTriggersCommandSmokeTests
     // ── helpers ─────────────────────────────────────────────────────────────────────────────
 
     private static MetadataLoadContext CreateMetadataContext(out Assembly macrosAssembly)
-    {
-        string macrosDll = MacrosAssemblyLocator.Locate();
-        string macrosBinDir = Path.GetDirectoryName(macrosDll)!;
-        string runtimeDir = System.Runtime.InteropServices.RuntimeEnvironment.GetRuntimeDirectory();
-
-        var paths = new[] { macrosDll }
-            .Concat(Directory.EnumerateFiles(macrosBinDir, "*.dll"))
-            .Concat(Directory.EnumerateFiles(runtimeDir, "*.dll"))
-            .Distinct(StringComparer.OrdinalIgnoreCase);
-
-        var resolver = new PathAssemblyResolver(paths);
-        var ctx = new MetadataLoadContext(resolver);
-        macrosAssembly = ctx.LoadFromAssemblyPath(macrosDll);
-        return ctx;
-    }
+        => MetadataContextFactory.CreateForMacrosVsix(out macrosAssembly);
 }

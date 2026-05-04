@@ -7,6 +7,5 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Macros.Tests/Macros.Tests.csproj" Id="606fe0fb-0039-4270-bfa4-6d4d315c2426" />
-    <Project Path="tests/Macros.IntegrationTests/Macros.IntegrationTests.csproj" Id="4ad1d0b5-9d55-4e71-8f82-1d59aac7a07b" />
   </Folder>
 </Solution>

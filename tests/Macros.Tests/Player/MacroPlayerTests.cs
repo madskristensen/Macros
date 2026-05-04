@@ -16,8 +16,8 @@ namespace Macros.Tests.Player;
 /// <summary>
 /// Unit tests for <see cref="MacroPlayer"/>. These avoid touching DTE / IVsUIShell —
 /// scripts here never call <see cref="Helpers"/>, so a Moq-generated <see cref="DTE2"/>
-/// stub (which throws if any member is invoked) is safe to inject. Helper integration is
-/// covered separately by <c>Macros.IntegrationTests</c> running inside a hosted VS.
+/// stub (which throws if any member is invoked) is safe to inject. Helper integration
+/// requires a hosted VS and can only be smoke-tested manually inside an experimental hive.
 /// </summary>
 /// <remarks>
 /// The player calls <c>JoinableTaskFactory.SwitchToMainThreadAsync</c> after a threadpool

@@ -7,34 +7,17 @@ namespace Macros.Tests.Storage;
 
 public sealed class MacrosPathsTests
 {
-    [Fact]
-    public void ResolveGlobalFolder_Null_ReturnsAppDataMacros()
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void ResolveGlobalFolder_NullEmptyOrWhitespace_ReturnsAppDataMacros(string? input)
     {
         var expected = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
             "Macros");
 
-        Assert.Equal(expected, MacrosPaths.ResolveGlobalFolder(null));
-    }
-
-    [Fact]
-    public void ResolveGlobalFolder_Empty_ReturnsAppDataMacros()
-    {
-        var expected = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "Macros");
-
-        Assert.Equal(expected, MacrosPaths.ResolveGlobalFolder(""));
-    }
-
-    [Fact]
-    public void ResolveGlobalFolder_Whitespace_ReturnsAppDataMacros()
-    {
-        var expected = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "Macros");
-
-        Assert.Equal(expected, MacrosPaths.ResolveGlobalFolder("   "));
+        Assert.Equal(expected, MacrosPaths.ResolveGlobalFolder(input));
     }
 
     [Fact]

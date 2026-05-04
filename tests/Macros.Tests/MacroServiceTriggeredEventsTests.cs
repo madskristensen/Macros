@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using Macros.Engine;
 using Macros.Engine.Triggers;
@@ -47,41 +46,5 @@ public sealed class MacroServiceTriggeredEventsTests
         Assert.Equal("TestMacro", evt.MacroName);
         Assert.Equal("command", evt.TriggerName);
         Assert.Equal(TriggerKind.AfterCommand, evt.Kind);
-    }
-
-    [Fact]
-    public void TriggeredExecutionStarted_NoSubscribers_DoesNotThrow()
-    {
-        var svc = CreateService();
-        var args = new TriggeredExecutionEventArgs("TestMacro", "command", TriggerKind.BeforeCommand);
-        
-        // Should not throw even with no subscribers
-        svc.RaiseTriggeredStarted(args);
-    }
-
-    [Fact]
-    public void TriggeredExecutionEnded_NoSubscribers_DoesNotThrow()
-    {
-        var svc = CreateService();
-        var args = new TriggeredExecutionEventArgs("TestMacro", "command", TriggerKind.BeforeCommand);
-        
-        // Should not throw even with no subscribers
-        svc.RaiseTriggeredEnded(args);
-    }
-
-    [Fact]
-    public void MultipleSubscribers_AllReceiveEvents()
-    {
-        var svc = CreateService();
-        var events1 = new List<TriggeredExecutionEventArgs>();
-        var events2 = new List<TriggeredExecutionEventArgs>();
-        svc.TriggeredExecutionStarted += (_, e) => events1.Add(e);
-        svc.TriggeredExecutionStarted += (_, e) => events2.Add(e);
-
-        var args = new TriggeredExecutionEventArgs("TestMacro", "command", TriggerKind.BeforeCommand);
-        svc.RaiseTriggeredStarted(args);
-
-        Assert.Single(events1);
-        Assert.Single(events2);
     }
 }

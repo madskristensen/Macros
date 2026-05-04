@@ -16,9 +16,8 @@ namespace Macros.Tests.Errors;
 /// <b>Why metadata-only.</b> <c>MacroErrorRenderer</c> talks to <c>VS.Windows</c>,
 /// <c>ErrorListProvider</c>, and <c>VS.InfoBar</c>. None of those resolve outside a hosted
 /// Visual Studio process — the Macros.dll smoke tests already use
-/// <see cref="MetadataLoadContext"/> for the same reason. Runtime coverage of the renderer
-/// therefore lives in <c>Macros.IntegrationTests</c>, which spins up an experimental hive
-/// with the toolkit's <c>Microsoft.VisualStudio.Sdk.TestFramework.Xunit</c> harness.
+/// <see cref="MetadataLoadContext"/> for the same reason. Runtime exercise of the
+/// renderer's display paths can only be smoke-tested manually inside an experimental hive.
 /// </para>
 /// <para>
 /// The unit-level guarantees we *can* enforce here are mostly contract-level: the type
@@ -71,25 +70,8 @@ public sealed class MacroErrorRendererTests
     }
 
     // Runtime exercise of RenderAsync (success → no-op; failure → Output / Error List / InfoBar)
-    // requires a hosted VS process. See Macros.IntegrationTests for those cases.
+    // requires a hosted VS process and is only smoke-tested manually inside an experimental hive.
 
     private static MetadataLoadContext CreateMetadataContext(out Assembly macrosAssembly)
-    {
-        // Mirrors CommandHandlerSmokeTests.CreateMetadataContext — the Macros VSIX is built
-        // ahead of this project but its transitive VS Shell dependency can't be runtime-loaded
-        // outside a hosted VS process. MetadataLoadContext gives us read-only metadata access.
-        string macrosDll = MacrosAssemblyLocator.Locate();
-        string macrosBinDir = Path.GetDirectoryName(macrosDll)!;
-        string runtimeDir = System.Runtime.InteropServices.RuntimeEnvironment.GetRuntimeDirectory();
-
-        var paths = new[] { macrosDll }
-            .Concat(Directory.EnumerateFiles(macrosBinDir, "*.dll"))
-            .Concat(Directory.EnumerateFiles(runtimeDir, "*.dll"))
-            .Distinct(StringComparer.OrdinalIgnoreCase);
-
-        var resolver = new PathAssemblyResolver(paths);
-        var ctx = new MetadataLoadContext(resolver);
-        macrosAssembly = ctx.LoadFromAssemblyPath(macrosDll);
-        return ctx;
-    }
+        => MetadataContextFactory.CreateForMacrosVsix(out macrosAssembly);
 }

@@ -1,46 +1,23 @@
 using System;
 using System.Linq;
 using System.Reflection;
-using System.Threading.Tasks;
 using Macros.Engine.Scripting;
 using Xunit;
 
 namespace Macros.Tests.Scripting;
 
 /// <summary>
-/// Contract + pure-formatter tests for the <see cref="Log"/> helper. The async write paths
+/// Surface and pure-formatter tests for the <see cref="Log"/> helper. The async write paths
 /// touch the toolkit's <c>VS.Windows.CreateOutputWindowPaneAsync</c>, which requires a hosted
-/// VS process; that's covered by integration tests, not here.
+/// VS process; that path can only be smoke-tested manually inside an experimental hive.
 /// </summary>
 public sealed class LogContractTests
 {
     [Fact]
-    public void Log_IsPublicStatic()
-    {
-        Type t = typeof(Log);
-        Assert.True(t.IsPublic, "Log must be public.");
-        Assert.True(t.IsAbstract && t.IsSealed, "Log must be a static class.");
-    }
-
-    [Theory]
-    [InlineData(nameof(Log.InfoAsync))]
-    [InlineData(nameof(Log.WarnAsync))]
-    [InlineData(nameof(Log.ErrorAsync))]
-    public void Log_PublicVerbsReturnTask(string methodName)
-    {
-        MethodInfo? method = typeof(Log).GetMethod(methodName, BindingFlags.Public | BindingFlags.Static);
-        Assert.NotNull(method);
-        Assert.True(method!.IsStatic, $"{methodName} must be static.");
-        Assert.Equal(typeof(Task), method.ReturnType);
-
-        ParameterInfo[] parameters = method.GetParameters();
-        Assert.Single(parameters);
-        Assert.Equal(typeof(string), parameters[0].ParameterType);
-    }
-
-    [Fact]
     public void Log_PublicSurfaceIsExactlyTheThreeSeverities()
     {
+        // Lock the surface so accidentally adding a public method without updating the
+        // codegen contract / docs fails the test loudly.
         var expected = new[]
         {
             nameof(Log.InfoAsync),

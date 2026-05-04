@@ -11,8 +11,8 @@ namespace Macros.Tests.Scripting;
 
 /// <summary>
 /// Argument validation for <see cref="Helpers.InsertSnippetAsync"/>. The full happy-path
-/// behaviour (typing the prefix and invoking <c>Edit.InsertSnippet</c>) is exercised by an
-/// integration test in <c>Macros.IntegrationTests</c> against a hosted Visual Studio.
+/// behaviour (typing the prefix and invoking <c>Edit.InsertSnippet</c>) requires a hosted
+/// Visual Studio and can only be smoke-tested manually inside an experimental hive.
 /// </summary>
 public sealed class HelpersInsertSnippetTests
 {

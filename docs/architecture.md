@@ -7,8 +7,7 @@ src/
 ├── Macros/              ← VSIX shell (commands, tool window, options, .vsct, dialogs)
 └── Macros.Engine/       ← Pure engine (recorder, codegen, storage, triggers, player)
 tests/
-├── Macros.Tests/                 ← xUnit unit tests (engine + VSIX-side, ~800 tests)
-└── Macros.IntegrationTests/      ← VS Sdk.TestFramework tests (events, lifecycle)
+└── Macros.Tests/                 ← xUnit unit tests (engine + VSIX-side, ~1100 tests)
 ```
 
 ## Recording

@@ -18,10 +18,10 @@ namespace Macros.Tests;
 /// </summary>
 /// <remarks>
 /// The path that actually compiles and runs Roslyn script (resolving <see cref="IMacroPlayer"/>
-/// from the VS service container) cannot be exercised here — it requires a hosted shell. Those
-/// scenarios live in <c>Macros.IntegrationTests</c>; this file pins everything reachable from a
-/// pure unit-test process plus the optional <c>playerFactory</c> ctor parameter that lets us
-/// inject a fake player without spinning up VS.
+/// from the VS service container) cannot be exercised here — it requires a hosted shell. That
+/// path is only smoke-tested manually inside an experimental hive; this file pins everything
+/// reachable from a pure unit-test process plus the optional <c>playerFactory</c> ctor parameter
+/// that lets us inject a fake player without spinning up VS.
 /// </remarks>
 public sealed class MacroServicePlayResultTests
 {

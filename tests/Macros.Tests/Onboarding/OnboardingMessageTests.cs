@@ -5,7 +5,7 @@ namespace Macros.Tests.Onboarding;
 
 /// <summary>
 /// Pure-formatter tests for the onboarding InfoBar message. The bar's display logic touches
-/// VS InfoBar APIs and is covered by integration tests; here we just lock the wording.
+/// VS InfoBar APIs and can only be smoke-tested manually; here we just lock the wording.
 /// </summary>
 public sealed class OnboardingMessageTests
 {

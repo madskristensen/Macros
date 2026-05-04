@@ -32,8 +32,8 @@ namespace Macros.Errors;
 /// <para>
 /// Failures inside the renderer itself are swallowed and logged: a broken renderer must never
 /// mask the original macro failure or crash the package. Coverage at the unit-test level is
-/// limited because Output / Error List / InfoBar all require a hosted VS process; the integration
-/// tests in <c>Macros.IntegrationTests</c> exercise the full path inside an experimental hive.
+/// limited because Output / Error List / InfoBar all require a hosted VS process; those paths
+/// can only be smoke-tested manually inside an experimental hive.
 /// </para>
 /// </remarks>
 internal static class MacroErrorRenderer

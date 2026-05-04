@@ -161,19 +161,41 @@ public sealed class FileSystemMacroStoreWatcherTests : IDisposable
         }
     }
 
+    /// <summary>
+    /// Writes the given file and drains the LibraryChanged event it triggers, then detaches
+    /// the drain handler so the test can begin observing only post-setup events.
+    /// </summary>
+    private void WriteAndDrainAddedEvent(FileSystemMacroStore storage, string path, string content)
+    {
+        var setupEvents = new List<MacroLibraryChangedEventArgs>();
+        EventHandler<MacroLibraryChangedEventArgs> setupHandler =
+            (_, e) => { lock (setupEvents) { setupEvents.Add(e); } };
+        storage.LibraryChanged += setupHandler;
+        try
+        {
+            File.WriteAllText(path, content);
+            Assert.True(
+                WaitFor(() => { lock (setupEvents) return setupEvents.Count > 0; }, timeoutMs: 3000),
+                $"Setup write to '{path}' did not produce a LibraryChanged event within 3 s.");
+        }
+        finally
+        {
+            storage.LibraryChanged -= setupHandler;
+        }
+    }
+
     [Fact]
     public void ExternalRename_RaisesRemovedThenAdded()
     {
         using var storage = CreateStorage();
         var oldPath = MacroFile(_namedFolder, "Gamma");
         var newPath = MacroFile(_namedFolder, "GammaRenamed");
-        File.WriteAllText(oldPath, "// gamma");
-        Thread.Sleep(300);
+        WriteAndDrainAddedEvent(storage, oldPath, "// gamma");
 
         var events = Capture(storage, out _);
         File.Move(oldPath, newPath);
 
-        Assert.True(WaitFor(() => { lock (events) return events.Count >= 2; }, 800),
+        Assert.True(WaitFor(() => { lock (events) return events.Count >= 2; }, 3000),
             "Expected two LibraryChanged events (Removed + Added) within timeout.");
 
         lock (events)
@@ -226,8 +248,7 @@ public sealed class FileSystemMacroStoreWatcherTests : IDisposable
     {
         using var storage = CreateStorage();
         var path = MacroFile(_namedFolder, "Epsilon");
-        File.WriteAllText(path, "// v1");
-        Thread.Sleep(300);
+        WriteAndDrainAddedEvent(storage, path, "// v1");
 
         var events = Capture(storage, out _);
 
@@ -246,7 +267,8 @@ public sealed class FileSystemMacroStoreWatcherTests : IDisposable
             "Expected at least one debounced event within timeout.");
 
         // Allow any additional (non-coalesced) events one more debounce window to fire,
-        // then assert the final count.
+        // then assert the final count. This deadline is intrinsic to a "no further events
+        // happen" assertion — there's no positive signal to wait on for non-events.
         Thread.Sleep(400);
 
         lock (events)
