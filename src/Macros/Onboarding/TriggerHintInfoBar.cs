@@ -4,6 +4,7 @@ using System;
 using System.Threading.Tasks;
 using Community.VisualStudio.Toolkit;
 using Macros.Options;
+using Microsoft.VisualStudio;
 using Microsoft.VisualStudio.Imaging;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
@@ -114,7 +115,7 @@ internal sealed class TriggerHintInfoBar : IDisposable
                 image: KnownMonikers.StatusInformation,
                 isCloseButtonVisible: true);
 
-            InfoBar? infoBar = await TryCreateInfoBarAsync(model);
+            InfoBar? infoBar = await TryCreateInfoBarAsync(model, filePath);
             if (infoBar is null)
             {
                 return;
@@ -184,15 +185,18 @@ internal sealed class TriggerHintInfoBar : IDisposable
         }
     }
 
-    private static async Task<InfoBar?> TryCreateInfoBarAsync(InfoBarModel model)
+    private static async Task<InfoBar?> TryCreateInfoBarAsync(InfoBarModel model, string filePath)
     {
         await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
-        // Prefer the active document frame so the hint is anchored to the file the user just opened.
+        // Anchor the hint to the frame hosting the just-opened .csx file. We can't rely on
+        // the *active* document view here: at the moment DocumentEvents.Opened fires, the
+        // active frame may still be something else (e.g. the Output window after a deploy),
+        // which would cause the InfoBar to render in the wrong tool window.
         try
         {
-            DocumentView? docView = await VS.Documents.GetActiveDocumentViewAsync();
-            if (docView?.WindowFrame is IVsWindowFrame frame)
+            IVsWindowFrame? frame = await TryGetWindowFrameForPathAsync(filePath);
+            if (frame is not null)
             {
                 InfoBar? hosted = await VS.InfoBar.CreateAsync(frame, model);
                 if (hosted is not null)
@@ -216,6 +220,36 @@ internal sealed class TriggerHintInfoBar : IDisposable
             await ex.LogAsync();
             return null;
         }
+    }
+
+    private static async Task<IVsWindowFrame?> TryGetWindowFrameForPathAsync(string filePath)
+    {
+        await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+        var openDoc = await VS.GetServiceAsync<SVsUIShellOpenDocument, IVsUIShellOpenDocument>();
+        if (openDoc is null)
+        {
+            return null;
+        }
+
+        var logicalView = VSConstants.LOGVIEWID_Primary;
+        int hr = openDoc.IsDocumentOpen(
+            null,
+            (uint)VSConstants.VSITEMID.Nil,
+            filePath,
+            ref logicalView,
+            (uint)__VSIDOFLAGS.IDO_IgnoreLogicalView,
+            out _,
+            null,
+            out IVsWindowFrame frame,
+            out int isOpen);
+
+        if (Microsoft.VisualStudio.ErrorHandler.Succeeded(hr) && isOpen != 0)
+        {
+            return frame;
+        }
+
+        return null;
     }
 
     /// <summary>

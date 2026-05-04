@@ -1,33 +1,38 @@
-using System;
-using System.Runtime.InteropServices;
-using System.Threading;
 using Community.VisualStudio.Toolkit;
+
 using EnvDTE;
+
 using EnvDTE80;
+
+using Macros.Commands;
+using Macros.Commands.Context;
 using Macros.Engine;
 using Macros.Engine.Player;
 using Macros.Engine.Scripting;
 using Macros.Engine.Storage;
 using Macros.Engine.Triggers;
-using Macros.Commands;
-using Macros.Commands.Context;
 using Macros.Lifecycle;
 using Macros.Observers;
 using Macros.Onboarding;
 using Macros.Options;
 using Macros.Recording;
-using Macros.StatusBar;
 using Macros.Scripting;
 using Macros.Skills;
+using Macros.StatusBar;
 using Macros.ToolWindows;
 using Macros.Triggers;
 using Macros.Trust;
 using Macros.UIContexts;
+
 using Microsoft.VisualStudio;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
 using Microsoft.VisualStudio.Threading;
-using System.Threading.Tasks;
+
+using System;
+using System.Runtime.InteropServices;
+using System.Threading;
+
 using Task = System.Threading.Tasks.Task;
 
 namespace Macros;
@@ -72,8 +77,8 @@ namespace Macros;
 [ProvideToolWindow(typeof(MacrosToolWindow.Pane),
     Style = VsDockStyle.Tabbed,
     Window = WindowGuids.SolutionExplorer)]
-[ProvideToolWindowVisibility(typeof(MacrosToolWindow.Pane),
-    VSConstants.UICONTEXT.NoSolution_string)]
+//[ProvideToolWindowVisibility(typeof(MacrosToolWindow.Pane),
+//    VSConstants.UICONTEXT.NoSolution_string)]
 [ProvideOptionPage(typeof(OptionsProvider.GeneralOptionsPage), "Macros", "General",
     categoryResourceID: 0, pageNameResourceID: 0, supportsAutomation: true)]
 [Guid(PackageGuids.guidMacrosPackageString)]

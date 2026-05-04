@@ -110,6 +110,11 @@ internal sealed class MacroPlayer : IMacroPlayer
                 Duration: stopwatch.Elapsed);
         }
 
+        // Mirror the failure-side "=== ... failed in N ms ===" line that MacroErrorRenderer
+        // writes, so the Output pane shows a continuous start/end transcript for every
+        // playback. Failures are logged by MacroErrorRenderer; here we cover started/completed.
+        await TryWriteStartedAsync(macroName, resolvedTrigger).ConfigureAwait(false);
+
         // ── Phase 1: compile on threadpool (CPU-bound, ~200-500 ms cold). ──────────────
         Script<object> script;
         ImmutableArray<Diagnostic> diagnostics;
@@ -170,7 +175,9 @@ internal sealed class MacroPlayer : IMacroPlayer
                 });
 
                 await runTask.Task.ConfigureAwait(false);
-                return new MacroPlayResult(true, null, null, stopwatch.Elapsed);
+                var elapsed = stopwatch.Elapsed;
+                await TryWriteCompletedAsync(macroName, elapsed).ConfigureAwait(false);
+                return new MacroPlayResult(true, null, null, elapsed);
             }
             catch (CompilationErrorException cex)
             {
@@ -195,6 +202,56 @@ internal sealed class MacroPlayer : IMacroPlayer
 
     private Script<object> CompileScript(string src, string? csxFilePath) =>
         CSharpScript.Create<object>(src, BuildScriptOptions(csxFilePath), typeof(MacroGlobals));
+
+    /// <summary>
+    /// Writes a "started" line for <paramref name="macroName"/> to the shared "Macros"
+    /// Output pane. Wrapped in a best-effort try/catch — diagnostic logging must never
+    /// derail a macro run, so any failure (pane unavailable during shutdown, threading
+    /// edge case in tests, etc.) is silently swallowed.
+    /// </summary>
+    private static async Task TryWriteStartedAsync(string macroName, IMacroTrigger trigger)
+    {
+        try
+        {
+            Community.VisualStudio.Toolkit.OutputWindowPane pane = await MacrosOutputPane.GetOrCreateAsync().ConfigureAwait(true);
+            await pane.WriteLineAsync($"▶ {macroName} (trigger: {DescribeTrigger(trigger)})").ConfigureAwait(true);
+        }
+        catch
+        {
+            // Logging is best-effort.
+        }
+    }
+
+    private static async Task TryWriteCompletedAsync(string macroName, TimeSpan duration)
+    {
+        try
+        {
+            Community.VisualStudio.Toolkit.OutputWindowPane pane = await MacrosOutputPane.GetOrCreateAsync().ConfigureAwait(true);
+            await pane.WriteLineAsync($"✓ {macroName} ({duration.TotalMilliseconds:F0} ms)").ConfigureAwait(true);
+            await pane.WriteLineAsync(string.Empty).ConfigureAwait(true);
+        }
+        catch
+        {
+            // Logging is best-effort.
+        }
+    }
+
+    /// <summary>
+    /// Renders a trigger as a short, human-readable tag for the Output pane.
+    /// Manual -> "Manual"; command/event triggers append the canonical Name
+    /// (e.g. "BeforeCommand File.SaveAll", "VsEvent Build.SolutionBuildDone").
+    /// </summary>
+    private static string DescribeTrigger(IMacroTrigger trigger)
+    {
+        if (trigger.IsManual)
+        {
+            return "Manual";
+        }
+
+        return string.IsNullOrEmpty(trigger.Name)
+            ? trigger.Kind.ToString()
+            : $"{trigger.Kind} {trigger.Name}";
+    }
 
     /// <summary>
     /// Builds a cache key that incorporates both the source text and the (normalized)

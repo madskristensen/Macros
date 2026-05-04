@@ -38,7 +38,6 @@ namespace Macros.Errors;
 /// </remarks>
 internal static class MacroErrorRenderer
 {
-    private const string OutputPaneName = "Macros";
     private const string ViewOutputActionContext = "macros.error.viewOutput";
 
     // Roslyn diagnostic ToString() format is "(line,col): severity CSXXXX: message" for script
@@ -109,19 +108,12 @@ internal static class MacroErrorRenderer
         }
     }
 
-    private static async Task<OutputWindowPane> GetOrCreatePaneAsync()
-    {
-        // CreateOutputWindowPaneAsync is idempotent: VS reuses the same pane when the name
-        // matches. We deliberately don't cache the OutputWindowPane instance because the
-        // toolkit's helper short-cuts to GetAsync(Guid) when the pane already exists, and
-        // re-resolving each call is microseconds compared to the user-facing IO that follows.
-        return await VS.Windows.CreateOutputWindowPaneAsync(OutputPaneName, lazyCreate: false);
-    }
+    private static Task<OutputWindowPane> GetOrCreatePaneAsync() => MacrosOutputPane.GetOrCreateAsync();
 
     private static async Task WriteDiagnosticTextAsync(OutputWindowPane pane, MacroPlayResult result, string macroName)
     {
         await pane.WriteLineAsync(
-            $"=== {macroName} failed in {result.Duration.TotalMilliseconds:F0} ms ===");
+            $"✗ {macroName} failed ({result.Duration.TotalMilliseconds:F0} ms)");
 
         if (!string.IsNullOrEmpty(result.CompilationError))
         {
