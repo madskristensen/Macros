@@ -6,7 +6,7 @@
 
 **Record once. Repeat forever — manually or on cue.**
 
-A modern Visual Studio 2022 extension that brings back the power of recorded automation. Record sequences of text edits and IDE commands, replay them with a single keystroke, or trigger them automatically on build, save, or any IDE event. Every macro is an editable C# script — no black boxes, full IntelliSense.
+A modern Visual Studio extension that brings back the power of recorded automation. Record sequences of text edits and IDE commands, replay them with a single keystroke, or trigger them automatically on build, save, or any IDE event. Every macro is an editable C# script — no black boxes, full IntelliSense.
 
 ![Toolwindow](art/toolwindow.png)
 
@@ -29,13 +29,6 @@ A modern Visual Studio 2022 extension that brings back the power of recorded aut
 await VS.StatusBar.ShowMessageAsync("💥 Build failed!");
 await ExecuteCommandAsync("View.ErrorList");
 ```
-
-## Install
-
-- **Visual Studio Marketplace** — search *"Macros"* by Mads Kristensen (or sideload from [Releases](https://github.com/MadsKristensen/Macros/releases)).
-- **Manual:** Download `Macros.vsix` from [Releases](https://github.com/MadsKristensen/Macros/releases) and double-click to install.
-
-Requires **Visual Studio 2022** (17.10+) on Windows.
 
 ## Documentation
 

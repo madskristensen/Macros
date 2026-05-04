@@ -70,8 +70,8 @@ The shim is a machine-local artifact (gitignored under `.vs/` for repo scope). R
 
 ## Requirements
 
-- **Visual Studio 2022** — version **17.10** or later.
-- **Windows** — VS 2022 is Windows-only; this extension is too.
+- **Visual Studio 2026** — version **18.5** or later.
+- **Windows** — VS is Windows-only; this extension is too.
 - **Visual Studio extension development** workload (only required to *build* from source — not to *use* the extension).
 
 The VSIX targets `.NET Framework 4.8`, which ships with VS itself.
@@ -84,7 +84,7 @@ cd Macros
 dotnet build Macros.slnx --configuration Release
 ```
 
-The build produces `src/Macros/bin/Release/net48/Macros.vsix`. Open `Macros.slnx` in Visual Studio 2022 and press **F5** to launch the experimental hive with the extension installed.
+The build produces `src/Macros/bin/Release/net48/Macros.vsix`. Open `Macros.slnx` in Visual Studio and press **F5** to launch the experimental hive with the extension installed.
 
 To run the test suite:
 
