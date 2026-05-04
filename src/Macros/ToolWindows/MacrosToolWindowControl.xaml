@@ -331,10 +331,18 @@
                                     <Setter.Value>
                                         <ControlTemplate TargetType="GroupItem">
                                             <Expander x:Name="GroupExpander"
-                                                      IsExpanded="True"
-                                                      Style="{StaticResource GroupExpanderStyle}"
                                                       Margin="0,10,0,0"
                                                       Foreground="{DynamicResource {x:Static vsui:EnvironmentColors.ToolWindowTextBrushKey}}">
+                                                <Expander.Style>
+                                                    <Style TargetType="Expander" BasedOn="{StaticResource GroupExpanderStyle}">
+                                                        <Setter Property="IsExpanded" Value="True" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding Name}" Value="Samples">
+                                                                <Setter Property="IsExpanded" Value="False" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Expander.Style>
                                                 <Expander.Header>
                                                     <Border Background="Transparent"
                                                             PreviewMouseRightButtonUp="MacroGroupHeader_PreviewMouseRightButtonUp">
