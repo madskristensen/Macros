@@ -70,6 +70,25 @@ public sealed class MacrosToolWindow : BaseToolWindow<MacrosToolWindow>
             ToolBar = new CommandID(PackageGuids.guidMacrosPackageCmdSet, PackageIds.MacrosToolWindowToolbar);
         }
 
+        /// <summary>
+        /// Disposes the bound view-model when the tool window is actually closed. The
+        /// view-model is *not* disposed on WPF Unloaded events because docking, auto-hide,
+        /// and tab switches all raise Unloaded without the user closing the pane — tearing
+        /// the VM down there would unsubscribe from <c>IMacroStore.LibraryChanged</c> and
+        /// short-circuit subsequent <c>LoadAsync</c> calls (including the toolbar Refresh
+        /// button), leaving the list permanently stale until VS is restarted.
+        /// </summary>
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing && Content is MacrosToolWindowControl control &&
+                control.DataContext is IDisposable disposable)
+            {
+                disposable.Dispose();
+            }
+
+            base.Dispose(disposing);
+        }
+
         // ── Native VS search ────────────────────────────────────────────────────────────
 
         /// <summary>Enables the native VS search bar in the tool window chrome.</summary>

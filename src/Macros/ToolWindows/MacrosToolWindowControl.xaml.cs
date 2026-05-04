@@ -36,7 +36,6 @@ public partial class MacrosToolWindowControl : UserControl
     public MacrosToolWindowControl()
     {
         InitializeComponent();
-        Unloaded += OnUnloaded;
     }
 
     /// <summary>
@@ -50,14 +49,6 @@ public partial class MacrosToolWindowControl : UserControl
         : this()
     {
         DataContext = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
-    }
-
-    private void OnUnloaded(object sender, System.Windows.RoutedEventArgs e)
-    {
-        if (DataContext is IDisposable disposable)
-        {
-            disposable.Dispose();
-        }
     }
 
     private void Row_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
