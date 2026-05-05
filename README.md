@@ -2,7 +2,7 @@
 
 [![Build](https://github.com/MadsKristensen/Macros/actions/workflows/build.yml/badge.svg)](https://github.com/MadsKristensen/Macros/actions/workflows/build.yml)
 ![GitHub Release](https://img.shields.io/github/v/release/madskristensen/macros)
-[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](https://github.com/MadsKristensen/Macros/blob/master/LICENSE)
 
 **Record once. Repeat forever — manually or on cue.**
 
@@ -32,16 +32,16 @@ await ExecuteCommandAsync("View.ErrorList");
 
 ## Documentation
 
-- **[Getting Started](docs/getting-started.md)** — 60-second setup, hotkeys, save your first macro.
-- **[Recording](docs/recording.md)** — What gets captured, step aggregation, the current slot.
-- **[Replaying](docs/replaying.md)** — Play Last, tool window, error handling.
-- **[C# Scripting Reference](docs/csx-reference.md)** — Helpers API, MacroGlobals, code examples.
-- **[Triggers](docs/triggers.md)** — @trigger directive, all event/command types, filters, examples.
-- **[Macro Samples](docs/macro-samples.md)** — 15 ready-to-use macros you can copy and customize.
-- **[Scopes](docs/scopes.md)** — Global vs Repo macros, storage, team sharing.
-- **[Security](docs/security.md)** — Trust gate, auto-disable, why macros are code.
-- **[Troubleshooting](docs/troubleshooting.md)** — Common issues and fixes.
-- **[Architecture](docs/architecture.md)** — For contributors: how it works under the hood.
+- **[Getting Started](https://github.com/MadsKristensen/Macros/blob/master/docs/getting-started.md)** — 60-second setup, hotkeys, save your first macro.
+- **[Recording](https://github.com/MadsKristensen/Macros/blob/master/docs/recording.md)** — What gets captured, step aggregation, the current slot.
+- **[Replaying](https://github.com/MadsKristensen/Macros/blob/master/docs/replaying.md)** — Play Last, tool window, error handling.
+- **[C# Scripting Reference](https://github.com/MadsKristensen/Macros/blob/master/docs/csx-reference.md)** — Helpers API, MacroGlobals, code examples.
+- **[Triggers](https://github.com/MadsKristensen/Macros/blob/master/docs/triggers.md)** — @trigger directive, all event/command types, filters, examples.
+- **[Macro Samples](https://github.com/MadsKristensen/Macros/blob/master/docs/macro-samples.md)** — 15 ready-to-use macros you can copy and customize.
+- **[Scopes](https://github.com/MadsKristensen/Macros/blob/master/docs/scopes.md)** — Global vs Repo macros, storage, team sharing.
+- **[Security](https://github.com/MadsKristensen/Macros/blob/master/docs/security.md)** — Trust gate, auto-disable, why macros are code.
+- **[Troubleshooting](https://github.com/MadsKristensen/Macros/blob/master/docs/troubleshooting.md)** — Common issues and fixes.
+- **[Architecture](https://github.com/MadsKristensen/Macros/blob/master/docs/architecture.md)** — For contributors: how it works under the hood.
 
 ## How does this compare?
 
@@ -70,6 +70,6 @@ The combination "**recorded + scriptable + triggered + team-shared + trust-gated
 
 Issues, ideas, and PRs welcome on [GitHub](https://github.com/MadsKristensen/Macros).
 
-- **New to the codebase?** See [Building from source](docs/architecture.md#building-from-source).
+- **New to the codebase?** See [Building from source](https://github.com/MadsKristensen/Macros/blob/master/docs/architecture.md#building-from-source).
 - **Extending VS?** Check the [Community.VisualStudio.Toolkit](https://github.com/VsixCommunity/Community.VisualStudio.Toolkit) docs.
 
