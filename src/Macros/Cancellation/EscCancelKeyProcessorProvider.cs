@@ -1,8 +1,6 @@
-using System;
 using System.ComponentModel.Composition;
 using Macros;
 using Macros.Engine;
-using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Text.Editor;
 using Microsoft.VisualStudio.Utilities;
 
@@ -20,10 +18,11 @@ namespace Macros.Cancellation;
 /// export automatically.
 /// </para>
 /// <para>
-/// <see cref="IMacroService"/> is resolved once on first view creation and cached in
-/// <see cref="ServiceCache"/>. The resolution blocks briefly on the
-/// <see cref="JoinableTaskContext.Factory"/> to stay deadlock-safe; subsequent calls are a
-/// single volatile read.
+/// MEF can instantiate this provider — and create the per-view processor — before
+/// <c>MacrosPackage.InitializeAsync</c> has run (e.g. when another package restores documents
+/// during shell startup). To stay robust, <see cref="IMacroService"/> is resolved lazily on
+/// each <c>Esc</c> keystroke and cached once successfully obtained. If the package isn't
+/// loaded yet, the processor is a harmless no-op until it is.
 /// </para>
 /// </remarks>
 [Export(typeof(IKeyProcessorProvider))]
@@ -36,22 +35,31 @@ internal sealed class EscCancelKeyProcessorProvider : IKeyProcessorProvider
     /// <inheritdoc />
     public KeyProcessor GetAssociatedProcessor(IWpfTextView wpfTextView)
     {
-        if (ServiceCache.Instance is null)
-        {
-            ServiceCache.Instance = ResolveService();
-        }
-
-        return new EscCancelKeyProcessor(ServiceCache.Instance);
+        return new EscCancelKeyProcessor(ResolveServiceOrNull);
     }
 
-    private static IMacroService ResolveService()
+    private static IMacroService? ResolveServiceOrNull()
     {
-        var package = MacrosPackage.Instance ?? throw new InvalidOperationException(
-            "MacrosPackage is not initialized — cannot resolve IMacroService.");
-        return package.JoinableTaskFactory.Run(async () =>
-            await package.GetServiceAsync(typeof(IMacroService)) as IMacroService
-                ?? throw new InvalidOperationException(
-                    "IMacroService is not registered in the package container."));
+        if (ServiceCache.Instance is { } cached)
+        {
+            return cached;
+        }
+
+        var package = MacrosPackage.Instance;
+        if (package is null)
+        {
+            return null;
+        }
+
+        var service = package.JoinableTaskFactory.Run(async () =>
+            await package.GetServiceAsync(typeof(IMacroService)) as IMacroService);
+
+        if (service is not null)
+        {
+            ServiceCache.Instance = service;
+        }
+
+        return service;
     }
 }
 
