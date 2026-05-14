@@ -1,8 +1,8 @@
 # Macros for Visual Studio
 
 [![Build](https://github.com/MadsKristensen/Macros/actions/workflows/build.yml/badge.svg)](https://github.com/MadsKristensen/Macros/actions/workflows/build.yml)
-![GitHub Release](https://img.shields.io/github/v/release/madskristensen/macros)
-[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](https://github.com/MadsKristensen/Macros/blob/master/LICENSE)
+[![Install from VSIX Gallery](https://www.vsixgallery.com/badge/Macros.MadsKristensen.d13e532a-bd43-40df-ae9f-8d05e54138c7.svg)](https://www.vsixgallery.com/extension/Macros.MadsKristensen.d13e532a-bd43-40df-ae9f-8d05e54138c7)
+[![GitHub Sponsors](https://img.shields.io/github/sponsors/madskristensen)](https://github.com/sponsors/madskristensen)
 
 **Record once. Repeat forever — manually or on cue.**
 
