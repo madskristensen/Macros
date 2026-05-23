@@ -8,7 +8,7 @@ namespace Macros.Tests.Triggers;
 
 /// <summary>
 /// Pins the contract of <see cref="TriggerReentranceGuard"/>: depth tracking, per-key
-/// suppression, and AsyncLocal isolation between parent and child execution contexts.
+/// suppression, and per-thread isolation between independent dispatch chains.
 /// </summary>
 public sealed class TriggerReentranceGuardTests
 {
@@ -129,28 +129,36 @@ public sealed class TriggerReentranceGuardTests
     }
 
     [Fact]
-    public async Task ChildTask_InheritsParentDepthButIsolatesOwnEntries()
+    public void ChildThread_HasIndependentDepthAndKeys()
     {
-        // AsyncLocal propagates a COPY into child tasks. The child can observe the
-        // parent depth but its own TryEnter mutations don't bleed back to the parent.
+        // The guard is thread-local so reentrance is tracked per-thread. This is
+        // what makes it robust across the COM/JTF boundary that triggers cross
+        // when DTE.ExecuteCommand pumps an inner Exec on the same UI thread
+        // (madskristensen/Macros#12). A separate OS thread, however, starts with
+        // a fresh depth/key set and cannot affect the parent thread's state.
         var guard = new TriggerReentranceGuard();
         guard.TryEnter("parent-key", out var parentScope);
 
         int childDepthBeforeEnter = -1;
-        bool childEnteredNewKey = false;
+        bool childEnteredParentKey = false;
+        int childDepthAfterEnter = -1;
 
-        await Task.Run(() =>
+        var t = new System.Threading.Thread(() =>
         {
-            // Child inherits depth=1 from parent.
             childDepthBeforeEnter = guard.CurrentDepth;
-
-            // Child can enter a new key — it doesn't see "parent-key" as owned
-            // because AsyncLocal copies are independent value snapshots.
-            childEnteredNewKey = guard.TryEnter("child-key", out var childScope);
+            childEnteredParentKey = guard.TryEnter("parent-key", out var childScope);
+            childDepthAfterEnter = guard.CurrentDepth;
             childScope?.Dispose();
         });
+        t.Start();
+        t.Join();
 
-        // Parent context: depth still 1, "parent-key" still locked.
+        // Child thread sees fresh state — depth 0, no keys held.
+        Assert.Equal(0, childDepthBeforeEnter);
+        Assert.True(childEnteredParentKey);
+        Assert.Equal(1, childDepthAfterEnter);
+
+        // Parent thread: depth still 1, "parent-key" still locked here.
         Assert.Equal(1, guard.CurrentDepth);
         var parentReenter = guard.TryEnter("parent-key", out _);
         Assert.False(parentReenter);

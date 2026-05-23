@@ -78,6 +78,55 @@ public sealed class CommandTriggerDispatcherReentranceTests
     }
 
     [Fact]
+    public void DispatchBefore_DeepRecursion_IsBounded_DoesNotStackOverflow()
+    {
+        // Regression for madskristensen/Macros#12: a macro bound to BeforeCommand X
+        // whose body calls ExecuteCommandAsync("X") would recursively dispatch
+        // itself when the guard didn't survive the dispatch boundary, freezing VS.
+        // Even without any prior outer scope (the "manual run" case), the guard
+        // must cap the recursion at MaxDepth so the call returns in bounded time.
+        CommandTriggerDispatcher? dispatcher = null;
+        int playCount = 0;
+
+        var registry = new ReentranceFakeRegistry();
+        registry.BeforeMatches[SampleCommand] = new List<TriggerMatch>
+        {
+            new(MakeEntry("SelfTriggering", SampleCommand, TriggerKind.BeforeCommand),
+                new TriggerBinding(TriggerKind.BeforeCommand, SampleCommand)),
+        };
+
+        var player = new ReentranceFakePlayer(onPlay: (_, _, _, _) =>
+        {
+            playCount++;
+            // Every macro execution attempts to re-dispatch the same command, exactly
+            // like a real macro calling ExecuteCommandAsync(SampleCommand) on itself.
+            dispatcher!.DispatchBefore(SampleGroup, SampleId);
+            return Task.FromResult(new MacroPlayResult(true, null, null, TimeSpan.Zero));
+        });
+
+        var guard = new TriggerReentranceGuard();
+        var cache = CreateNameCache();
+        dispatcher = new CommandTriggerDispatcher(
+            registry, player, cache,
+            beforeTimeoutMsProvider: () => 2000,
+            jtf: CreateJtf(),
+            guard: guard,
+            sourceLoader: _ => "// source");
+
+        // Drive the dispatcher twice in a row to verify the guard releases its scope
+        // after each top-level dispatch; before the fix, a leaked Releaser left depth
+        // pinned at 1 forever, eventually suppressing every future BeforeCommand.
+        dispatcher.DispatchBefore(SampleGroup, SampleId);
+        Assert.Equal(1, playCount);
+
+        playCount = 0;
+        dispatcher.DispatchBefore(SampleGroup, SampleId);
+        Assert.Equal(1, playCount);
+
+        Assert.Equal(0, guard.CurrentDepth);
+    }
+
+    [Fact]
     public void DispatchBefore_WithGuard_NoFalsePositive_DifferentCommandNotSuppressed()
     {
         // "before:Edit.Paste" guard must not suppress "before:File.Save"

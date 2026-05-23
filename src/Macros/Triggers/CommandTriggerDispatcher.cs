@@ -166,13 +166,12 @@ internal sealed class CommandTriggerDispatcher
         matches = allowed;
 
         var key = $"before:{commandName}";
-        if (_reentranceGuard != null && !_reentranceGuard.TryEnter(key, out var beforeScope))
+        IDisposable? beforeScope = null;
+        if (_reentranceGuard is not null && !_reentranceGuard.TryEnter(key, out beforeScope))
         {
+            // Reentrant dispatch for the same command — suppress silently so the
+            // user's command continues normally and the macro can't recurse into itself.
             return false;
-        }
-        else
-        {
-            beforeScope = null; // guard not in use — no scope to release
         }
 
         using (beforeScope)
@@ -295,13 +294,10 @@ internal sealed class CommandTriggerDispatcher
             var guard = _reentranceGuard;
             _jtf.RunAsync(async () =>
             {
-                if (guard != null && !guard.TryEnter(key, out var afterScope))
+                IDisposable? afterScope = null;
+                if (guard is not null && !guard.TryEnter(key, out afterScope))
                 {
                     return;
-                }
-                else
-                {
-                    afterScope = null; // guard not in use
                 }
 
                 using (afterScope)

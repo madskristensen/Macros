@@ -5,7 +5,7 @@ using System.Threading;
 namespace Macros.Engine.Triggers;
 
 /// <summary>
-/// AsyncLocal-based reentrance guard for the macro trigger pipeline.
+/// Thread-local reentrance guard for the macro trigger pipeline.
 /// Prevents a trigger from re-firing itself (directly or transitively) and caps the
 /// maximum depth of trigger-induced execution at <see cref="MaxDepth"/>.
 /// </summary>
@@ -22,9 +22,18 @@ namespace Macros.Engine.Triggers;
 /// the AfterCommand guard for the same command name.
 /// </para>
 /// <para>
-/// <see cref="AsyncLocal{T}"/> propagates a <em>copy</em> of the state into child
-/// execution contexts, so a child task that enters its own scopes cannot affect the
-/// parent, and the depth/key-set naturally tracks per-async-chain reentrance.
+/// <b>Why thread-local instead of <see cref="AsyncLocal{T}"/>?</b> Trigger reentrance
+/// typically occurs when a macro's <c>ExecuteCommandAsync</c> call dispatches a VS
+/// command through COM (<c>DTE.ExecuteCommand</c> → OLE message pump →
+/// <c>IOleCommandTarget.Exec</c> on the priority target). The inner <c>Exec</c>
+/// callback can arrive on a fresh <see cref="ExecutionContext"/> (the OLE pump does
+/// not always preserve the caller's EC), so an <see cref="AsyncLocal{T}"/>-based
+/// guard sees <c>depth == 0</c> and fails to suppress the recursion — re-running the
+/// macro, which re-issues the command, ad infinitum until VS freezes (see
+/// <c>madskristensen/Macros#12</c>). All Before/After dispatch happens on the UI
+/// thread (priority command targets and <c>CommandEvents.AfterExecute</c> are both
+/// UI-thread bound), so a per-thread store reliably catches the recursion regardless
+/// of EC flow across COM/JTF boundaries.
 /// </para>
 /// </remarks>
 internal sealed class TriggerReentranceGuard
@@ -32,11 +41,11 @@ internal sealed class TriggerReentranceGuard
     /// <summary>Maximum nesting depth of trigger-induced executions allowed.</summary>
     public const int MaxDepth = 3;
 
-    private readonly AsyncLocal<int> _depth = new();
-    private readonly AsyncLocal<HashSet<string>?> _activeKeys = new();
+    private readonly ThreadLocal<int> _depth = new(() => 0);
+    private readonly ThreadLocal<HashSet<string>?> _activeKeys = new(() => null);
 
     /// <summary>
-    /// Gets the current trigger nesting depth in this async context.
+    /// Gets the current trigger nesting depth on the calling thread.
     /// </summary>
     public int CurrentDepth => _depth.Value;
 
@@ -60,14 +69,17 @@ internal sealed class TriggerReentranceGuard
         scope = null;
         if (_depth.Value >= MaxDepth) return false;
 
-        var set = _activeKeys.Value ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        if (set.Contains(key)) return false;
+        var set = _activeKeys.Value;
+        if (set is not null && set.Contains(key)) return false;
 
-        // Snapshot the previous set so the Releaser can restore it exactly, keeping
-        // parent-context sets untouched (AsyncLocal copy-on-write semantics).
-        var newSet = new HashSet<string>(set, StringComparer.OrdinalIgnoreCase) { key };
+        // Snapshot the previous set so the Releaser can restore it exactly, leaving
+        // any parent scope's set untouched.
+        var newSet = set is null
+            ? new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            : new HashSet<string>(set, StringComparer.OrdinalIgnoreCase);
+        newSet.Add(key);
         _activeKeys.Value = newSet;
-        _depth.Value++;
+        _depth.Value = _depth.Value + 1;
         scope = new Releaser(this, set);
         return true;
     }

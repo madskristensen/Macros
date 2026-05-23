@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.0.0] - 2026-XX-XX
 
+### Fixed
+
+- BeforeCommand triggers no longer freeze Visual Studio when a macro calls `ExecuteCommandAsync` for the command it is bound to. The reentrance guard now uses thread-local state so it survives the COM/OLE pump boundary that the inner `DTE.ExecuteCommand` crosses, and the guard scope returned by `TryEnter` is no longer leaked — so depth is properly released after each top-level dispatch ([#12](https://github.com/madskristensen/Macros/issues/12)).
+
 ### Added — Recording (M1 + M2)
 
 - Record IDE actions with `Ctrl+Shift+R` (Stop with `Ctrl+Shift+P`)
